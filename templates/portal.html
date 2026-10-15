@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRẦN BÌNH AUTO | Cổng Quản Lý Tập Trung</title>
+    <!-- Bootstrap 5 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #090b10;
+            --card-bg: rgba(22, 27, 44, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-hover-border: rgba(56, 189, 248, 0.35);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(30, 58, 138, 0.35) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(217, 119, 6, 0.2) 0%, transparent 40%),
+                radial-gradient(circle at 50% 10%, rgba(147, 51, 234, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.8) 0%, var(--bg-color) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px 16px 20px;
+        }
+
+        .hub-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ── Header ── */
+        .hub-header {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .hub-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-size: 0.82rem;
+            color: #38bdf8;
+            font-weight: 600;
+            margin-bottom: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .hub-title {
+            font-size: 2.3rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hub-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            max-width: 680px;
+            margin: 0 auto 20px;
+            line-height: 1.6;
+        }
+
+        /* ── Top Action Buttons ── */
+        .hub-top-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .btn-add-app {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: #fff;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 12px;
+            padding: 10px 22px;
+            font-weight: 700;
+            font-size: 0.92rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+        }
+
+        .btn-add-app:hover {
+            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+        }
+
+        /* ── App Cards Grid ── */
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 22px;
+            margin-bottom: 40px;
+        }
+
+        .app-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 26px 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .app-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            opacity: 0.85;
+        }
+
+        .app-card.theme-green::before  { background: linear-gradient(90deg, #30d158, #0071e3); }
+        .app-card.theme-yellow::before { background: linear-gradient(90deg, #ffd60a, #ff9500); }
+        .app-card.theme-purple::before { background: linear-gradient(90deg, #c084fc, #9333ea); }
+        .app-card.theme-blue::before   { background: linear-gradient(90deg, #38bdf8, #0284c7); }
+        .app-card.theme-red::before    { background: linear-gradient(90deg, #f87171, #dc2626); }
+
+        .app-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--card-hover-border);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+            color: inherit;
+        }
+
+        .app-icon-box {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 18px;
+            transition: transform 0.25s;
+        }
+
+        .app-card:hover .app-icon-box {
+            transform: scale(1.08);
+        }
+
+        .icon-green  { background: rgba(48, 209, 88, 0.12); color: #30d158; border: 1px solid rgba(48, 209, 88, 0.25); }
+        .icon-yellow { background: rgba(255, 214, 10, 0.12); color: #ffd60a; border: 1px solid rgba(255, 214, 10, 0.25); }
+        .icon-purple { background: rgba(168, 85, 247, 0.12); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.25); }
+        .icon-blue   { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); }
+        .icon-red    { background: rgba(248, 113, 113, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.25); }
+
+        .app-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+
+        .status-active {
+            background: rgba(48, 209, 88, 0.12);
+            color: #30d158;
+            border: 1px solid rgba(48, 209, 88, 0.25);
+        }
+
+        .status-disabled {
+            background: rgba(148, 163, 184, 0.12);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .app-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .app-desc {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 18px;
+            min-height: 44px;
+        }
+
+        .app-features {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 22px;
+        }
+
+        .app-features li {
+            font-size: 0.82rem;
+            color: #cbd5e1;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-features li i {
+            color: #38bdf8;
+            font-size: 0.86rem;
+        }
+
+        .app-action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.92rem;
+            transition: all 0.2s;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-theme-green  { background: linear-gradient(135deg, #0071e3 0%, #0056b3 100%); color: #fff; }
+        .btn-theme-yellow { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #fff; }
+        .btn-theme-purple { background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%); color: #fff; }
+        .btn-theme-blue   { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #fff; }
+        .btn-theme-red    { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: #fff; }
+
+        .btn-theme-green:hover, .btn-theme-yellow:hover, .btn-theme-purple:hover, .btn-theme-blue:hover, .btn-theme-red:hover {
+            color: #fff;
+            filter: brightness(1.1);
+        }
+
+        /* ── Card Thêm Mới Dạng Nhanh ── */
+        .card-add-placeholder {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 20px;
+            cursor: pointer;
+            transition: all 0.25s;
+            text-align: center;
+            min-height: 280px;
+        }
+
+        .card-add-placeholder:hover {
+            border-color: #38bdf8;
+            background: rgba(56, 189, 248, 0.05);
+            transform: translateY(-4px);
+        }
+
+        /* ── Footer ── */
+        .hub-footer {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* Modal styling */
+        .modal-content {
+            background-color: #111422;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+        }
+        .modal-header { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        .modal-footer { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        .form-control, .form-select {
+            background-color: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #38bdf8;
+            color: #fff;
+            box-shadow: 0 0 0 0.25rem rgba(56, 189, 248, 0.25);
+        }
+        .form-select option { background-color: #1a1d2e; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="hub-container">
+    <!-- Header -->
+    <header class="hub-header">
+        <div class="hub-badge">
+            <i class="bi bi-shield-check"></i> HỆ THỐNG QUẢN TRỊ GARA NỘI BỘ
+        </div>
+        <h1 class="hub-title">TRẦN BÌNH AUTO</h1>
+        <p class="hub-subtitle">
+            Cổng điều hành hợp nhất đa phân hệ. Quản lý bán hàng, doanh thu đèn xe, thu chi nội bộ và mở rộng không giới hạn.
+        </p>
+        
+        <!-- Nút Thêm Phân Hệ Nhanh -->
+        <div class="hub-top-actions">
+            <button class="btn btn-add-app" data-bs-toggle="modal" data-bs-target="#modalAddApp">
+                <i class="bi bi-plus-circle-fill"></i> Thêm Phân Hệ Mới
+            </button>
+        </div>
+    </header>
+
+    <!-- App Cards Grid (Tự Động Render Theo Cấu Hình) -->
+    <div class="apps-grid">
+
+        {% for a in apps %}
+        <div class="app-card theme-{{ a.theme_color or 'blue' }}">
+            <div>
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="app-icon-box icon-{{ a.theme_color or 'blue' }}">
+                        <i class="bi {{ a.icon or 'bi-app-indicator' }}"></i>
+                    </div>
+                    <!-- Menu thao tác phụ -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-link text-white-50 p-1" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end shadow">
+                            <li>
+                                <a class="dropdown-item small" href="javascript:void(0)" onclick="toggleApp('{{ a.id }}')">
+                                    <i class="bi bi-toggle-on me-2"></i> {{ 'Tạm Tắt' if a.status == 'active' else 'Bật Lại' }}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item small text-danger" href="javascript:void(0)" onclick="deleteApp('{{ a.id }}', '{{ a.name }}')">
+                                    <i class="bi bi-trash me-2"></i> Xóa Khỏi Hub
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="app-status {{ 'status-active' if a.status == 'active' else 'status-disabled' }}">
+                    <span style="width: 7px; height: 7px; background: {{ '#30d158' if a.status == 'active' else '#94a3b8' }}; border-radius: 50%; display: inline-block;"></span>
+                    {{ 'Đang hoạt động' if a.status == 'active' else 'Tạm tắt' }}
+                </div>
+
+                <h2 class="app-name">{{ a.name }}</h2>
+                <p class="app-desc">{{ a.desc }}</p>
+
+                <ul class="app-features">
+                    {% for f in a.features %}
+                    <li><i class="bi bi-check2-circle"></i> {{ f }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            {% if a.status == 'active' %}
+            <a href="{{ a.prefix }}/" class="app-action-btn btn-theme-{{ a.theme_color or 'blue' }}">
+                <span>Vào {{ a.name }}</span>
+                <i class="bi bi-arrow-right"></i>
+            </a>
+            {% else %}
+            <button class="app-action-btn btn-secondary disabled" style="opacity: 0.5;">
+                <span>Ứng Dụng Đang Tạm Dừng</span>
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Thẻ Bấm Nhanh Thêm Mới -->
+        <div class="card-add-placeholder" data-bs-toggle="modal" data-bs-target="#modalAddApp">
+            <div class="d-inline-flex p-3 rounded-circle bg-primary bg-opacity-10 text-primary mb-3">
+                <i class="bi bi-plus-lg fs-2"></i>
+            </div>
+            <h5 class="fw-bold text-white mb-2">Thêm Phân Hệ Mới</h5>
+            <p class="text-white-50 small mb-0" style="max-width: 260px;">
+                Tự động tạo khung ứng dụng mới hoặc nạp mã nguồn phân hệ bạn vừa viết xong.
+            </p>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal Thêm Phân Hệ / App Mới -->
+<div class="modal fade" id="modalAddApp" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold text-white">
+                    <i class="bi bi-plus-circle-fill text-primary me-2"></i>Đăng Ký Phân Hệ / Ứng Dụng Mới
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAddApp" onsubmit="submitAddApp(event)" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label small fw-bold text-white-50">Tên Ứng Dụng *</label>
+                            <input type="text" name="name" id="app_name" class="form-control" placeholder="Ví dụ: Quản Lý Bảo Dưỡng, Chấm Công..." required oninput="autoGenerateId()">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-white-50">Mã Định Danh (ID & URL) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark border-secondary text-white-50">/</span>
+                                <input type="text" name="id" id="app_id" class="form-control" placeholder="baoduong" required pattern="[a-z0-9_]+" title="Chỉ dùng chữ cái thường, số và dấu gạch dưới">
+                                <span class="input-group-text bg-dark border-secondary text-white-50">/</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-white-50">Mô Tả Ngắn</label>
+                            <input type="text" name="desc" class="form-control" placeholder="Mô tả chức năng chính của phân hệ này...">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-white-50">Biểu Tượng (Icon)</label>
+                            <select name="icon" class="form-select">
+                                <option value="bi-tools">🔧 Công cụ & Kỹ thuật (bi-tools)</option>
+                                <option value="bi-calendar-check">📅 Lịch hẹn & Chấm công (bi-calendar-check)</option>
+                                <option value="bi-people-fill">👥 Khách hàng CRM (bi-people-fill)</option>
+                                <option value="bi-speedometer2">🚗 Quản lý xe (bi-speedometer2)</option>
+                                <option value="bi-box-seam">📦 Kho hàng phụ tùng (bi-box-seam)</option>
+                                <option value="bi-cash-stack">💵 Doanh thu & Dòng tiền (bi-cash-stack)</option>
+                                <option value="bi-graph-up-arrow">📈 Thống kê & Phân tích (bi-graph-up-arrow)</option>
+                                <option value="bi-gear-wide-connected">⚙️ Cài đặt hệ thống (bi-gear-wide-connected)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-white-50">Tông Màu Thẻ</label>
+                            <select name="theme_color" class="form-select">
+                                <option value="blue">🔵 Xanh Dương (Blue)</option>
+                                <option value="green">🟢 Xanh Lá Cây (Green)</option>
+                                <option value="yellow">🟡 Vàng Cam (Yellow)</option>
+                                <option value="purple">🟣 Tím Hiện Đại (Purple)</option>
+                                <option value="red">🔴 Đỏ Đậm (Red)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-white-50">Các Tính Năng Nổi Bật (Mỗi dòng 1 tính năng)</label>
+                            <textarea name="features" class="form-control" rows="3" placeholder="Nhắc việc bảo dưỡng định kỳ&#10;In biên nhận bàn giao xe&#10;Gửi thông báo Zalo"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="p-3 rounded-3" style="background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.3);">
+                                <label class="form-label small fw-bold text-info mb-1">
+                                    <i class="bi bi-file-earmark-zip me-1"></i> Tải Lên Mã Nguồn Zip (Không bắt buộc)
+                                </label>
+                                <p class="text-white-50 small mb-2">
+                                    Nếu để trống, hệ thống sẽ <strong>tự động tạo sẵn 1 thư mục code chuẩn</strong> từ khung mẫu để bạn có thể vào sửa code sau.
+                                </p>
+                                <input type="file" name="zip_file" class="form-control" accept=".zip">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4" id="btnSubmitAddApp">
+                        <i class="bi bi-check2-circle me-1"></i> Tạo Phân Hệ Ngay
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="hub-footer">
+    <div class="container text-center">
+        <p class="mb-1">⚡ Hệ thống quản trị nội bộ xưởng dịch vụ Trần Bình Auto</p>
+        <p class="text-white-50 small mb-0">Hỗ trợ hoạt động 24/7 trên tài khoản đám mây PythonAnywhere</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Tự sinh ID định danh không dấu khi người dùng gõ Tên app
+    function autoGenerateId() {
+        const nameVal = document.getElementById('app_name').value;
+        const idInput = document.getElementById('app_id');
+        if (idInput.dataset.manualEdited === 'true') return;
+        
+        let slug = nameVal.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[đĐ]/g, "d")
+            .replace(/[^a-z0-9]/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_+|_+$/g, "");
+            
+        idInput.value = slug;
+    }
+
+    document.getElementById('app_id').addEventListener('input', function() {
+        this.dataset.manualEdited = 'true';
+    });
+
+    async function submitAddApp(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitAddApp');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang tạo...';
+
+        const form = document.getElementById('formAddApp');
+        const formData = new FormData(form);
+
+        try {
+            const res = await fetch('/api/hub/add-app', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('🎉 ' + data.message);
+                window.location.reload();
+            } else {
+                alert('❌ Lỗi: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Tạo Phân Hệ Ngay';
+            }
+        } catch (err) {
+            alert('❌ Lỗi kết nối khi tạo app: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Tạo Phân Hệ Ngay';
+        }
+    }
+
+    async function toggleApp(appId) {
+        if (!confirm('Bạn có muốn đổi trạng thái Bật / Tắt của phân hệ này?')) return;
+        try {
+            const res = await fetch('/api/hub/toggle-app/' + appId, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            }
+        } catch (e) {
+            alert('Lỗi thao tác: ' + e);
+        }
+    }
+
+    async function deleteApp(appId, appName) {
+        if (!confirm(`Bạn có chắc chắn muốn XÓA phân hệ "${appName}" khỏi màn hình Hub không?\n(Mã nguồn và dữ liệu cơ sở dữ liệu của app vẫn được giữ an toàn trên đĩa).`)) return;
+        try {
+            const res = await fetch('/api/hub/delete-app/' + appId, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            }
+        } catch (e) {
+            alert('Lỗi: ' + e);
+        }
+    }
+</script>
+</body>
+</html>

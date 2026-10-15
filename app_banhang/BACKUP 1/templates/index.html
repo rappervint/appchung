@@ -1,0 +1,2245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tiệm Lắp Đồ Dùm - Hệ Thống Quản Lý</title>
+    <!-- Bootstrap 5 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <!-- Google Fonts Inter for Apple SF-like typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --mac-bg: #0c0d14;
+            --mac-window-bg: #141724;
+            --mac-card-bg: #1b1f2e;
+            --mac-card-border: rgba(255, 255, 255, 0.08);
+            --mac-input-bg: rgba(255, 255, 255, 0.05);
+            --mac-input-border: rgba(255, 255, 255, 0.12);
+            --apple-blue: #0071e3;
+            --apple-blue-hover: #0077ed;
+            --apple-green: #30d158;
+            --apple-yellow: #ffd60a;
+            --apple-red: #ff453a;
+            --text-primary: #f5f5f7;
+            --text-secondary: rgba(245, 245, 247, 0.65);
+            --text-muted: rgba(245, 245, 247, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0b0d14;
+            background-image: radial-gradient(circle at 15% 15%, #18172c 0%, #0d0e17 50%, #08090d 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Plus Jakarta Sans", sans-serif;
+            padding: 24px 16px 40px;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ================= macOS WINDOW CONTAINER (Tối ưu GPU: bỏ backdrop-filter 50px gây lag) ================= */
+        .mac-window {
+            max-width: 1240px;
+            margin: 0 auto;
+            background: var(--mac-window-bg);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6),
+                        0 0 0 1px rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ================= macOS TITLE BAR ================= */
+        .mac-titlebar {
+            height: 52px;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 18px;
+            user-select: none;
+        }
+
+        .mac-traffic-lights {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 140px;
+        }
+
+        .traffic-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+            color: rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+
+        .dot-red { background: #ff5f56; border: 0.5px solid rgba(0,0,0,0.2); }
+        .dot-yellow { background: #ffbd2e; border: 0.5px solid rgba(0,0,0,0.2); }
+        .dot-green { background: #27c93f; border: 0.5px solid rgba(0,0,0,0.2); }
+        .traffic-dot span { opacity: 0; transition: opacity 0.15s; }
+        .mac-traffic-lights:hover .traffic-dot span { opacity: 1; }
+
+        .mac-titlebar-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mac-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.06);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .status-indicator {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--apple-green);
+            box-shadow: 0 0 8px var(--apple-green);
+        }
+
+        /* ================= macOS TOOLBAR & SEGMENTED CONTROLS ================= */
+        .mac-toolbar {
+            padding: 14px 22px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.015);
+        }
+
+        .mac-segmented {
+            background: rgba(0, 0, 0, 0.35);
+            padding: 3px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: inline-flex;
+            gap: 3px;
+        }
+
+        .mac-segmented .nav-link {
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 7px 18px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            border-radius: 9px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .mac-segmented .nav-link:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .mac-segmented .nav-link.active {
+            background: rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+
+        /* ================= macOS BODY CONTENT ================= */
+        .mac-body {
+            padding: 26px 26px 34px;
+        }
+
+        /* ================= APPLE CARDS ================= */
+        .mac-card {
+            background: var(--mac-card-bg);
+            border: 1px solid var(--mac-card-border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            margin-bottom: 20px;
+        }
+
+        .mac-card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ================= FORM CONTROLS ================= */
+        .form-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            letter-spacing: -0.1px;
+        }
+
+        .form-control, .form-select {
+            background-color: var(--mac-input-bg) !important;
+            border: 1px solid var(--mac-input-border) !important;
+            color: #ffffff !important;
+            border-radius: 10px !important;
+            font-size: 0.92rem;
+            padding: 9px 13px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.3) !important;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            border-color: var(--apple-blue) !important;
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.35) !important;
+            outline: none;
+        }
+
+        .input-group-text {
+            background-color: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid var(--mac-input-border) !important;
+            color: var(--text-secondary) !important;
+            border-radius: 10px !important;
+        }
+
+        /* ================= APPLE BUTTONS ================= */
+        .btn-mac-primary {
+            background: linear-gradient(180deg, #0077ed 0%, #0062c4 100%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #fff;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 8px 18px;
+            font-size: 0.92rem;
+            box-shadow: 0 4px 14px rgba(0, 119, 237, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+            transition: all 0.15s ease;
+        }
+
+        .btn-mac-primary:hover {
+            filter: brightness(1.1);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-mac-primary:active {
+            transform: scale(0.98);
+            filter: brightness(0.95);
+        }
+
+        .btn-mac-success {
+            background: linear-gradient(180deg, #34c759 0%, #248a3d 100%);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #fff;
+            font-weight: 700;
+            border-radius: 12px;
+            padding: 12px 28px;
+            font-size: 1.05rem;
+            box-shadow: 0 6px 20px rgba(52, 199, 89, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            transition: all 0.15s ease;
+        }
+
+        .btn-mac-success:hover {
+            filter: brightness(1.12);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-mac-success:active {
+            transform: scale(0.98);
+        }
+
+        .btn-mac-ghost {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-primary);
+            font-weight: 500;
+            border-radius: 10px;
+            padding: 8px 16px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-mac-ghost:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+        }
+
+        .btn-mac-del {
+            background: rgba(255, 69, 58, 0.12);
+            border: 1px solid rgba(255, 69, 58, 0.25);
+            color: var(--apple-red);
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .btn-mac-del:hover {
+            background: rgba(255, 69, 58, 0.25);
+            color: #fff;
+            transform: scale(1.05);
+        }
+
+        /* ================= TABLES ================= */
+        .mac-table-wrapper {
+            background: rgba(15, 17, 24, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .table-mac {
+            width: 100%;
+            margin-bottom: 0;
+            color: var(--text-primary);
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .table-mac th {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .table-mac td {
+            padding: 13px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.92rem;
+            vertical-align: middle;
+        }
+
+        .table-mac tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table-mac tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* ================= APPLE BADGES ================= */
+        .badge-apple {
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .badge-apple-green {
+            background: rgba(48, 209, 88, 0.15);
+            color: #30d158;
+            border: 1px solid rgba(48, 209, 88, 0.3);
+        }
+
+        .badge-apple-yellow {
+            background: rgba(255, 214, 10, 0.15);
+            color: #ffd60a;
+            border: 1px solid rgba(255, 214, 10, 0.3);
+        }
+
+        .badge-apple-red {
+            background: rgba(255, 69, 58, 0.15);
+            color: #ff453a;
+            border: 1px solid rgba(255, 69, 58, 0.3);
+        }
+
+        .badge-apple-blue {
+            background: rgba(0, 113, 227, 0.15);
+            color: #5ac8fa;
+            border: 1px solid rgba(0, 113, 227, 0.3);
+        }
+
+        /* ================= SEARCH CARDS ================= */
+        /* ================= SEARCH CARDS (Tối ưu cuộn mượt mà 60/120fps) ================= */
+        .order-card {
+            background: var(--mac-card-bg);
+            border: 1px solid var(--mac-card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: border-color 0.15s ease;
+            margin-bottom: 18px;
+            contain: content;
+        }
+
+        .order-card:hover {
+            border-color: rgba(0, 113, 227, 0.5);
+        }
+
+        .order-card-header {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .order-plate {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #5ac8fa;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ================= TOAST NOTIFICATION (macOS Style) ================= */
+        .mac-toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .mac-toast {
+            pointer-events: auto;
+            background: #232738;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+            border-radius: 14px;
+            padding: 14px 18px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 320px;
+            max-width: 420px;
+            animation: toastIn 0.25s ease-out;
+            margin-bottom: 10px;
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+        /* ================= TỐI ƯU RIÊNG CHO MÀN DỌC ĐIỆN THOẠI (< 768px) =================
+           Giữ nguyên 100% giao diện ngang PC (>= 768px), chỉ tự động co giãn thông minh trên điện thoại */
+        @media (max-width: 767.98px) {
+            body {
+                padding: 0 0 20px 0;
+            }
+            .mac-window {
+                border-radius: 0;
+                border-left: none;
+                border-right: none;
+                border-top: none;
+                box-shadow: none;
+            }
+            .mac-titlebar {
+                height: 44px;
+                padding: 0 12px;
+            }
+            .mac-traffic-lights {
+                display: none;
+            }
+            .mac-toolbar {
+                padding: 8px 10px;
+                position: sticky;
+                top: 0;
+                z-index: 1020;
+                background: rgba(20, 23, 36, 0.96);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            #pills-tab {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                width: 100%;
+                gap: 4px;
+                padding: 4px;
+            }
+            #pills-tab .nav-item {
+                width: 100%;
+            }
+            #pills-tab .nav-link {
+                width: 100%;
+                justify-content: center;
+                padding: 8px 6px;
+                font-size: 0.82rem;
+            }
+            .mac-body {
+                padding: 12px 10px 24px;
+            }
+            .mac-card {
+                padding: 14px 12px;
+                border-radius: 14px;
+                margin-bottom: 12px;
+            }
+            /* Chống Safari iPhone tự zoom khi chạm vào ô input */
+            .form-control, .form-select {
+                font-size: 16px !important;
+                padding: 8px 10px;
+            }
+            .btn-mac-success {
+                width: 100%;
+                padding: 12px 18px;
+                font-size: 1rem;
+            }
+            .mac-toast-container {
+                top: 12px;
+                right: 10px;
+                left: 10px;
+            }
+            .mac-toast {
+                min-width: unset;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            /* Biến bảng ngang thành thẻ dọc gọn gàng trên màn hình dọc điện thoại (không cần kéo ngang) */
+            .table-mobile-stack thead {
+                display: none;
+            }
+            .table-mobile-stack,
+            .table-mobile-stack tbody {
+                display: block;
+                width: 100%;
+            }
+            .table-mobile-stack tbody tr {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 12px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                gap: 6px;
+            }
+            .table-mobile-stack tbody td {
+                border-bottom: none !important;
+                padding: 2px 4px !important;
+            }
+            .table-mobile-stack tbody td[data-label]::before {
+                content: attr(data-label) ": ";
+                font-size: 0.75rem;
+                color: rgba(245, 245, 247, 0.5);
+                font-weight: 500;
+            }
+            .table-mobile-stack tbody td.mobile-full-row {
+                width: 100%;
+                padding-bottom: 4px !important;
+            }
+            .checkout-action-box {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- macOS Toast Container -->
+<div class="mac-toast-container" id="toast-container"></div>
+
+<!-- MAIN macOS APP WINDOW -->
+<div class="mac-window">
+
+    <!-- macOS TITLEBAR -->
+    <div class="mac-titlebar">
+        <div class="mac-traffic-lights">
+            <div class="traffic-dot dot-red" title="Đóng"><span>✕</span></div>
+            <div class="traffic-dot dot-yellow" title="Thu nhỏ"><span>−</span></div>
+            <div class="traffic-dot dot-green" title="Toàn màn hình"><span>＋</span></div>
+        </div>
+
+        <div class="mac-titlebar-title">
+            <i class="bi bi-car-front-fill text-primary"></i>
+            <span>Tiệm Lắp Đồ Dùm</span>
+            <span class="badge bg-secondary bg-opacity-25 text-white-50 border border-secondary border-opacity-25 px-2 py-0" style="font-size: 0.68rem; font-weight: 500;">v2.6 • Pro</span>
+        </div>
+
+        <div class="mac-status-pill">
+            <span class="status-indicator"></span>
+            <span id="mac-clock">--:--:--</span>
+        </div>
+    </div>
+
+    <!-- macOS TOOLBAR (SEGMENTED TABS) -->
+    <div class="mac-toolbar">
+        <ul class="nav mac-segmented" id="pills-tab" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-add">
+                    <i class="bi bi-pencil-square"></i>Nhập Đơn
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-search" onclick="loadOrders()">
+                    <i class="bi bi-search"></i>Tra Cứu & Bảo Hành
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-price" onclick="loadPrices()">
+                    <i class="bi bi-boxes"></i>Kho Hàng & Giá
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-sys" onclick="loadNetworkInfo()">
+                    <i class="bi bi-gear-fill"></i>Hệ Thống & Tên Miền
+                </button>
+            </li>
+        </ul>
+
+        <div class="d-none d-md-flex align-items-center gap-2">
+            <span class="badge-apple badge-apple-green" style="cursor: pointer;" onclick="copyDomainUrl('http://tiemlapdo.local')" title="Bấm để sao chép tên miền truy cập từ điện thoại/máy khác">
+                <i class="bi bi-globe2"></i> Tên miền Wi-Fi: <strong id="toolbar-domain-text">tiemlapdo.local</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- macOS WINDOW BODY -->
+    <div class="mac-body">
+        <div class="tab-content">
+
+            <!-- TAB 1: NHẬP ĐƠN -->
+            <div class="tab-pane fade show active" id="tab-add">
+                
+                <!-- Card 1: Thông tin xe & khách -->
+                <!-- Card 1: Thông tin xe & khách -->
+                <div class="mac-card">
+                    <div class="mac-card-title">
+                        <i class="bi bi-person-vcard text-info"></i> Thông Tin Khách Hàng & Xe
+                    </div>
+                    <div class="row g-2 g-md-3">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Biển số xe (*)</label>
+                            <input type="text" id="plate" class="form-control text-uppercase fw-bold text-info" placeholder="VD: 51H-123.45">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Tên khách hàng</label>
+                            <input type="text" id="cus_name" class="form-control" placeholder="Nguyễn Văn A">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Số điện thoại</label>
+                            <input type="tel" id="cus_phone" class="form-control" placeholder="0901234567">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Ngày lắp đặt</label>
+                            <input type="date" id="install_date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Thêm món phụ kiện & Kiểm tra tồn kho -->
+                <div class="mac-card">
+                    <div class="mac-card-title d-flex flex-wrap justify-content-between align-items-center gap-1">
+                        <div><i class="bi bi-tools text-warning"></i> Thêm Món Phụ Kiện / Dịch Vụ</div>
+                        <span id="price_preview"></span>
+                    </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">Tên món đồ (Tự gợi ý giá & báo tồn kho)</label>
+                            <input type="text" id="item_name" class="form-control" placeholder="Gõ: Bi-LED, Láp, Mâm..." list="item_suggestions" oninput="autoFillPrice()">
+                            <datalist id="item_suggestions"></datalist>
+                        </div>
+                        <div class="col-4 col-md-1">
+                            <label class="form-label text-center d-block">SL</label>
+                            <input type="number" id="item_qty" class="form-control text-center fw-bold text-white" value="1" min="1" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addItem(); }">
+                        </div>
+                        <div class="col-8 col-md-2">
+                            <label class="form-label">Đơn giá gốc (VNĐ)</label>
+                            <input type="text" id="item_price" class="form-control fw-bold text-warning" placeholder="VD: 1000k, 1tr" autocomplete="off" oninput="handlePriceInput(this)" onblur="handlePriceBlur(this)" onfocus="this.select()" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addItem(); }">
+                        </div>
+                        <div class="col-5 col-md-2">
+                            <label class="form-label text-info"><i class="bi bi-percent"></i> Giảm giá món</label>
+                            <input type="text" id="item_discount" class="form-control" placeholder="VD: 10%, 50k" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addItem(); }">
+                        </div>
+                        <div class="col-3 col-md-1">
+                            <label class="form-label text-center d-block">BH</label>
+                            <div class="input-group">
+                                <input type="number" id="item_war" class="form-control px-2 text-center" value="12" onkeydown="if(event.key==='Enter'){ event.preventDefault(); addItem(); }">
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <button class="btn btn-mac-primary w-100 px-2" onclick="addItem()">
+                                <i class="bi bi-plus-lg me-1"></i> Thêm Món
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách món trong đơn (Cart) -->
+                <div class="mac-card p-0 mb-4 overflow-hidden">
+                    <div class="p-3 border-bottom border-white border-opacity-10 d-flex justify-content-between align-items-center bg-black bg-opacity-20">
+                        <span class="fw-semibold text-secondary small text-uppercase letter-spacing-1">
+                            <i class="bi bi-cart3 me-1"></i> Danh Sách Các Món Đã Chọn
+                        </span>
+                        <span id="cart-count-badge" class="badge-apple badge-apple-blue">0 món</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-mac table-mobile-stack">
+                            <thead>
+                                <tr>
+                                    <th style="width: 34%;">Tên Món Hàng / Dịch Vụ</th>
+                                    <th style="width: 9%;" class="text-center">Số Lượng</th>
+                                    <th style="width: 18%;">Đơn Giá Gốc</th>
+                                    <th style="width: 21%;">Giá Sau Khi Giảm</th>
+                                    <th style="width: 10%;">Bảo Hành</th>
+                                    <th style="width: 8%;" class="text-center">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cart-body">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-white-50 mobile-full-row">
+                                        <i class="bi bi-inbox fs-3 d-block mb-1 text-white-20"></i>
+                                        Chưa có món nào được thêm vào đơn hàng...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Thanh tổng kết thanh toán (Apple Checkout Bar) -->
+                <div class="mac-card d-flex flex-wrap justify-content-between align-items-center gap-3" style="background: rgba(18, 20, 28, 0.85); border-color: rgba(0, 113, 227, 0.25);">
+                    <div class="d-flex align-items-center flex-wrap gap-3" style="flex: 1; min-width: 260px;">
+                        <div class="input-group" style="max-width: 260px;">
+                            <span class="input-group-text"><i class="bi bi-tag text-warning me-1"></i> Giảm Bill:</span>
+                            <input type="text" id="order_discount" class="form-control" placeholder="VD: 5% hoặc 200k" oninput="renderCart()">
+                        </div>
+                        <div class="vr bg-secondary d-none d-sm-block" style="height: 38px; opacity: 0.3;"></div>
+                        <div id="checkout-summary-details" class="d-flex flex-wrap align-items-center gap-3 gap-md-4">
+                            <div>
+                                <span class="text-white-50 small d-block">Tổng tiền thanh toán</span>
+                                <h3 class="mb-0 fw-bold text-success" id="total-price" style="letter-spacing: -0.5px;">0 đ</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="checkout-action-box" style="min-width: 200px;">
+                        <button class="btn btn-mac-success w-100" onclick="saveOrder()">
+                            <i class="bi bi-check2-circle me-2"></i> LƯU ĐƠN HÀNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TRA CỨU & DANH SÁCH KHÁCH HÀNG -->
+            <div class="tab-pane fade" id="tab-search">
+                <div class="mac-card mb-4">
+                    <div class="mac-card-title d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div><i class="bi bi-people-fill text-primary me-1"></i> Danh Sách Khách Hàng & Tra Cứu Bảo Hành</div>
+                        <span class="badge-apple badge-apple-blue" id="customer-order-count">Đang tải...</span>
+                    </div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" id="search_q" class="form-control" placeholder="Tìm Biển số xe (VD: 51H), Tên khách, SĐT, hoặc Ngày..." onkeydown="if(event.key==='Enter') loadOrders()">
+                            </div>
+                        </div>
+                        <div class="col-8 col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-calendar-check text-info me-1"></i> Ngày:</span>
+                                <input type="date" id="search_date" class="form-control" onchange="loadOrders()">
+                                <button class="btn btn-mac-ghost px-2" onclick="document.getElementById('search_date').value=''; loadOrders();" title="Xóa lọc ngày">✕</button>
+                            </div>
+                        </div>
+                        <div class="col-4 col-md-2">
+                            <button class="btn btn-mac-primary w-100 px-2" onclick="loadOrders()">
+                                <i class="bi bi-search me-1"></i> Tra Cứu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="orders-list"></div>
+            </div>
+
+            <!-- TAB 3: KHO HÀNG & BẢNG GIÁ (CHUẨN 100% SHEET HÀNG HÓA EXCEL) -->
+            <div class="tab-pane fade" id="tab-price">
+                <!-- Thống kê tồn kho khớp 100% Excel (KPI Cards) -->
+                <div class="row g-2 g-md-3 mb-3 mb-md-4">
+                    <div class="col-6 col-md-3">
+                        <div class="mac-card p-3 mb-0 d-flex align-items-center gap-2 gap-md-3" onclick="setStockFilter('all')" style="cursor: pointer;" title="Xem toàn bộ 2.764 dòng trong Excel">
+                            <div class="rounded-circle p-2 bg-primary bg-opacity-20 text-primary fs-4 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                <i class="bi bi-boxes"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 small fw-semibold" style="font-size: 0.75rem;">Tổng Mã Hàng</div>
+                                <h4 class="mb-0 fw-bold text-white fs-5" id="stat-total">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="mac-card p-3 mb-0 d-flex align-items-center gap-2 gap-md-3" onclick="setStockFilter('in')" style="cursor: pointer;" title="Tổng cộng số lượng cột Tồn kho trong Excel">
+                            <div class="rounded-circle p-2 bg-info bg-opacity-20 text-info fs-4 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                <i class="bi bi-stack"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 small fw-semibold" style="font-size: 0.75rem;">Tổng Tồn Kho</div>
+                                <h4 class="mb-0 fw-bold text-info fs-5" id="stat-total-stock">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="mac-card p-3 mb-0 d-flex align-items-center gap-2 gap-md-3" onclick="setStockFilter('in')" style="cursor: pointer;" title="Các mặt hàng có Tồn kho > 0">
+                            <div class="rounded-circle p-2 bg-success bg-opacity-20 text-success fs-4 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                <i class="bi bi-check2-circle"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 small fw-semibold" style="font-size: 0.75rem;">Mã Còn Tồn (>0)</div>
+                                <h4 class="mb-0 fw-bold text-success fs-5" id="stat-in">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="mac-card p-3 mb-0 d-flex align-items-center gap-2 gap-md-3" onclick="setStockFilter('out')" style="cursor: pointer;" title="Các mặt hàng Hàng hóa có Tồn kho = 0">
+                            <div class="rounded-circle p-2 bg-danger bg-opacity-20 text-danger fs-4 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                <i class="bi bi-x-circle"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 small fw-semibold" style="font-size: 0.75rem;">Hàng Hết (=0)</div>
+                                <h4 class="mb-0 fw-bold text-danger fs-5" id="stat-out">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thanh tìm kiếm & bộ lọc phân loại -->
+                <div class="mac-card mb-3 mb-md-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <div class="mac-card-title mb-0">
+                            <i class="bi bi-file-earmark-spreadsheet-fill text-success"></i> Kho Hàng Hóa (Sheet HÀNG HÓA - Excel)
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-mac-ghost btn-sm" onclick="syncFromExcelFile()" title="Đọc lại toàn bộ dữ liệu gốc từ file TỔNG HỢP - 2022 - 2026.xlsx">
+                                <i class="bi bi-arrow-repeat text-info me-1"></i> Đồng Bộ Excel
+                            </button>
+                            <button class="btn btn-mac-primary btn-sm" onclick="openAddProductModal()">
+                                <i class="bi bi-plus-lg me-1"></i> Thêm Món Mới
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" id="search_price_q" class="form-control" placeholder="Tìm tên hàng, mã SP273..., hoặc nhóm hàng..." oninput="debounceLoadPrices()">
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <select id="sort_stock_select" class="form-select" onchange="loadPrices(1)">
+                                <option value="excel">📋 Thứ tự gốc Excel (Mới -> Cũ)</option>
+                                <option value="stock_desc">📦 Tồn kho: Nhiều -> Ít</option>
+                                <option value="stock_asc">⚠️ Tồn kho: Ít -> Nhiều</option>
+                                <option value="price_desc">💰 Giá bán: Cao -> Thấp</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <div class="mac-segmented w-100 justify-content-between justify-content-md-end" id="stock-filter-buttons">
+                                <button type="button" class="nav-link active px-2 px-md-3" onclick="setStockFilter('all', this)">Tất Cả</button>
+                                <button type="button" class="nav-link text-success px-2 px-md-3" onclick="setStockFilter('in', this)">Còn Tồn</button>
+                                <button type="button" class="nav-link text-danger px-2 px-md-3" onclick="setStockFilter('out', this)">Hết (0)</button>
+                                <button type="button" class="nav-link text-info px-2 px-md-3" onclick="setStockFilter('service', this)">Dịch Vụ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mac-table-wrapper mb-3">
+                    <div class="table-responsive">
+                        <table class="table-mac table-mobile-stack">
+                            <thead>
+                                <tr>
+                                    <th style="width: 11%;">Mã Hàng</th>
+                                    <th style="width: 31%;">Tên Hàng Hóa & Nhóm Hàng</th>
+                                    <th style="width: 12%;">Giá Vốn</th>
+                                    <th style="width: 14%;">Giá Bán (Bấm để sửa)</th>
+                                    <th style="width: 9%;">Bảo Hành</th>
+                                    <th style="width: 15%;" class="text-center">Tồn Kho</th>
+                                    <th style="width: 8%;" class="text-center">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="price-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Thanh phân trang xem toàn bộ 2.764 mặt hàng -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-2" id="stock-pagination-bar"></div>
+            </div>
+
+            <!-- TAB 4: HỆ THỐNG & TÊN MIỀN -->
+            <div class="tab-pane fade" id="tab-sys">
+                <div class="row g-4 justify-content-center">
+                    <!-- Cột 1: Tên miền dễ nhớ & Mã QR cho thiết bị khác -->
+                    <div class="col-lg-7">
+                        <div class="mac-card p-4 h-100">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <div class="d-inline-flex p-3 rounded-circle bg-success bg-opacity-10 text-success">
+                                    <i class="bi bi-globe2 fs-2"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-1">Tên Miền Truy Cập Từ Thiết Bị Khác (Cùng Wi-Fi)</h5>
+                                    <div class="text-white-50 small">Không cần gõ số IP hay cổng <code>:5000</code> — chỉ cần gõ tên miền dưới đây vào trình duyệt điện thoại / iPad / máy tính khác:</div>
+                                </div>
+                            </div>
+
+                            <div class="p-3 rounded-3 mb-3" style="background: rgba(48, 209, 88, 0.08); border: 1px solid rgba(48, 209, 88, 0.25);">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div>
+                                        <span class="badge-apple badge-apple-green mb-1">⭐ Khuyên dùng (Dễ nhớ nhất)</span>
+                                        <h4 class="mb-0 fw-bold text-white font-monospace" id="net-primary-domain">http://tiemlapdo.local</h4>
+                                    </div>
+                                    <button class="btn btn-mac-primary btn-sm" onclick="copyDomainUrl(document.getElementById('net-primary-domain').innerText)">
+                                        <i class="bi bi-clipboard-check me-1"></i> Sao Chép
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 h-100" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+                                        <div class="text-white-50 small mb-1">Tên miền ngắn gọn số 2:</div>
+                                        <div class="fw-bold text-info font-monospace" id="net-short-domain">http://banhang.local</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 h-100" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
+                                        <div class="text-white-50 small mb-1">Tên miền cho Android đời cũ:</div>
+                                        <div class="fw-bold text-warning font-monospace small" id="net-universal-domain">http://tiemlapdo.192-168-100-118.sslip.io</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center gap-3 p-3 rounded-3" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06);">
+                                <img id="net-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=http://192.168.100.118" alt="QR Code" class="rounded-3 bg-white p-2" style="width: 110px; height: 110px;">
+                                <div style="flex: 1; min-width: 200px;">
+                                    <div class="fw-bold text-white mb-1"><i class="bi bi-qr-code-scan text-info me-1"></i> Quét Mã QR Bằng Camera Điện Thoại</div>
+                                    <p class="text-white-50 small mb-1">Mở Camera hoặc Zalo trên điện thoại quét mã này để vào thẳng phần mềm trong 1 giây.</p>
+                                    <div class="text-info small"><i class="bi bi-phone me-1"></i>Mẹo: Sau khi mở trên điện thoại, chọn <strong>"Thêm vào màn hình chính"</strong> để tạo icon App ngoài màn hình!</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cột 2: Quản lý & Sao lưu dữ liệu -->
+                    <div class="col-lg-5">
+                        <div class="mac-card text-center p-4 h-100 d-flex flex-column justify-content-center">
+                            <div class="d-inline-flex p-3 rounded-circle bg-primary bg-opacity-10 text-primary mb-3 mx-auto">
+                                <i class="bi bi-database-gear fs-1"></i>
+                            </div>
+                            <h5 class="fw-bold mb-2">Quản Lý & Sao Lưu Dữ Liệu</h5>
+                            <p class="text-white-50 small mb-4">Dữ liệu được lưu trữ an toàn trong tệp cơ sở dữ liệu SQLite (<code class="text-info">tiem_lap_do.db</code>). Bạn có thể tải bản sao lưu hoặc xuất Excel bất kỳ lúc nào.</p>
+                            
+                            <div class="d-grid gap-3">
+                                <a href="/api/backup" class="btn btn-mac-ghost py-3 d-flex flex-column align-items-center gap-1">
+                                    <i class="bi bi-database-down fs-4 text-primary"></i>
+                                    <span>Tải Bản Sao Lưu (.db)</span>
+                                    <small class="text-white-50" style="font-size: 0.75rem;">Toàn bộ lịch sử và bảng giá</small>
+                                </a>
+                                <a href="/api/export" class="btn btn-mac-ghost py-3 d-flex flex-column align-items-center gap-1">
+                                    <i class="bi bi-file-earmark-excel-fill fs-4 text-success"></i>
+                                    <span>Xuất Danh Sách Đơn (.xlsx)</span>
+                                    <small class="text-white-50" style="font-size: 0.75rem;">Mở được bằng Microsoft Excel</small>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let cart = [];
+    let productsDb = []; 
+    document.getElementById('install_date').valueAsDate = new Date();
+
+    function copyDomainUrl(url) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url);
+        }
+        showMacToast(`Đã sao chép tên miền: ${url}`, 'success');
+    }
+
+    function loadNetworkInfo() {
+        fetch('/api/network-info').then(r => r.json()).then(info => {
+            if (document.getElementById('net-primary-domain')) document.getElementById('net-primary-domain').innerText = info.primary_domain;
+            if (document.getElementById('net-short-domain')) document.getElementById('net-short-domain').innerText = info.short_domain;
+            if (document.getElementById('net-universal-domain')) document.getElementById('net-universal-domain').innerText = info.universal_domain;
+            if (document.getElementById('toolbar-domain-text')) document.getElementById('toolbar-domain-text').innerText = info.primary_domain.replace('http://', '');
+            if (document.getElementById('net-qr-img')) {
+                document.getElementById('net-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(info.universal_domain)}`;
+            }
+        }).catch(() => {});
+    }
+    loadNetworkInfo();
+
+    // Đồng hồ góc trên kiểu macOS
+    function updateMacClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('mac-clock').innerText = timeStr;
+    }
+    setInterval(updateMacClock, 1000);
+    updateMacClock();
+
+    // Thông báo Toast chuẩn phong cách macOS
+    function showMacToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'mac-toast';
+        
+        let icon = '<i class="bi bi-info-circle-fill text-info fs-4"></i>';
+        if (type === 'success') icon = '<i class="bi bi-check-circle-fill text-success fs-4"></i>';
+        if (type === 'error') icon = '<i class="bi bi-exclamation-triangle-fill text-danger fs-4"></i>';
+
+        toast.innerHTML = `
+            ${icon}
+            <div style="flex: 1;">
+                <div style="font-size: 0.82rem; font-weight: 700; color: #fff;">Thông Báo</div>
+                <div style="font-size: 0.86rem; color: rgba(255,255,255,0.85);">${message}</div>
+            </div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.transition = 'opacity 0.3s, transform 0.3s';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(30px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3200);
+    }
+
+    // ========================================================
+    // BỘ XỬ LÝ GIÁ TIỀN THÔNG MINH (Không lỗi bộ gõ tiếng Việt Windows/Telex)
+    // Hỗ trợ gõ tắt: 1000k, 1tr, 1.5tr, 1000000, 1.000.000
+    // ========================================================
+    function parseMoney(val) {
+        if (!val) return 0;
+        let s = val.toString().trim().toLowerCase();
+        if (s.endsWith('tr') || s.endsWith('m') || s.endsWith('trieu')) {
+            let num = parseFloat(s.replace(/tr|m|trieu/g, '').replace(/,/g, '.'));
+            return isNaN(num) ? 0 : Math.round(num * 1000000);
+        }
+        if (s.endsWith('k') || s.endsWith('nghin') || s.endsWith('ngan')) {
+            let num = parseFloat(s.replace(/k|nghin|ngan/g, '').replace(/,/g, '.'));
+            return isNaN(num) ? 0 : Math.round(num * 1000);
+        }
+        let raw = s.replace(/\D/g, '');
+        return raw ? parseInt(raw, 10) : 0;
+    }
+
+    function handlePriceInput(input) {
+        let price = parseMoney(input.value);
+        let preview = document.getElementById('price_preview');
+        if (preview) {
+            preview.innerText = price > 0 ? price.toLocaleString('vi-VN') + ' đ' : '';
+        }
+    }
+
+    function handlePriceBlur(input) {
+        let price = parseMoney(input.value);
+        if (price > 0) {
+            input.value = price.toLocaleString('vi-VN');
+        } else if (input.value.trim() !== '') {
+            input.value = '';
+        }
+        let preview = document.getElementById('price_preview');
+        if (preview) preview.innerText = '';
+    }
+
+    // Hàm phiên dịch giảm giá (hỗ trợ %, k, tr, hoặc số tiền trực tiếp)
+    function parseDiscount(val, basePrice) {
+        if (!val) return 0;
+        let s = val.toString().trim().toLowerCase();
+        if (!s) return 0;
+        if (s.endsWith('%')) {
+            let pct = parseFloat(s.replace('%', '').replace(/,/g, '.'));
+            return isNaN(pct) ? 0 : Math.round(basePrice * (pct / 100));
+        }
+        return parseMoney(s);
+    }
+
+    // ================== LOGIC KHO HÀNG & BẢNG GIÁ (CHUẨN 100% EXCEL) ==================
+    let priceDebounceTimer = null;
+    let currentStockFilter = 'all';
+    let currentStockPage = 1;
+    let selectedProductId = null;
+
+    function debounceLoadPrices() {
+        clearTimeout(priceDebounceTimer);
+        priceDebounceTimer = setTimeout(() => loadPrices(1), 200);
+    }
+
+    function setStockFilter(filterType, btn) {
+        currentStockFilter = filterType;
+        const group = document.getElementById('stock-filter-buttons');
+        if (group) {
+            const buttons = group.querySelectorAll('button');
+            buttons.forEach(b => b.classList.remove('active'));
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                buttons.forEach(b => {
+                    if ((filterType === 'all' && b.innerText.includes('Tất Cả')) ||
+                        (filterType === 'in' && b.innerText.includes('Còn Tồn')) ||
+                        (filterType === 'out' && b.innerText.includes('Hết Hàng')) ||
+                        (filterType === 'service' && b.innerText.includes('Dịch Vụ'))) {
+                        b.classList.add('active');
+                    }
+                });
+            }
+        }
+        loadPrices(1);
+    }
+
+    // Tải toàn bộ 2.764 mặt hàng từ Excel vào bộ nhớ để gợi ý tức thì ở Tab Nhập Đơn
+    function loadAllSuggestions() {
+        fetch('/api/products/all-suggestions').then(res => res.json()).then(data => {
+            productsDb = data || [];
+            updateSuggestionDatalist('');
+        }).catch(err => console.error(err));
+    }
+
+    function updateSuggestionDatalist(keyword) {
+        const dl = document.getElementById('item_suggestions');
+        if (!dl) return;
+        let kw = (keyword || '').trim().toLowerCase();
+        let matched = kw 
+            ? productsDb.filter(p => p.name.toLowerCase().includes(kw) || (p.code && p.code.toLowerCase().includes(kw))).slice(0, 30)
+            : productsDb.slice(0, 30);
+        dl.innerHTML = matched.map(p => {
+            let stLabel = p.type === 'Dịch vụ' ? 'Dịch vụ' : `Tồn: ${p.stock}`;
+            return `<option value="${p.name}">${p.code} • ${p.price.toLocaleString('vi-VN')}đ • ${stLabel}</option>`;
+        }).join('');
+    }
+
+    function loadPrices(page = 1) {
+        currentStockPage = page;
+        const q = document.getElementById('search_price_q') ? document.getElementById('search_price_q').value.trim() : '';
+        const sortBy = document.getElementById('sort_stock_select') ? document.getElementById('sort_stock_select').value : 'excel';
+        const url = `/api/products?q=${encodeURIComponent(q)}&filter=${currentStockFilter}&sort=${sortBy}&page=${currentStockPage}`;
+        
+        fetch(url).then(res => res.json()).then(data => {
+            let products = data.products || [];
+            let stats = data.stats || { total: 0, total_stock: 0, in_stock: 0, out_of_stock: 0, service_count: 0 };
+
+            // Cập nhật 4 thẻ thống kê kho khớp 100% với Excel
+            if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = stats.total.toLocaleString('vi-VN');
+            if (document.getElementById('stat-total-stock')) document.getElementById('stat-total-stock').innerText = stats.total_stock.toLocaleString('vi-VN');
+            if (document.getElementById('stat-in')) document.getElementById('stat-in').innerText = stats.in_stock.toLocaleString('vi-VN');
+            if (document.getElementById('stat-out')) document.getElementById('stat-out').innerText = stats.out_of_stock.toLocaleString('vi-VN');
+
+            if (document.getElementById('price-list')) {
+                if (products.length === 0) {
+                    document.getElementById('price-list').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-white-50"><i class="bi bi-inbox fs-4 d-block mb-1"></i>Không tìm thấy mặt hàng nào khớp điều kiện.</td></tr>';
+                    renderStockPagination(1, 1, 0);
+                    return;
+                }
+
+                window.currentLoadedProducts = products;
+                let html = '';
+                products.forEach((p, idx) => {
+                    let formattedPrice = (p.price || 0).toLocaleString('vi-VN');
+                    let formattedCost = (p.cost || 0).toLocaleString('vi-VN');
+                    let stockNum = p.stock !== undefined ? p.stock : 0;
+                    let isService = (p.type === 'Dịch vụ');
+                    
+                    let badgeClass = 'badge-apple-green';
+                    let stockText = `Tồn: ${stockNum}`;
+                    if (isService) {
+                        badgeClass = 'badge-apple-blue';
+                        stockText = 'Dịch vụ';
+                    } else if (stockNum > 5) {
+                        badgeClass = 'badge-apple-green';
+                        stockText = `Tồn: ${stockNum}`;
+                    } else if (stockNum > 0) {
+                        badgeClass = 'badge-apple-yellow';
+                        stockText = `Tồn: ${stockNum}`;
+                    } else {
+                        badgeClass = 'badge-apple-red';
+                        stockText = `Hết (0)`;
+                    }
+
+                    let catBadge = p.category ? `<div class="text-white-50" style="font-size: 0.76rem;"><i class="bi bi-folder2 me-1"></i>${p.category}</div>` : '';
+                    let warBadge = p.war > 0 ? `<span class="badge-apple badge-apple-blue">${p.war} tháng</span>` : `<span class="text-white-50 small">—</span>`;
+
+                    let stockColHtml = isService
+                        ? `<span class="badge-apple badge-apple-blue">Dịch vụ</span>`
+                        : `<div class="d-inline-flex align-items-center gap-1">
+                                <button type="button" class="btn btn-sm btn-mac-ghost p-1 px-2" onclick="quickStockChange(${p.id}, -1)" title="Giảm 1 tồn kho">−</button>
+                                <span class="badge-apple ${badgeClass} fw-bold" onclick="openEditProductModal(${idx}, 'stock')" style="cursor: pointer; min-width: 82px; justify-content: center;" title="Bấm vào để sửa số lượng tồn kho">
+                                    ${stockText} <i class="bi bi-pencil-fill ms-1" style="font-size: 0.65rem; opacity: 0.7;"></i>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-mac-ghost p-1 px-2" onclick="quickStockChange(${p.id}, 1)" title="Tăng 1 tồn kho">+</button>
+                           </div>`;
+
+                    html += `<tr>
+                        <td class="text-info small fw-bold font-monospace" data-label="Mã">${p.code || '—'}</td>
+                        <td class="mobile-full-row">
+                            <div class="fw-semibold text-white" style="cursor: pointer;" onclick="openEditProductModal(${idx}, 'name')" title="Bấm để sửa tên hàng">${p.name}</div>
+                            ${catBadge}
+                        </td>
+                        <td class="text-white-50" data-label="Giá vốn" style="cursor: pointer;" onclick="openEditProductModal(${idx}, 'cost')" title="Bấm để sửa giá vốn">${formattedCost} đ</td>
+                        <td data-label="Giá bán">
+                            <span class="text-warning fw-bold" style="cursor: pointer; border-bottom: 1px dashed rgba(255,214,10,0.5);" onclick="openEditProductModal(${idx}, 'price')" title="Bấm vào để sửa Giá bán">
+                                ${formattedPrice} đ <i class="bi bi-pencil-square small text-info ms-1"></i>
+                            </span>
+                        </td>
+                        <td data-label="BH" style="cursor: pointer;" onclick="openEditProductModal(${idx}, 'war')" title="Bấm để sửa bảo hành">${warBadge}</td>
+                        <td class="text-center" data-label="Tồn kho">${stockColHtml}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-mac-primary px-2 py-1" onclick="openEditProductModal(${idx}, 'price')" title="Sửa Giá bán, Giá vốn, Tồn kho, Tên hàng">
+                                <i class="bi bi-pencil-square"></i> Sửa
+                            </button>
+                        </td>
+                    </tr>`;
+                });
+                document.getElementById('price-list').innerHTML = html;
+                renderStockPagination(data.page || 1, data.total_pages || 1, data.total_matched || 0);
+            }
+        }).catch(err => console.error(err));
+    }
+
+    function renderStockPagination(page, totalPages, totalMatched) {
+        const bar = document.getElementById('stock-pagination-bar');
+        if (!bar) return;
+        if (totalMatched === 0) {
+            bar.innerHTML = '';
+            return;
+        }
+        let prevDisabled = page <= 1 ? 'disabled opacity-50' : '';
+        let nextDisabled = page >= totalPages ? 'disabled opacity-50' : '';
+
+        bar.innerHTML = `
+            <div class="text-white-50 small">
+                Hiển thị trang <strong class="text-white">${page}</strong> / <strong class="text-white">${totalPages}</strong> 
+                (Tổng <strong class="text-info">${totalMatched.toLocaleString('vi-VN')}</strong> mặt hàng từ Excel)
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn btn-sm btn-mac-ghost ${prevDisabled}" onclick="if(${page}>1) loadPrices(1)">« Đầu</button>
+                <button class="btn btn-sm btn-mac-ghost ${prevDisabled}" onclick="if(${page}>1) loadPrices(${page - 1})">‹ Trước</button>
+                <span class="px-3 py-1 rounded bg-black bg-opacity-50 text-white small fw-bold border border-white border-opacity-10">Trang ${page}/${totalPages}</span>
+                <button class="btn btn-sm btn-mac-ghost ${nextDisabled}" onclick="if(${page}<${totalPages}) loadPrices(${page + 1})">Sau ›</button>
+                <button class="btn btn-sm btn-mac-ghost ${nextDisabled}" onclick="if(${page}<${totalPages}) loadPrices(${totalPages})">Cuối »</button>
+            </div>
+        `;
+    }
+
+    // Đồng bộ lại trực tiếp từ file Excel TỔNG HỢP - 2022 - 2026.xlsx
+    function syncFromExcelFile() {
+        showMacToast("Đang đọc dữ liệu từ file Excel TỔNG HỢP - 2022 - 2026.xlsx...", "info");
+        fetch('/api/products/sync-excel', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMacToast(data.msg, "success");
+                    loadAllSuggestions();
+                    loadPrices(1);
+                } else {
+                    showMacToast(data.msg || "Lỗi đồng bộ Excel!", "error");
+                }
+            })
+            .catch(() => showMacToast("Lỗi kết nối khi đồng bộ Excel!", "error"));
+    }
+
+    // Tăng giảm nhanh tồn kho qua nút + -
+    function quickStockChange(id, delta) {
+        fetch('/api/products/update-stock', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: id, delta: delta})
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                loadPrices(currentStockPage);
+                loadAllSuggestions();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(err => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+
+    // Modal sửa toàn diện mặt hàng (Giá bán, Giá vốn, Tồn kho, Tên hàng, Bảo hành)
+    let modalEditProdInstance = null;
+    function openEditProductModal(idx, focusField = 'price') {
+        const p = (window.currentLoadedProducts || [])[idx];
+        if (!p) return;
+        const modalEl = document.getElementById('modalEditProduct');
+        if (!modalEditProdInstance) {
+            modalEditProdInstance = new bootstrap.Modal(modalEl);
+        }
+        document.getElementById('edit_prod_id').value = p.id;
+        document.getElementById('edit_prod_code').value = p.code || '';
+        document.getElementById('edit_prod_name').value = p.name || '';
+        document.getElementById('edit_prod_category').value = p.category || '';
+        document.getElementById('edit_prod_type').value = p.type || 'Hàng hóa';
+        document.getElementById('edit_prod_price').value = (p.price || 0).toLocaleString('vi-VN');
+        document.getElementById('edit_prod_cost').value = (p.cost || 0).toLocaleString('vi-VN');
+        document.getElementById('edit_prod_stock').value = p.stock !== undefined ? p.stock : 0;
+        document.getElementById('edit_prod_war').value = p.war || 0;
+        modalEditProdInstance.show();
+
+        setTimeout(() => {
+            const mapId = {
+                'price': 'edit_prod_price',
+                'stock': 'edit_prod_stock',
+                'cost': 'edit_prod_cost',
+                'name': 'edit_prod_name',
+                'war': 'edit_prod_war'
+            };
+            const targetEl = document.getElementById(mapId[focusField] || 'edit_prod_price');
+            if (targetEl) {
+                targetEl.focus();
+                if (targetEl.select) targetEl.select();
+            }
+        }, 250);
+    }
+
+    function submitEditProduct() {
+        const id = parseInt(document.getElementById('edit_prod_id').value, 10);
+        const code = document.getElementById('edit_prod_code').value.trim();
+        const name = document.getElementById('edit_prod_name').value.trim();
+        const category = document.getElementById('edit_prod_category').value.trim();
+        const item_type = document.getElementById('edit_prod_type').value;
+        const price = parseMoney(document.getElementById('edit_prod_price').value);
+        const cost_price = parseMoney(document.getElementById('edit_prod_cost').value);
+        const stock = parseInt(document.getElementById('edit_prod_stock').value, 10) || 0;
+        const war = parseInt(document.getElementById('edit_prod_war').value, 10) || 0;
+
+        if (!name) {
+            showMacToast("Tên mặt hàng không được để trống!", "error");
+            return;
+        }
+
+        fetch('/api/products/edit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: id,
+                code: code,
+                name: name,
+                category: category,
+                item_type: item_type,
+                price: price,
+                cost_price: cost_price,
+                stock: stock,
+                warranty_months: war
+            })
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                if (modalEditProdInstance) modalEditProdInstance.hide();
+                loadPrices(currentStockPage);
+                loadAllSuggestions();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(() => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+
+    function deleteProductFromModal() {
+        const id = parseInt(document.getElementById('edit_prod_id').value, 10);
+        const name = document.getElementById('edit_prod_name').value;
+        if (!confirm(`Bạn có chắc chắn muốn xóa mặt hàng:\n"${name}" khỏi kho không?`)) return;
+        fetch('/api/products/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: id})
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                if (modalEditProdInstance) modalEditProdInstance.hide();
+                loadPrices(currentStockPage);
+                loadAllSuggestions();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(() => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+
+    // Modal thêm món mới vào kho
+    let modalAddProdInstance = null;
+    function openAddProductModal() {
+        const modalEl = document.getElementById('modalAddProduct');
+        if (!modalAddProdInstance) {
+            modalAddProdInstance = new bootstrap.Modal(modalEl);
+        }
+        document.getElementById('new_prod_name').value = '';
+        document.getElementById('new_prod_code').value = '';
+        document.getElementById('new_prod_price').value = '';
+        document.getElementById('new_prod_stock').value = '10';
+        document.getElementById('new_prod_war').value = '12';
+        modalAddProdInstance.show();
+    }
+
+    function submitAddProduct() {
+        const name = document.getElementById('new_prod_name').value.trim();
+        const code = document.getElementById('new_prod_code').value.trim();
+        const priceStr = document.getElementById('new_prod_price').value.trim();
+        const stock = parseInt(document.getElementById('new_prod_stock').value, 10) || 0;
+        const war = parseInt(document.getElementById('new_prod_war').value, 10) || 0;
+
+        if (!name) {
+            showMacToast("Vui lòng nhập tên món hàng!", "error");
+            return;
+        }
+        const price = parseMoney(priceStr);
+        if (price <= 0) {
+            showMacToast("Vui lòng nhập giá bán hợp lệ!", "error");
+            return;
+        }
+
+        fetch('/api/products/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                code: code,
+                price: price,
+                stock: stock,
+                warranty_months: war
+            })
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                if (modalAddProdInstance) modalAddProdInstance.hide();
+                loadPrices(currentStockPage);
+                loadAllSuggestions();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(err => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+
+    // Tự động điền giá và kiểm tra tồn kho trên toàn bộ 2.764 mặt hàng Excel
+    function autoFillPrice() {
+        const typedName = document.getElementById('item_name').value.trim();
+        const preview = document.getElementById('price_preview');
+        updateSuggestionDatalist(typedName);
+
+        if (!typedName) {
+            selectedProductId = null;
+            if (preview) preview.innerHTML = '';
+            return;
+        }
+        const matchedItem = productsDb.find(p => 
+            p.name.toLowerCase() === typedName.toLowerCase() || 
+            (p.code && p.code.toLowerCase() === typedName.toLowerCase())
+        );
+        if (matchedItem) {
+            selectedProductId = matchedItem.id;
+            if (matchedItem.code && matchedItem.code.toLowerCase() === typedName.toLowerCase()) {
+                document.getElementById('item_name').value = matchedItem.name;
+            }
+            document.getElementById('item_price').value = matchedItem.price.toLocaleString('vi-VN');
+            document.getElementById('item_war').value = matchedItem.war;
+            
+            let stockNum = matchedItem.stock !== undefined ? matchedItem.stock : 0;
+            let badgeHtml = '';
+            if (matchedItem.type === 'Dịch vụ') {
+                badgeHtml = `<span class="badge-apple badge-apple-blue"><i class="bi bi-tools me-1"></i>[${matchedItem.code}] Dịch vụ</span>`;
+            } else if (stockNum > 0) {
+                badgeHtml = `<span class="badge-apple badge-apple-green"><i class="bi bi-box-seam me-1"></i>[${matchedItem.code}] Tồn kho Excel: ${stockNum} cái</span>`;
+            } else {
+                badgeHtml = `<span class="badge-apple badge-apple-red"><i class="bi bi-x-circle me-1"></i>[${matchedItem.code}] Tồn kho Excel: 0 (Hết hàng)</span>`;
+            }
+            if (preview) preview.innerHTML = badgeHtml;
+        } else {
+            selectedProductId = null;
+            if (preview) preview.innerHTML = '';
+        }
+    }
+    window.onload = function() {
+        loadAllSuggestions();
+        loadPrices(1);
+    };
+
+    // ================== LOGIC NHẬP ĐƠN ==================
+    function addItem() {
+        let name = document.getElementById('item_name').value.trim();
+        let priceStr = document.getElementById('item_price').value;
+        let war = document.getElementById('item_war').value;
+        let discountStr = document.getElementById('item_discount').value.trim();
+        let qty = parseInt(document.getElementById('item_qty').value, 10) || 1;
+        if (qty < 1) qty = 1;
+        
+        let unitPrice = parseMoney(priceStr);
+        if(!name || unitPrice <= 0) {
+            showMacToast("Vui lòng nhập tên món và giá tiền hợp lệ!", "error");
+            return;
+        }
+        
+        let discountAmt = parseDiscount(discountStr, unitPrice);
+        if (discountAmt > unitPrice) discountAmt = unitPrice;
+        let finalUnitPrice = unitPrice - discountAmt;
+        let totalPrice = finalUnitPrice * qty;
+        
+        let rawName = name;
+        let discountTag = '';
+        let displayName = name;
+        if (qty > 1) {
+            displayName += ` (x${qty})`;
+        }
+        if (discountAmt > 0) {
+            discountTag = discountStr.includes('%') ? discountStr : discountAmt.toLocaleString('vi-VN') + 'đ';
+            displayName += ` [Gốc: ${unitPrice.toLocaleString('vi-VN')}đ | Giảm ${discountTag} -> Còn: ${finalUnitPrice.toLocaleString('vi-VN')}đ]`;
+        }
+        
+        // Kiểm tra tồn kho và cảnh báo thông minh
+        const matched = productsDb.find(p => (selectedProductId && p.id === selectedProductId) || p.name.toLowerCase() === rawName.toLowerCase());
+        if (matched && matched.type !== 'Dịch vụ') {
+            if (matched.stock <= 0) {
+                showMacToast(`Lưu ý: Món "${rawName}" có tồn kho = 0 trong Excel!`, "info");
+            } else if (matched.stock < qty) {
+                showMacToast(`Lưu ý: Kho chỉ còn ${matched.stock} cái (bạn thêm ${qty} cái)!`, "info");
+            }
+        }
+        
+        cart.push({
+            product_id: matched ? matched.id : null,
+            code: matched ? (matched.code || '') : '',
+            name: displayName,
+            raw_name: rawName,
+            qty: qty,
+            orig_unit_price: unitPrice,
+            discount_amt: discountAmt,
+            discount_tag: discountTag,
+            unit_price: finalUnitPrice,
+            price: totalPrice,
+            warranty: war || 0
+        });
+        
+        selectedProductId = null;
+        document.getElementById('item_name').value = '';
+        document.getElementById('item_price').value = '';
+        document.getElementById('item_discount').value = '';
+        document.getElementById('item_qty').value = '1';
+        let preview = document.getElementById('price_preview');
+        if (preview) preview.innerHTML = '';
+        updateSuggestionDatalist('');
+        renderCart();
+        showMacToast(`Đã thêm: ${rawName} (x${qty})`, "success");
+    }
+
+    function changeCartQty(index, delta) {
+        if (!cart[index]) return;
+        let newQty = (cart[index].qty || 1) + delta;
+        if (newQty < 1) return;
+        cart[index].qty = newQty;
+        cart[index].price = cart[index].unit_price * newQty;
+
+        // Cập nhật lại tên hiển thị lưu DB
+        let item = cart[index];
+        let dName = item.raw_name;
+        if (newQty > 1) dName += ` (x${newQty})`;
+        if (item.discount_amt > 0) {
+            dName += ` [Gốc: ${item.orig_unit_price.toLocaleString('vi-VN')}đ | Giảm ${item.discount_tag} -> Còn: ${item.unit_price.toLocaleString('vi-VN')}đ]`;
+        }
+        item.name = dName;
+        renderCart();
+    }
+
+    function remove(index) { 
+        cart.splice(index, 1); 
+        renderCart(); 
+    }
+
+    function renderCart() {
+        let html = '';
+        let subtotal = 0;
+        let origSubtotal = 0;
+        let totalItemDiscount = 0;
+        
+        document.getElementById('cart-count-badge').innerText = `${cart.length} món`;
+
+        if(cart.length === 0) {
+            document.getElementById('cart-body').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-white-50">
+                        <i class="bi bi-inbox fs-3 d-block mb-1 text-white-20"></i>
+                        Chưa có món nào được thêm vào đơn hàng...
+                    </td>
+                </tr>`;
+            const summaryEl = document.getElementById('checkout-summary-details');
+            if (summaryEl) {
+                summaryEl.innerHTML = `
+                    <div>
+                        <span class="text-white-50 small d-block">Tổng tiền thanh toán</span>
+                        <h3 class="mb-0 fw-bold text-success" id="total-price" style="letter-spacing: -0.5px;">0 đ</h3>
+                    </div>`;
+            }
+            return;
+        }
+
+        cart.forEach((it, i) => {
+            let qty = it.qty || 1;
+            let origUnit = it.orig_unit_price !== undefined ? it.orig_unit_price : it.unit_price;
+            let finalUnit = it.unit_price !== undefined ? it.unit_price : it.price;
+            let discUnit = it.discount_amt || 0;
+            let lineOrigTotal = origUnit * qty;
+            let lineFinalTotal = parseFloat(it.price);
+            let lineDiscTotal = discUnit * qty;
+
+            origSubtotal += lineOrigTotal;
+            subtotal += lineFinalTotal;
+            totalItemDiscount += lineDiscTotal;
+
+            let origUnitFmt = origUnit.toLocaleString('vi-VN');
+            let finalUnitFmt = finalUnit.toLocaleString('vi-VN');
+            let lineFinalFmt = lineFinalTotal.toLocaleString('vi-VN');
+            let lineOrigFmt = lineOrigTotal.toLocaleString('vi-VN');
+            let lineDiscFmt = lineDiscTotal.toLocaleString('vi-VN');
+
+            let codeBadge = it.code ? `<span class="text-info font-monospace small me-1">[${it.code}]</span>` : '';
+            let discountBadge = discUnit > 0 
+                ? `<div class="mt-1"><span class="badge-apple badge-apple-red" style="font-size: 0.73rem; padding: 2px 8px;"><i class="bi bi-arrow-down-circle-fill"></i> Giảm ${it.discount_tag} (−${discUnit.toLocaleString('vi-VN')} đ/món)</span></div>`
+                : '';
+
+            // Cột Đơn Giá Gốc
+            let origPriceColHtml = `
+                <div class="${discUnit > 0 ? 'text-white-50 text-decoration-line-through' : 'text-white'} fw-semibold">${origUnitFmt} đ</div>
+                ${qty > 1 ? `<div class="text-white-50" style="font-size: 0.75rem;">Tổng gốc: ${lineOrigFmt} đ</div>` : ''}
+            `;
+
+            // Cột Giá Sau Khi Giảm
+            let afterDiscountColHtml = '';
+            if (discUnit > 0) {
+                afterDiscountColHtml = `
+                    <div class="text-success fw-bold fs-6">${finalUnitFmt} đ</div>
+                    ${qty > 1 ? `<div class="text-warning small fw-bold">Thành tiền: ${lineFinalFmt} đ</div>` : ''}
+                    <div class="text-info" style="font-size: 0.74rem;">Tiết kiệm: ${lineDiscFmt} đ</div>
+                `;
+            } else {
+                afterDiscountColHtml = `
+                    <div class="text-warning fw-bold fs-6">${finalUnitFmt} đ</div>
+                    ${qty > 1 ? `<div class="text-info small fw-bold">Thành tiền: ${lineFinalFmt} đ</div>` : `<div class="text-white-50" style="font-size: 0.74rem;">Không giảm giá</div>`}
+                `;
+            }
+
+            let qtyColHtml = `
+                <div class="d-inline-flex align-items-center gap-1">
+                    <button class="btn btn-sm btn-mac-ghost p-0 px-2" onclick="changeCartQty(${i}, -1)" title="Giảm SL">−</button>
+                    <span class="fw-bold text-info px-1">${qty}</span>
+                    <button class="btn btn-sm btn-mac-ghost p-0 px-2" onclick="changeCartQty(${i}, 1)" title="Tăng SL">+</button>
+                </div>
+            `;
+            
+            html += `<tr>
+                <td class="align-middle mobile-full-row">
+                    <div class="fw-semibold text-white">${codeBadge}${it.raw_name || it.name}</div>
+                    ${discountBadge}
+                </td>
+                <td class="align-middle text-center" data-label="SL">${qtyColHtml}</td>
+                <td class="align-middle" data-label="Giá gốc">${origPriceColHtml}</td>
+                <td class="align-middle" data-label="Sau giảm">${afterDiscountColHtml}</td>
+                <td class="align-middle" data-label="BH"><span class="badge-apple badge-apple-blue">${it.warranty} tháng</span></td>
+                <td class="text-center align-middle">
+                    <button class="btn btn-mac-del" onclick="remove(${i})" title="Xóa món">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('cart-body').innerHTML = html;
+
+        let billDiscountStr = document.getElementById('order_discount').value;
+        let billDiscountAmt = parseDiscount(billDiscountStr, subtotal);
+        if (billDiscountAmt > subtotal) billDiscountAmt = subtotal;
+        let finalTotal = subtotal - billDiscountAmt;
+        let totalAllDiscount = totalItemDiscount + billDiscountAmt;
+
+        let origSubFmt = origSubtotal.toLocaleString('vi-VN');
+        let totalDiscFmt = totalAllDiscount.toLocaleString('vi-VN');
+        let finFmt = finalTotal.toLocaleString('vi-VN');
+
+        const summaryEl = document.getElementById('checkout-summary-details');
+        if (summaryEl) {
+            if (totalAllDiscount > 0) {
+                summaryEl.innerHTML = `
+                    <div>
+                        <span class="text-white-50 small d-block">Tổng giá gốc</span>
+                        <span class="text-white-50 text-decoration-line-through fw-semibold fs-6">${origSubFmt} đ</span>
+                    </div>
+                    <div>
+                        <span class="text-white-50 small d-block">Tổng giảm giá</span>
+                        <span class="text-danger fw-bold fs-6">−${totalDiscFmt} đ</span>
+                    </div>
+                    <div>
+                        <span class="text-white-50 small d-block">Giá sau khi giảm (Thực thu)</span>
+                        <h3 class="mb-0 fw-bold text-success" id="total-price" style="letter-spacing: -0.5px;">${finFmt} đ</h3>
+                    </div>
+                `;
+            } else {
+                summaryEl.innerHTML = `
+                    <div>
+                        <span class="text-white-50 small d-block">Tổng giá gốc</span>
+                        <span class="text-white fw-semibold fs-6">${origSubFmt} đ</span>
+                    </div>
+                    <div>
+                        <span class="text-white-50 small d-block">Giá sau khi giảm (Thực thu)</span>
+                        <h3 class="mb-0 fw-bold text-success" id="total-price" style="letter-spacing: -0.5px;">${finFmt} đ</h3>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function saveOrder() {
+        const plate = document.getElementById('plate').value.trim();
+        if(!plate || cart.length === 0) {
+            showMacToast("Lỗi: Thiếu biển số xe hoặc chưa có món hàng nào!", "error");
+            return;
+        }
+        
+        let payloadCart = [...cart]; 
+        let subtotal = cart.reduce((sum, item) => sum + parseFloat(item.price), 0);
+        let discountStr = document.getElementById('order_discount').value;
+        let discountAmt = parseDiscount(discountStr, subtotal);
+        
+        if (discountAmt > 0) {
+            let tag = discountStr.includes('%') ? discountStr : discountAmt.toLocaleString('vi-VN') + 'đ';
+            payloadCart.push({
+                name: `💸 Giảm giá tổng hóa đơn (${tag})`,
+                raw_name: '',
+                qty: 1,
+                price: -discountAmt,
+                warranty: 0
+            });
+        }
+        
+        fetch('/api/order', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                plate: plate, 
+                name: document.getElementById('cus_name').value.trim(),
+                phone: document.getElementById('cus_phone').value.trim(),
+                date: document.getElementById('install_date').value, 
+                items: payloadCart
+            })
+        }).then(res => res.json()).then(data => {
+            if(data.status === 'success') {
+                showMacToast(data.msg, "success");
+                cart = []; 
+                document.getElementById('order_discount').value = '';
+                renderCart();
+                document.getElementById('plate').value = '';
+                document.getElementById('cus_name').value = '';
+                document.getElementById('cus_phone').value = '';
+                loadPrices(); 
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(err => {
+            showMacToast("Lỗi kết nối máy chủ!", "error");
+        });
+    }
+
+    // ================== LOGIC TRA CỨU & DANH SÁCH KHÁCH HÀNG ==================
+    function loadOrders() {
+        const q = document.getElementById('search_q') ? document.getElementById('search_q').value.trim() : '';
+        const dateFilter = document.getElementById('search_date') ? document.getElementById('search_date').value.trim() : '';
+        document.getElementById('orders-list').innerHTML = `
+            <div class="text-center py-5 text-secondary">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang tìm kiếm dữ liệu...
+            </div>`;
+            
+        fetch(`/api/search?q=${encodeURIComponent(q)}&date=${encodeURIComponent(dateFilter)}`).then(res => res.json()).then(data => {
+            const countBadge = document.getElementById('customer-order-count');
+            if (countBadge) {
+                countBadge.innerText = `Hiển thị ${data.length} đơn hàng`;
+            }
+
+            if(data.length === 0) {
+                document.getElementById('orders-list').innerHTML = `
+                    <div class="mac-card text-center py-5">
+                        <i class="bi bi-search fs-1 text-white-50 d-block mb-2"></i>
+                        <h6 class="text-white">Không tìm thấy khách hàng / đơn hàng nào!</h6>
+                        <p class="text-white-50 small mb-0">Thử tìm bằng biển số xe, tên khách, số điện thoại hoặc chọn ngày ra đơn khác.</p>
+                    </div>`;
+                return;
+            }
+            
+            window.currentLoadedOrders = data;
+            let html = '';
+            data.forEach((o, idx) => {
+                let orderDateDisplay = o.date_vn || o.date || 'Không rõ';
+                let itemsHtml = (o.items || []).map(i => {
+                    let statusStr = String(i.status || '');
+                    let nameStr = String(i.name || '');
+                    let badgeClass = 'badge-apple-blue';
+                    if (statusStr.includes('✅') || statusStr.includes('Còn')) badgeClass = 'badge-apple-green';
+                    if (statusStr.includes('❌') || statusStr.includes('Hết')) badgeClass = 'badge-apple-red';
+
+                    let icon = nameStr.includes('💸') ? '' : '<i class="bi bi-wrench-adjustable me-2 text-info"></i>';
+                    let priceVal = parseFloat(i.price || 0);
+                    let origVal = parseFloat(i.orig_price || priceVal);
+                    let unitVal = parseFloat(i.unit_price || priceVal);
+                    let qtyVal = parseInt(i.qty || 1, 10);
+
+                    let priceColor = priceVal < 0 ? 'text-danger' : 'text-warning';
+                    let priceFmt = priceVal.toLocaleString('vi-VN');
+                    let origFmt = origVal.toLocaleString('vi-VN');
+                    let unitFmt = unitVal.toLocaleString('vi-VN');
+
+                    // Hiển thị Đơn giá gốc & Giá sau khi giảm nếu có chênh lệch
+                    let priceBreakdownHtml = '';
+                    if (priceVal >= 0 && origVal > unitVal) {
+                        let savedAmt = (origVal - unitVal) * qtyVal;
+                        priceBreakdownHtml = `
+                            <span class="text-white-50 small me-2">Đơn giá gốc: <span class="text-decoration-line-through">${origFmt} đ</span></span>
+                            <span class="text-success fw-bold small me-2">Giá sau giảm: ${unitFmt} đ${qtyVal > 1 ? ` (x${qtyVal} = ${priceFmt} đ)` : ''}</span>
+                            <span class="badge-apple badge-apple-red py-0 px-2" style="font-size: 0.7rem;">−${savedAmt.toLocaleString('vi-VN')} đ</span>
+                        `;
+                    } else if (priceVal >= 0 && qtyVal > 1) {
+                        priceBreakdownHtml = `
+                            <span class="text-white-50 small me-2">Đơn giá gốc: ${origFmt} đ × ${qtyVal}</span>
+                            <span class="${priceColor} fw-bold small">Thành tiền: ${priceFmt} đ</span>
+                        `;
+                    } else {
+                        priceBreakdownHtml = `<span class="${priceColor} fw-bold small">${priceFmt} đ</span>`;
+                    }
+
+                    return `
+                    <li class="list-group-item bg-transparent text-light border-white border-opacity-10 d-flex justify-content-between align-items-center py-2 px-3">
+                        <div>
+                            <span class="fw-medium">${icon}${nameStr}</span>
+                            <div class="mt-1 d-flex flex-wrap align-items-center gap-2">
+                                ${priceBreakdownHtml}
+                                <span class="text-white-50 small ms-2"><i class="bi bi-calendar-check text-info me-1"></i>Ngày ra đơn: <strong class="text-light">${orderDateDisplay}</strong></span>
+                                <span class="text-white-50 small ms-2"><i class="bi bi-shield-check me-1"></i>Hạn BH: ${i.exp || 'Không BH'}</span>
+                            </div>
+                        </div>
+                        <span class="badge-apple ${badgeClass}">${statusStr}</span>
+                    </li>`;
+                }).join('');
+                
+                let totalFmt = (o.total || 0).toLocaleString('vi-VN');
+                
+                html += `
+                <div class="order-card">
+                    <div class="order-card-header flex-wrap gap-2">
+                        <div class="order-plate">
+                            <i class="bi bi-car-front-fill"></i> ${o.plate}
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <span class="badge-apple badge-apple-green" style="font-size: 0.84rem;">
+                                <i class="bi bi-calendar2-check-fill me-1"></i> Ngày ra đơn hàng: ${orderDateDisplay}
+                            </span>
+                            <button class="btn btn-sm btn-mac-ghost px-3 py-1" onclick="openEditOrderModal(${idx})" title="Sửa tên khách hàng, SĐT, biển số xe, ngày ra đơn & món hàng">
+                                <i class="bi bi-pencil-square text-warning me-1"></i> Sửa Thông Tin Khách / Đơn
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-3">
+                        <div class="d-flex flex-wrap gap-4 text-white-50 small mb-3 p-2 rounded-3" style="background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);">
+                            <div><i class="bi bi-person-fill me-1 text-primary"></i> Khách hàng: <strong class="text-white">${o.name || 'Không rõ'}</strong></div>
+                            <div><i class="bi bi-telephone-fill me-1 text-success"></i> Số điện thoại: <strong class="text-white">${o.phone || 'Trống'}</strong></div>
+                            <div><i class="bi bi-calendar-event-fill me-1 text-warning"></i> Ngày ra đơn hàng: <strong class="text-warning">${orderDateDisplay}</strong> <span class="text-white-50">(${o.date})</span></div>
+                            <div><i class="bi bi-hash me-1 text-info"></i> Mã đơn: <strong class="text-info">#${o.id}</strong></div>
+                        </div>
+                        <ul class="list-group list-group-flush mb-3 border border-white border-opacity-10 rounded-3 overflow-hidden">
+                            ${itemsHtml}
+                        </ul>
+                        <div class="d-flex justify-content-between align-items-center pt-2">
+                            <span class="text-white-50 small"><i class="bi bi-clock-history me-1"></i>Ngày lập hóa đơn: <strong class="text-white">${orderDateDisplay}</strong></span>
+                            <div class="d-flex align-items-center">
+                                <span class="text-white-50 small me-2">Thực thu:</span>
+                                <h4 class="text-success mb-0 fw-bold" style="letter-spacing: -0.5px;">${totalFmt} VNĐ</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('orders-list').innerHTML = html;
+        }).catch(err => {
+            document.getElementById('orders-list').innerHTML = `<div class="mac-card text-danger text-center">Lỗi khi tải dữ liệu!</div>`;
+        });
+    }
+
+    // ================== MODAL SỬA THÔNG TIN KHÁCH HÀNG & ĐƠN HÀNG ==================
+    let modalEditOrderInstance = null;
+    let editingOrderItems = [];
+
+    function openEditOrderModal(idx) {
+        const o = (window.currentLoadedOrders || [])[idx];
+        if (!o) return;
+        const modalEl = document.getElementById('modalEditOrder');
+        if (!modalEditOrderInstance) {
+            modalEditOrderInstance = new bootstrap.Modal(modalEl);
+        }
+        document.getElementById('edit_order_id').value = o.id;
+        document.getElementById('edit_order_id_label').innerText = `#${o.id}`;
+        document.getElementById('edit_order_plate').value = o.plate || '';
+        document.getElementById('edit_order_name').value = o.name || '';
+        document.getElementById('edit_order_phone').value = o.phone || '';
+        document.getElementById('edit_order_date').value = o.date || '';
+
+        editingOrderItems = (o.items || []).map(it => ({
+            name: it.name || '',
+            qty: parseInt(it.qty || 1, 10),
+            orig_price: parseFloat(it.orig_price || it.price || 0),
+            unit_price: parseFloat(it.unit_price || it.price || 0),
+            price: parseFloat(it.price || 0),
+            war: parseInt(it.war || 0, 10)
+        }));
+        renderEditOrderItems();
+        modalEditOrderInstance.show();
+    }
+
+    function renderEditOrderItems() {
+        const container = document.getElementById('edit-order-items-body');
+        if (!container) return;
+        let html = '';
+        let total = 0;
+        editingOrderItems.forEach((it, i) => {
+            total += parseFloat(it.price || 0);
+            html += `
+            <tr>
+                <td>
+                    <input type="text" class="form-control form-control-sm" value="${(it.name || '').replace(/"/g, '&quot;')}" oninput="editingOrderItems[${i}].name = this.value">
+                </td>
+                <td style="width: 75px;">
+                    <input type="number" class="form-control form-control-sm text-center" value="${it.qty}" min="1" oninput="updateEditOrderItemCalc(${i}, 'qty', this.value)">
+                </td>
+                <td style="width: 135px;">
+                    <input type="text" class="form-control form-control-sm text-white-50" value="${(it.orig_price || 0).toLocaleString('vi-VN')}" oninput="updateEditOrderItemCalc(${i}, 'orig', this.value)">
+                </td>
+                <td style="width: 145px;">
+                    <input type="text" class="form-control form-control-sm text-warning fw-bold" value="${(it.price || 0).toLocaleString('vi-VN')}" oninput="updateEditOrderItemCalc(${i}, 'price', this.value)">
+                </td>
+                <td style="width: 75px;">
+                    <input type="number" class="form-control form-control-sm text-center" value="${it.war}" min="0" oninput="editingOrderItems[${i}].war = parseInt(this.value, 10) || 0">
+                </td>
+                <td class="text-center" style="width: 50px;">
+                    <button type="button" class="btn btn-mac-del btn-sm" onclick="removeEditOrderItem(${i})" title="Xóa món này">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+        container.innerHTML = html;
+        document.getElementById('edit_order_total_preview').innerText = total.toLocaleString('vi-VN') + ' VNĐ';
+    }
+
+    function updateEditOrderItemCalc(index, field, val) {
+        if (!editingOrderItems[index]) return;
+        if (field === 'qty') {
+            let q = Math.max(1, parseInt(val, 10) || 1);
+            editingOrderItems[index].qty = q;
+            editingOrderItems[index].price = editingOrderItems[index].unit_price * q;
+        } else if (field === 'orig') {
+            editingOrderItems[index].orig_price = parseMoney(val);
+        } else if (field === 'price') {
+            let isNeg = val.toString().trim().startsWith('-');
+            let p = parseMoney(val);
+            if (isNeg) p = -p;
+            editingOrderItems[index].price = p;
+            editingOrderItems[index].unit_price = Math.round(p / (editingOrderItems[index].qty || 1));
+        }
+        let total = editingOrderItems.reduce((s, x) => s + parseFloat(x.price || 0), 0);
+        document.getElementById('edit_order_total_preview').innerText = total.toLocaleString('vi-VN') + ' VNĐ';
+    }
+
+    function addEditOrderItem() {
+        editingOrderItems.push({ name: 'Món mới', qty: 1, orig_price: 0, unit_price: 0, price: 0, war: 12 });
+        renderEditOrderItems();
+    }
+
+    function removeEditOrderItem(idx) {
+        if (editingOrderItems.length <= 1) {
+            showMacToast("Đơn hàng phải có ít nhất 1 món!", "error");
+            return;
+        }
+        editingOrderItems.splice(idx, 1);
+        renderEditOrderItems();
+    }
+
+    function submitEditOrder() {
+        const id = parseInt(document.getElementById('edit_order_id').value, 10);
+        const plate = document.getElementById('edit_order_plate').value.trim();
+        const name = document.getElementById('edit_order_name').value.trim();
+        const phone = document.getElementById('edit_order_phone').value.trim();
+        const date = document.getElementById('edit_order_date').value.trim();
+
+        if (!plate) {
+            showMacToast("Biển số xe không được để trống!", "error");
+            return;
+        }
+
+        fetch('/api/order/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: id,
+                plate: plate,
+                name: name,
+                phone: phone,
+                date: date,
+                items: editingOrderItems
+            })
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                if (modalEditOrderInstance) modalEditOrderInstance.hide();
+                loadOrders();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(() => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+
+    function deleteOrderFromModal() {
+        const id = parseInt(document.getElementById('edit_order_id').value, 10);
+        const plate = document.getElementById('edit_order_plate').value;
+        if (!confirm(`Bạn có chắc chắn muốn XÓA đơn hàng #${id} của xe "${plate}" không?`)) return;
+        fetch('/api/order/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: id})
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                showMacToast(data.msg, "success");
+                if (modalEditOrderInstance) modalEditOrderInstance.hide();
+                loadOrders();
+            } else {
+                showMacToast(data.msg, "error");
+            }
+        }).catch(() => showMacToast("Lỗi kết nối máy chủ!", "error"));
+    }
+</script>
+
+<!-- Modal Thêm Món Mới Vào Kho (Phong cách Apple macOS) -->
+<div class="modal fade" id="modalAddProduct" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #181b2a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
+            <div class="modal-header border-bottom border-white border-opacity-10 py-3">
+                <h5 class="modal-title fw-bold fs-6"><i class="bi bi-box-seam-fill text-warning me-2"></i>Thêm Món Mới Vào Kho</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label">Tên hàng hóa / Phụ kiện (*)</label>
+                    <input type="text" id="new_prod_name" class="form-control" placeholder="VD: Bi-LED Aozoom Domax Pro">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Mã hàng (Tùy chọn)</label>
+                        <input type="text" id="new_prod_code" class="form-control text-uppercase" placeholder="VD: SP273499">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Số lượng tồn kho ban đầu (*)</label>
+                        <input type="number" id="new_prod_stock" class="form-control text-center fw-bold text-success" value="10" min="0">
+                    </div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Giá bán tiêu chuẩn (VNĐ) (*)</label>
+                        <input type="text" id="new_prod_price" class="form-control fw-bold text-warning" placeholder="VD: 1.5tr, 1500k">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Thời hạn bảo hành (Tháng)</label>
+                        <input type="number" id="new_prod_war" class="form-control text-center" value="12" min="0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-white border-opacity-10">
+                <button type="button" class="btn btn-mac-ghost" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-mac-primary px-4" onclick="submitAddProduct()">
+                    <i class="bi bi-check2-circle me-1"></i> Lưu Vào Kho
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Sửa Giá Bán, Giá Vốn, Tồn Kho & Thông Tin Hàng Hóa -->
+<div class="modal fade" id="modalEditProduct" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #181b2a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
+            <div class="modal-header border-bottom border-white border-opacity-10 py-3">
+                <h5 class="modal-title fw-bold fs-6"><i class="bi bi-pencil-square text-info me-2"></i>Chỉnh Sửa Mặt Hàng (Giá Bán & Tồn Kho)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="edit_prod_id">
+                <div class="mb-3">
+                    <label class="form-label">Tên mặt hàng / Dịch vụ (*)</label>
+                    <input type="text" id="edit_prod_name" class="form-control fw-bold">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Mã hàng</label>
+                        <input type="text" id="edit_prod_code" class="form-control text-uppercase font-monospace text-info">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Loại</label>
+                        <select id="edit_prod_type" class="form-select">
+                            <option value="Hàng hóa">Hàng hóa</option>
+                            <option value="Dịch vụ">Dịch vụ</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Nhóm hàng</label>
+                        <input type="text" id="edit_prod_category" class="form-control">
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-warning">Giá Bán (VNĐ) (*)</label>
+                        <input type="text" id="edit_prod_price" class="form-control fw-bold text-warning" placeholder="VD: 1.5tr, 1500k">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Giá Vốn (VNĐ)</label>
+                        <input type="text" id="edit_prod_cost" class="form-control text-white-50" placeholder="VD: 1000k">
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label text-success">Số lượng Tồn Kho (*)</label>
+                        <input type="number" id="edit_prod_stock" class="form-control text-center fw-bold text-success" min="0">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Bảo Hành (Tháng)</label>
+                        <input type="number" id="edit_prod_war" class="form-control text-center" min="0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-white border-opacity-10 d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="deleteProductFromModal()">
+                    <i class="bi bi-trash3 me-1"></i> Xóa Món
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-mac-ghost" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-mac-primary px-4" onclick="submitEditProduct()">
+                        <i class="bi bi-check2-circle me-1"></i> Lưu Thay Đổi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Sửa Thông Tin Khách Hàng & Đơn Hàng -->
+<div class="modal fade" id="modalEditOrder" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="background: #181b2a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 18px; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.6);">
+            <div class="modal-header border-bottom border-white border-opacity-10 py-3">
+                <h5 class="modal-title fw-bold fs-6">
+                    <i class="bi bi-person-gear text-warning me-2"></i>Chỉnh Sửa Thông Tin Khách Hàng & Đơn Hàng <span class="text-info" id="edit_order_id_label"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="edit_order_id">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Biển số xe (*)</label>
+                        <input type="text" id="edit_order_plate" class="form-control text-uppercase fw-bold text-info">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Tên khách hàng</label>
+                        <input type="text" id="edit_order_name" class="form-control fw-semibold">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Số điện thoại</label>
+                        <input type="text" id="edit_order_phone" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Ngày ra đơn hàng</label>
+                        <input type="date" id="edit_order_date" class="form-control">
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="form-label mb-0 text-white"><i class="bi bi-tools text-info me-1"></i> Danh sách các món trong đơn hàng:</span>
+                    <button type="button" class="btn btn-sm btn-mac-ghost py-1" onclick="addEditOrderItem()">
+                        <i class="bi bi-plus-lg text-success me-1"></i> Thêm Dòng Món
+                    </button>
+                </div>
+
+                <div class="mac-table-wrapper mb-3">
+                    <div class="table-responsive">
+                        <table class="table-mac">
+                            <thead>
+                                <tr>
+                                    <th>Tên Món Hàng / Dịch Vụ</th>
+                                    <th class="text-center">SL</th>
+                                    <th>Đơn Giá Gốc</th>
+                                    <th>Thành Tiền Sau Giảm</th>
+                                    <th class="text-center">BH (Tháng)</th>
+                                    <th class="text-center">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="edit-order-items-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end align-items-center">
+                    <span class="text-white-50 me-2">Tổng tiền thực thu sau chỉnh sửa:</span>
+                    <h5 class="mb-0 fw-bold text-success" id="edit_order_total_preview">0 VNĐ</h5>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-white border-opacity-10 d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger btn-sm px-3" onclick="deleteOrderFromModal()">
+                    <i class="bi bi-trash3 me-1"></i> Xóa Đơn Hàng Này
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-mac-ghost" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-mac-primary px-4" onclick="submitEditOrder()">
+                        <i class="bi bi-check2-circle me-1"></i> Lưu Thông Tin Khách & Đơn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Bỏ qua file cơ sở dữ liệu SQLite để bảo vệ dữ liệu khách hàng
+*.db
+*.sqlite
+*.sqlite3
+
+# Bỏ qua file nén zip
+*.zip
+
+# Bỏ qua cache của Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bỏ qua thư mục cấu hình editor
+.vscode/
+.idea/
+

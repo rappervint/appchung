@@ -1,0 +1,2709 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Quản Lý & Báo Cáo Doanh Thu Đèn</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --primary:      #1e40af;
+            --primary-dark: #1e3a8a;
+            --success:      #059669;
+            --danger:       #dc2626;
+            --dark:         #0f172a;
+            --border:       #cbd5e1;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { margin: 0; background: #f1f5f9; color: var(--dark); min-height: 100vh; }
+
+        /* ─── HEADER / TAB NAV ─── */
+        .app-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+            padding: 0 28px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .app-logo {
+            color: #fff; font-size: 17px; font-weight: 800;
+            padding: 16px 0 14px;
+            display: flex; align-items: center; gap: 9px;
+            letter-spacing: 0.3px; white-space: nowrap;
+        }
+        .app-logo .icon { font-size: 22px; }
+        .tab-nav { display: flex; gap: 3px; }
+        .tab-btn {
+            background: rgba(255,255,255,0.10);
+            border: none;
+            color: rgba(255,255,255,0.72);
+            padding: 10px 24px 8px;
+            font-size: 14px; font-weight: 700;
+            cursor: pointer;
+            border-radius: 10px 10px 0 0;
+            transition: 0.15s;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.22); color: #fff; }
+        .tab-btn.active {
+            background: #f1f5f9; color: var(--primary);
+            padding-bottom: 12px; margin-bottom: -2px;
+        }
+
+        /* ─── APP BODY ─── */
+        .app-body { max-width: 1280px; margin: 0 auto; padding: 26px 20px 40px; }
+        .tab-panel { display: none; }
+        .tab-panel.active {
+            display: block;
+            animation: tabSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes tabSlideUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        @keyframes logoPop {
+            0%   { transform: scale(0.92); opacity: 0.8; }
+            50%  { transform: scale(1.06); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .logo-pop {
+            display: inline-flex;
+            animation: logoPop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes dataPulse {
+            0%   { opacity: 0.35; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .data-pulse {
+            animation: dataPulse 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ─── PANEL ─── */
+        .panel {
+            background: #fff; border-radius: 14px; padding: 24px 26px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
+        }
+        .panel-title { font-size: 16px; font-weight: 800; color: var(--primary); margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px; }
+
+        /* ─── FORM ─── */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+        .form-group { margin-bottom: 16px; }
+        label {
+            display: block; font-size: 11.5px; font-weight: 700;
+            color: #475569; margin-bottom: 5px;
+            text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        input, select {
+            width: 100%; padding: 10px 12px;
+            border: 1.5px solid var(--border); border-radius: 9px;
+            font-size: 14px; font-weight: 600; transition: 0.15s;
+            color: var(--dark); background: #fff;
+        }
+        input:focus, select:focus {
+            outline: none; border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(30,64,175,0.12);
+        }
+
+
+
+
+        /* ─── BUTTONS ─── */
+        button {
+            padding: 11px 18px; border: none; border-radius: 9px;
+            font-size: 13.5px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        button:active {
+            transform: scale(0.96) !important;
+        }
+        .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(30,64,175,0.2); }
+        .btn-primary:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(30,64,175,0.35); }
+        .btn-combo   { background: var(--success); color: #fff; box-shadow: 0 2px 8px rgba(5,150,105,0.2); }
+        .btn-combo:hover { background: #047857; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(5,150,105,0.35); }
+        .btn-sync    { background: #334155; color: #fff; }
+        .btn-sync:hover  { background: #1e293b; transform: translateY(-1px); }
+        .btn-export  { background: #0284c7; color: #fff; }
+        .btn-export:hover { background: #0369a1; transform: translateY(-1px); }
+        .btn-copy    { background: #7c3aed; color: #fff; }
+        .btn-copy:hover  { background: #6d28d9; transform: translateY(-1px); }
+        .btn-cancel  { background: #e2e8f0; color: #334155; width: 100%; margin-top: 10px; }
+        .btn-cancel:hover { background: #cbd5e1; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+        .btn-row > button { flex: 1; min-width: 140px; }
+
+        /* ─── MISC ─── */
+        .divider { border: none; border-top: 1.5px solid #e2e8f0; margin: 20px 0; }
+        .vnd-preview { font-size: 12px; color: #059669; font-weight: 700; margin-top: 4px; height: 16px; transition: all 0.2s ease; }
+        .edit-badge  { background: #fef3c7; color: #b45309; font-size: 12px; padding: 4px 11px; border-radius: 20px; font-weight: 700; }
+
+        /* ─── TOOLBAR (Báo cáo) ─── */
+        .toolbar {
+            display: flex; flex-wrap: wrap; gap: 12px;
+            justify-content: space-between; align-items: center;
+            margin-bottom: 16px; background: #fff;
+            padding: 14px 20px; border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            transition: box-shadow 0.2s ease;
+        }
+        .toolbar:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .toolbar-left  { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .toolbar-right { display: flex; gap: 8px; align-items: center; }
+        .toolbar label  { margin: 0; font-size: 13px; font-weight: 700; text-transform: none; color: #334155; white-space: nowrap; }
+        .toolbar select { width: auto; font-size: 13px; padding: 8px 10px; }
+
+        /* ─── REPORT & ANALYTICS CAPTURE AREAS ─── */
+        #report-capture-area, #analytics-capture-area {
+            background: #fff; padding: 28px 32px;
+            border-radius: 14px; border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+        }
+        .report-header {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            border-bottom: 3px solid var(--primary-dark);
+            padding-bottom: 14px; margin-bottom: 20px;
+        }
+        .report-title    { font-size: 23px; font-weight: 800; color: var(--primary-dark); letter-spacing: 0.3px; margin: 0; text-transform: uppercase; }
+        .report-subtitle { font-size: 13px; font-weight: 600; color: #475569; margin-top: 5px; }
+        .report-badge    { background: #eff6ff; border: 1px solid #bfdbfe; color: var(--primary); padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+
+        /* ─── STAT CARDS ─── */
+        .cards-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 22px; }
+        .stat-card {
+            border-radius: 12px; padding: 16px 18px; border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+            position: relative;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.07);
+            border-color: #cbd5e1;
+        }
+        .stat-card.highlight {
+            background: linear-gradient(135deg,#1e3a8a,#1d4ed8);
+            color: #fff; border: none;
+            box-shadow: 0 4px 18px rgba(30,64,175,0.22);
+        }
+        .stat-card.highlight:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(30,64,175,0.35);
+        }
+        .stat-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; opacity: 0.85; margin-bottom: 7px; }
+        .stat-value { font-size: 21px; font-weight: 800; letter-spacing: -0.3px; }
+        .stat-sub   { font-size: 12px; margin-top: 5px; font-weight: 600; opacity: 0.88; }
+        .top-products-list { font-size: 12.5px; font-weight: 700; color: #1e293b; line-height: 1.65; }
+
+        /* Floating icons animation for cards */
+        .floating-icon {
+            font-size: 32px;
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            opacity: 0.28;
+            animation: floatBadge 3.6s ease-in-out infinite;
+            pointer-events: none;
+            user-select: none;
+        }
+        .icon-delay-1 { animation-delay: 0s; }
+        .icon-delay-2 { animation-delay: 0.9s; }
+        .icon-delay-3 { animation-delay: 1.8s; }
+        .icon-delay-4 { animation-delay: 2.7s; }
+
+        @keyframes floatBadge {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50%      { transform: translateY(-6px) rotate(4deg); }
+        }
+
+        /* ─── TABLE ─── */
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: var(--primary-dark); color: #fff; font-weight: 700; text-transform: uppercase; font-size: 12px; padding: 11px 10px; border: 1px solid var(--primary-dark); letter-spacing: 0.3px; }
+        td { padding: 9px 10px; border: 1px solid #cbd5e1; color: #0f172a; font-weight: 600; }
+        tbody tr:nth-child(even) { background: #f8fafc; }
+        tbody tr:hover { background: #eff6ff; }
+        .text-center { text-align: center; }
+        .text-right  { text-align: right;  }
+        .price-col   { font-weight: 800; font-variant-numeric: tabular-nums; }
+        .combo-empty { color: #94a3b8; font-weight: 400; font-style: italic; }
+        tfoot td { background: #fef9c3; font-weight: 800; font-size: 15px; color: #991b1b; border-top: 2px solid var(--primary-dark); padding: 12px 10px; }
+        .action-cell { text-align: center; width: 80px; }
+        .btn-icon { background: none; border: none; padding: 3px 6px; cursor: pointer; font-size: 14px; border-radius: 4px; }
+        .btn-icon:hover { background: #e2e8f0; }
+        .capturing .no-capture { display: none !important; }
+
+        /* ─── HIỂN THỊ COMBO XE TRỰC QUAN ─── */
+        tr.combo-first {
+            border-top: 2px solid #3b82f6 !important;
+            background-color: #f0f7ff !important;
+        }
+        tr.combo-sub {
+            background-color: #f8faff !important;
+        }
+        tr.combo-sub td {
+            border-top: 1px dashed #dbeafe !important;
+        }
+        .badge-combo {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #dbeafe; color: #1e40af;
+            font-size: 11px; font-weight: 700;
+            padding: 2px 7px; border-radius: 6px;
+            margin-left: 6px; vertical-align: middle;
+        }
+        .item-tree {
+            display: inline-block;
+            color: #3b82f6;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+        .combo-total-tag {
+            font-size: 11px;
+            color: #1e40af;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            margin-top: 3px;
+            display: inline-block;
+        }
+
+        /* ─── BẢNG ĐƠN TẠM CHỜ LƯU (STAGING DRAFT TABLE) ─── */
+        .draft-section {
+            margin-top: 24px;
+            border: 2px solid #3b82f6;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 4px 16px rgba(59, 130, 246, 0.08);
+            animation: fadeIn 0.25s ease;
+        }
+        .draft-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .draft-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #1e3a8a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .draft-count-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 12px;
+            padding: 3px 9px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+        .draft-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .btn-commit {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 800;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            animation: commitPulse 2.8s ease-in-out infinite;
+        }
+        @keyframes commitPulse {
+            0%, 100% { box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); transform: scale(1); }
+            50%      { box-shadow: 0 6px 18px rgba(16, 185, 129, 0.55); transform: scale(1.02); }
+        }
+        .btn-commit:hover {
+            background: #047857;
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 8px 22px rgba(16, 185, 129, 0.5);
+        }
+        .btn-clear-draft {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 8px;
+        }
+        .btn-clear-draft:hover {
+            background: #fecaca;
+        }
+        .draft-table {
+            width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+            font-size: 13.5px;
+        }
+        .draft-table th {
+            background: #1e3a8a;
+            color: #fff;
+            font-size: 11.5px;
+            padding: 9px 10px;
+        }
+        .draft-table td {
+            padding: 8px 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .draft-table tbody tr {
+            animation: rowSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .draft-table tr:hover {
+            background: #eff6ff;
+        }
+        @keyframes rowSlideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        .draft-total-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fef9c3;
+            border: 1px solid #fde047;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-weight: 800;
+            color: #991b1b;
+            font-size: 14.5px;
+            transition: all 0.25s ease;
+        }
+
+
+
+        /* ─── TRA CỨU ─── */
+        .search-wrap { position: relative; }
+        .search-wrap input { padding-left: 40px; font-size: 15px; }
+        .search-ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 17px; color: #94a3b8; pointer-events: none; }
+        .result-item { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; transition: 0.1s; }
+        .result-item:hover { background: #eff6ff; transform: translateX(3px); }
+        .result-meta  { font-size: 13px; font-weight: 600; color: #334155; }
+        .result-price { font-size: 14px; font-weight: 800; color: #059669; white-space: nowrap; }
+        .search-empty { text-align: center; color: #94a3b8; padding: 30px; font-size: 14px; }
+
+        /* ─── TOAST ─── */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: #0f172a; color: #fff;
+            padding: 14px 22px; border-radius: 10px;
+            font-weight: 700; display: none; z-index: 9999;
+            box-shadow: 0 10px 32px rgba(0,0,0,0.28);
+            font-size: 14px; max-width: 380px;
+        }
+        .toast.show {
+            display: block;
+            animation: toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes toastSlideUp {
+            from { transform: translateY(20px) scale(0.95); opacity: 0; }
+            to   { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* ─── TABLE RESPONSIVE ─── */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            margin-bottom: 12px;
+        }
+
+        /* ─── THẺ CARD ĐƠN NHÁP TRÊN MOBILE ─── */
+        .draft-mobile-cards { display: none; }
+        .draft-card-item {
+            background: #ffffff;
+            border: 1.5px solid #dbeafe;
+            border-radius: 11px;
+            padding: 12px 14px;
+            box-shadow: 0 2px 8px rgba(30,64,175,0.06);
+            margin-bottom: 10px;
+            animation: rowSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .draft-card-item:hover {
+            box-shadow: 0 4px 14px rgba(30,64,175,0.12);
+        }
+        .draft-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .draft-card-badge {
+            background: #eff6ff;
+            color: #1e40af;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+        .draft-card-qty {
+            background: #f1f5f9;
+            color: #1e293b;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 6px;
+        }
+        .draft-card-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 5px;
+            line-height: 1.35;
+        }
+        .draft-card-vehicle {
+            font-size: 12.5px;
+            color: #475569;
+            font-weight: 600;
+            margin-bottom: 9px;
+            background: #f8fafc;
+            padding: 4px 8px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .draft-card-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px dashed #e2e8f0;
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+        .draft-card-price {
+            font-size: 14.5px;
+        }
+        .draft-card-actions {
+            display: flex;
+            gap: 7px;
+        }
+        .m-card-btn {
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 7px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .m-btn-edit {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        .m-btn-del {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        /* ─── TAB THỐNG KÊ & BIỂU ĐỒ ─── */
+        .analytics-charts-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+        .analytics-tables-row {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+        .year-pill {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1.5px solid #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .year-pill:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+        .year-pill.active {
+            background: #1e40af;
+            color: #ffffff;
+            border-color: #1e3a8a;
+            box-shadow: 0 2px 8px rgba(30, 64, 175, 0.25);
+        }
+
+        /* ─── BOTTOM NAVIGATION BAR (CHO ĐIỆN THOẠI) ─── */
+        .mobile-bottom-nav { display: none; }
+        .app-date-badge { display: none; }
+
+        /* ─── RESPONSIVE TỐI ƯU TOÀN DIỆN CHO ĐIỆN THOẠI ─── */
+        @media (max-width: 900px) {
+            .cards-grid { grid-template-columns: 1fr 1fr; }
+            .analytics-charts-row { grid-template-columns: 1fr !important; }
+            .analytics-tables-row { grid-template-columns: 1fr !important; }
+            .app-logo   { font-size: 16px; }
+        }
+
+        @media (max-width: 768px) {
+            /* Header thu gọn */
+            .app-header {
+                padding: 0 16px;
+                min-height: 52px;
+                align-items: center;
+            }
+            .app-header .tab-nav {
+                display: none; /* Ẩn tabs trên header, chuyển xuống bottom bar */
+            }
+            .app-date-badge {
+                display: inline-flex;
+                color: #fff;
+                font-size: 12px;
+                font-weight: 700;
+                background: rgba(255,255,255,0.18);
+                padding: 5px 11px;
+                border-radius: 14px;
+                align-items: center;
+                gap: 5px;
+            }
+
+            /* Bottom Nav cố định ở mép dưới điện thoại (ngón tay cái chạm cực tiện) */
+            .mobile-bottom-nav {
+                display: flex;
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                height: 60px;
+                background: #ffffff;
+                border-top: 1px solid #e2e8f0;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+                z-index: 1000;
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
+            .m-tab-btn {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: none;
+                border: none;
+                padding: 4px 0;
+                color: #64748b;
+                cursor: pointer;
+                transition: 0.12s;
+                -webkit-tap-highlight-color: transparent;
+            }
+            .m-tab-btn .m-icon {
+                font-size: 20px;
+                line-height: 1;
+                margin-bottom: 3px;
+                transition: transform 0.15s;
+            }
+            .m-tab-btn .m-label {
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.1px;
+            }
+            .m-tab-btn:active {
+                transform: scale(0.94);
+            }
+            .m-tab-btn.active {
+                color: var(--primary);
+            }
+            .m-tab-btn.active .m-icon {
+                transform: scale(1.15);
+            }
+            .m-tab-btn.active .m-label {
+                color: var(--primary);
+                font-weight: 800;
+            }
+
+            /* Body padding để không bị bottom bar đè lên */
+            .app-body {
+                padding: 12px 10px 85px !important;
+            }
+            .panel {
+                padding: 16px 14px !important;
+                border-radius: 12px !important;
+            }
+            .panel-title {
+                font-size: 16px !important;
+                margin-bottom: 14px !important;
+            }
+
+            /* Form inputs chuẩn di động */
+            .form-grid {
+                grid-template-columns: 1fr !important;
+                gap: 0 !important;
+            }
+            .form-group {
+                margin-bottom: 14px !important;
+            }
+            label {
+                font-size: 12px !important;
+                margin-bottom: 6px !important;
+            }
+            input, select {
+                font-size: 16px !important; /* chống auto zoom trên iOS */
+                padding: 11px 13px !important;
+                border-radius: 10px !important;
+                height: 46px;
+            }
+
+
+
+            /* Nút Thêm đơn chính */
+            .btn-row {
+                flex-direction: column !important;
+                gap: 10px !important;
+                margin-top: 10px !important;
+            }
+            .btn-row > button {
+                width: 100% !important;
+                height: 48px !important;
+                font-size: 15px !important;
+                border-radius: 10px !important;
+                font-weight: 800 !important;
+            }
+            .btn-cancel {
+                height: 44px !important;
+                font-size: 14px !important;
+            }
+
+            /* Bảng đơn nháp chuyển sang dạng Card trên mobile */
+            .desktop-draft-table {
+                display: none !important;
+            }
+            .draft-mobile-cards {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 8px !important;
+            }
+            .draft-section {
+                padding: 14px 12px !important;
+                border-radius: 12px !important;
+            }
+            .draft-header {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 10px !important;
+            }
+            .draft-actions {
+                flex-direction: column !important;
+                width: 100% !important;
+                gap: 8px !important;
+            }
+            .draft-actions button {
+                width: 100% !important;
+                height: 46px !important;
+                font-size: 14.5px !important;
+            }
+            .draft-total-bar {
+                flex-direction: column !important;
+                gap: 5px !important;
+                text-align: center !important;
+                font-size: 15px !important;
+                padding: 10px !important;
+            }
+
+            /* Tab Báo cáo */
+            .toolbar {
+                padding: 12px 12px !important;
+                gap: 10px !important;
+            }
+            .toolbar-left {
+                width: 100% !important;
+                gap: 8px !important;
+            }
+            .toolbar-left select {
+                flex: 1 !important;
+                height: 42px !important;
+                font-size: 14px !important;
+            }
+            .toolbar-left label {
+                width: 100% !important;
+                margin-top: 4px !important;
+                font-size: 13.5px !important;
+            }
+            .toolbar-right {
+                width: 100% !important;
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+            }
+            .toolbar-right button {
+                width: 100% !important;
+                height: 44px !important;
+                font-size: 13px !important;
+            }
+            #report-capture-area, #analytics-capture-area {
+                padding: 16px 10px !important;
+            }
+            .report-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 6px !important;
+                padding-bottom: 10px !important;
+            }
+            .report-title {
+                font-size: 17px !important;
+                line-height: 1.3 !important;
+            }
+            .report-subtitle {
+                font-size: 12px !important;
+            }
+            .report-badge {
+                font-size: 11.5px !important;
+                padding: 4px 10px !important;
+            }
+            .cards-grid {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+                margin-bottom: 16px !important;
+            }
+            .cards-grid .stat-card:last-child {
+                grid-column: span 2 !important;
+            }
+            .stat-card {
+                padding: 12px 10px !important;
+            }
+            .stat-value {
+                font-size: 17px !important;
+            }
+            .stat-sub {
+                font-size: 11px !important;
+            }
+
+            /* Toast thông báo di động */
+            .toast {
+                left: 14px !important;
+                right: 14px !important;
+                bottom: 74px !important;
+                max-width: none !important;
+                font-size: 13.5px !important;
+                padding: 12px 16px !important;
+                text-align: center !important;
+                border-radius: 12px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- APP SWITCHER TOPBAR -->
+<div style="background: #0f172a; padding: 7px 18px; font-size: 13px; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); position: sticky; top: 0; z-index: 101; flex-wrap: wrap; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: 600; color: #94a3b8;"><i style="font-style: normal;">🌐</i> Menu Chung:</span>
+        <a href="/" style="color: #38bdf8; text-decoration: none; font-weight: 700; background: rgba(56,189,248,0.12); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(56,189,248,0.25);">🏠 Trang Chủ Hub</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <a href="/banhang/" style="color: #4ade80; text-decoration: none; font-weight: 700; background: rgba(74, 222, 128, 0.15); padding: 3px 12px; border-radius: 6px; border: 1px solid rgba(74, 222, 128, 0.35); transition: 0.2s;">
+            📦 Bán Hàng & Kho
+        </a>
+        <span style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; padding: 3px 10px; border-radius: 6px; font-weight: 700; border: 1px solid rgba(251, 191, 36, 0.3);">
+            💡 Báo Cáo Đèn
+        </span>
+        <a href="/thuchi/" style="color: #c084fc; text-decoration: none; font-weight: 700; background: rgba(168, 85, 247, 0.15); padding: 3px 12px; border-radius: 6px; border: 1px solid rgba(168, 85, 247, 0.35); transition: 0.2s;">
+            💰 Sổ Thu Chi ➔
+        </a>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     HEADER — Sticky tab bar
+════════════════════════════════════════════════════ -->
+<div class="app-header">
+    <div class="app-logo" id="header-tab-title">
+        <span class="icon" id="header-tab-icon">⚡</span> <span id="header-tab-name">Nhập Đơn Hàng</span>
+    </div>
+    <div class="app-date-badge">📅 {{ today_vn }}</div>
+    <nav class="tab-nav">
+        <button class="tab-btn active" id="tab-nhap"    onclick="switchTab('nhap')">⚡ Nhập Đơn</button>
+        <button class="tab-btn"        id="tab-baocao"  onclick="switchTab('baocao')">📊 Báo Cáo</button>
+        <button class="tab-btn"        id="tab-thongke" onclick="switchTab('thongke')">📈 Thống Kê</button>
+        <button class="tab-btn"        id="tab-tracuu"  onclick="switchTab('tracuu')">🔍 Tra Cứu</button>
+    </nav>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     BOTTOM NAVIGATION BAR (CHO ĐIỆN THOẠI)
+════════════════════════════════════════════════════ -->
+<nav class="mobile-bottom-nav">
+    <button class="m-tab-btn active" id="m-tab-nhap" onclick="switchTab('nhap')">
+        <span class="m-icon">⚡</span>
+        <span class="m-label">Nhập Đơn</span>
+    </button>
+    <button class="m-tab-btn" id="m-tab-baocao" onclick="switchTab('baocao')">
+        <span class="m-icon">📊</span>
+        <span class="m-label">Báo Cáo</span>
+    </button>
+    <button class="m-tab-btn" id="m-tab-thongke" onclick="switchTab('thongke')">
+        <span class="m-icon">📈</span>
+        <span class="m-label">Thống Kê</span>
+    </button>
+    <button class="m-tab-btn" id="m-tab-tracuu" onclick="switchTab('tracuu')">
+        <span class="m-icon">🔍</span>
+        <span class="m-label">Tra Cứu</span>
+    </button>
+</nav>
+
+<div class="app-body">
+
+    <!-- ═══════════════════════════════════════════════════
+         TAB 1 · NHẬP ĐƠN
+    ════════════════════════════════════════════════════ -->
+    <div class="tab-panel active" id="panel-nhap">
+        <div class="panel">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div class="panel-title" style="margin:0;">⚡ Nhập Đơn Đèn Mới</div>
+                <span id="edit-badge" class="edit-badge" style="display:none;">
+                    ✏️ Đang sửa đơn #<span id="edit-id-label"></span>
+                </span>
+            </div>
+            <input type="hidden" id="order_id" value="">
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>📅 Ngày lắp đặt</label>
+                    <input type="date" id="order_date" value="{{ today }}">
+                </div>
+                <div class="form-group">
+                    <label>🔢 Số lượng</label>
+                    <input type="number" id="quantity" value="1" min="1" oninput="calculateFinalPrice()">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>🏷️ Tên sản phẩm / Mã đèn</label>
+                    <input type="text" id="product_name" list="product_list"
+                           placeholder="Gõ tên đèn... (VD: F10 HYPER, NAOEVO...)"
+                           style="text-transform:uppercase;" oninput="onProductInputChange()" autocomplete="off">
+                    <datalist id="product_list">
+                        {% for p in all_products %}<option value="{{ p }}">{% endfor %}
+                    </datalist>
+                </div>
+
+                <div class="form-group">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div>
+                            <label>💰 Giá gốc (Nghìn đ)</label>
+                            <input type="number" id="price_k" placeholder="VD: 5500" oninput="calculateFinalPrice()">
+                        </div>
+                        <div>
+                            <label>🏷️ Giảm giá (500 hoặc 10%)</label>
+                            <input type="text" id="discount_input" placeholder="VD: 500 hoặc 10%" oninput="calculateFinalPrice()">
+                        </div>
+                    </div>
+                    <div class="vnd-preview" id="vnd_preview" style="margin-top:6px;">= 0 đ</div>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>👤 Tên khách / Biển số</label>
+                    <input type="text" id="customer_name" list="customer_list"
+                           placeholder="Gõ tên khách hoặc biển số... (VD: ANH KHÁNH / 63A...)"
+                           style="text-transform:uppercase;" autocomplete="off">
+                    <datalist id="customer_list">
+                        {% for c in all_customers %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                </div>
+
+                <div class="form-group">
+                    <label>🚙 Loại xe</label>
+                    <input type="text" id="car_model" list="car_list"
+                           placeholder="Gõ loại xe... (VD: VF3, INNOVA, RANGER...)"
+                           style="text-transform:uppercase;" autocomplete="off">
+                    <datalist id="car_list">
+                        {% for c in all_cars %}<option value="{{ c }}">{% endfor %}
+                    </datalist>
+                </div>
+            </div>
+
+
+            <div class="btn-row">
+                <button class="btn-primary" onclick="addDraftOrder(false)">➕ Thêm Đơn Vào Danh Sách (Xe mới)</button>
+                <button class="btn-combo"   onclick="addDraftOrder(true)">⚡ Thêm &amp; Giữ Xe (Lắp tiếp món khác)</button>
+            </div>
+            <button id="btn-cancel-edit" class="btn-cancel" style="display:none;" onclick="cancelDraftEdit()">
+                ✖ Hủy chỉnh sửa đơn này
+            </button>
+
+            <!-- ─── BẢNG ĐƠN TẠM CHỜ LƯU TOÀN BỘ ─── -->
+            <div class="draft-section" id="draft_section" style="display:none;">
+                <div class="draft-header">
+                    <div class="draft-title">
+                        <span>📋 ĐƠN VỪA NHẬP (Chờ lưu)</span>
+                        <span class="draft-count-badge" id="draft_count_badge">0 món</span>
+                    </div>
+                    <div class="draft-actions">
+                        <button class="btn-clear-draft" onclick="clearAllDrafts()">🗑️ Xóa hết danh sách này</button>
+                        <button class="btn-commit" onclick="commitAllDrafts()">💾 LƯU TOÀN BỘ VÀO HỆ THỐNG</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive desktop-draft-table">
+                    <table class="draft-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;">STT</th>
+                                <th style="width:105px;">NGÀY</th>
+                                <th>TÊN SẢN PHẨM</th>
+                                <th>KHÁCH HÀNG</th>
+                                <th>LOẠI XE</th>
+                                <th style="width:75px;">SỐ LƯỢNG</th>
+                                <th style="width:130px;">GIÁ BÁN</th>
+                                <th style="width:90px; text-align:center;">THAO TÁC</th>
+                            </tr>
+                        </thead>
+                        <tbody id="draft_tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Danh sách Card cho màn hình di động -->
+                <div class="draft-mobile-cards" id="draft_mobile_cards"></div>
+
+                <div class="draft-total-bar">
+                    <span>TỔNG CỘNG ĐƠN CHỜ LƯU:</span>
+                    <span id="draft_total_summary">0 bộ | 0 đ</span>
+                </div>
+            </div>
+
+            <hr class="divider">
+            <button class="btn-sync" onclick="syncExcel()" style="width:100%;">
+                🔄 Đồng Bộ Thủ Công Ra File Excel (.xlsx)
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         TAB 2 · BÁO CÁO
+    ════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-baocao">
+        <!-- Toolbar bộ lọc -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <label>📅 Kỳ báo cáo:</label>
+                <select id="sel_month" style="width:120px;" onchange="loadReport()">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if m == cur_month %}selected{% endif %}>
+                        Tháng {{ "%02d"|format(m) }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <select id="sel_year" style="width:100px;" onchange="loadReport()">
+                    {% for y in range(2022, 2028) %}
+                    <option value="{{ y }}" {% if y == cur_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" id="group_combo" checked onchange="loadReport()"
+                           style="width:auto; cursor:pointer; accent-color:var(--primary);">
+                    Gom nhóm theo xe (Xe lắp combo)
+                </label>
+
+            </div>
+            <div class="toolbar-right">
+                <button class="btn-copy"   onclick="captureReport(true)">📋 Copy Ảnh Zalo</button>
+                <button class="btn-export" onclick="captureReport(false)">📸 Tải Ảnh .PNG</button>
+            </div>
+        </div>
+
+        <!-- Vùng chụp báo cáo -->
+        <div id="report-capture-area">
+            <div class="report-header">
+                <div>
+                    <h1 class="report-title" id="rp_title">
+                        BÁO CÁO DOANH THU ĐÈN THÁNG {{ "%02d/%d"|format(cur_month, cur_year) }}
+                    </h1>
+                    <div class="report-subtitle" id="rp_cycle">
+                        Kỳ chốt sổ: 09/{{ "%02d/%d"|format(cur_month, cur_year) }}
+                        đến 08/{{ "%02d/%d"|format(
+                            cur_month + 1 if cur_month < 12 else 1,
+                            cur_year      if cur_month < 12 else cur_year + 1
+                        ) }}
+                    </div>
+                </div>
+                <div class="report-badge" id="rp_timestamp">Ngày xuất: {{ today_vn }}</div>
+            </div>
+
+            <!-- Dashboard cards -->
+            <div class="cards-grid">
+                <div class="stat-card highlight">
+                    <div class="stat-label">💰 Tổng Doanh Thu</div>
+                    <div class="stat-value" id="stat_revenue">0 đ</div>
+                    <div class="stat-sub" id="stat_diff_prev">◀ So với tháng trước: Đang tải...</div>
+                    <div class="stat-sub" id="stat_diff_next" style="margin-top:5px; opacity:0.95;">▶ So với tháng sau: Đang tải...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💡 Số Bộ Đèn Lắp</div>
+                    <div class="stat-value" id="stat_qty" style="color:#1e40af;">0 bộ</div>
+                    <div class="stat-sub"   id="stat_rows">Trên tổng 0 hạng mục</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🚗 Lượt Xe Làm Đèn</div>
+                    <div class="stat-value" id="stat_cars" style="color:#059669;">0 xe</div>
+                    <div class="stat-sub"   id="stat_avg">Trung bình: 0 đ / xe</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🏆 Top Mã Đèn Bán Chạy</div>
+                    <div class="top-products-list" id="stat_top_products">Chưa có dữ liệu</div>
+                </div>
+            </div>
+
+            <!-- Bảng chi tiết -->
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:48px;">STT</th>
+                            <th style="width:110px;">NGÀY</th>
+                            <th>TÊN SẢN PHẨM</th>
+                            <th>TÊN KHÁCH HÀNG</th>
+                            <th>LOẠI XE</th>
+                            <th style="width:85px;">SỐ LƯỢNG</th>
+                            <th style="width:160px;">GIÁ BÁN (VNĐ)</th>
+                            <th class="no-capture action-cell">SỬA/XÓA</th>
+                        </tr>
+                    </thead>
+                    <tbody id="report_tbody"></tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5" class="text-right">TỔNG CỘNG DOANH THU KỲ BÁO CÁO:</td>
+                            <td class="text-center" id="foot_qty">0 bộ</td>
+                            <td class="text-right price-col" id="foot_revenue">0 đ</td>
+                            <td class="no-capture"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div><!-- /#report-capture-area -->
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         TAB 3 · THỐNG KÊ & PHÂN TÍCH DOANH SỐ
+    ════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-thongke">
+        <!-- Toolbar Thống Kê -->
+        <div class="toolbar" style="flex-direction:column; align-items:stretch; gap:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div class="toolbar-left">
+                    <span style="font-size:16px; font-weight:800; color:#1e3a8a;">📈 Phân Tích & Thống Kê Doanh Số Đèn</span>
+                    <span class="report-badge" id="analytics_badge" style="background:#f0fdf4; border-color:#bbf7d0; color:#166534;">
+                        🌟 Đang xem: Toàn bộ lịch sử các năm
+                    </span>
+                </div>
+                <div class="toolbar-right">
+                    <button class="btn-copy"   onclick="captureAnalytics(true)">📋 Copy Ảnh Zalo</button>
+                    <button class="btn-export" onclick="captureAnalytics(false)">📸 Tải Ảnh .PNG</button>
+                    <button class="btn-sync"   onclick="loadAnalytics(true)" style="padding:8px 14px; font-size:13px;">🔄 Làm Mới Dữ Liệu</button>
+                </div>
+            </div>
+
+            <!-- Bảng sổ xuống chọn năm -->
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-top:10px; border-top:1px dashed #e2e8f0;">
+                <label for="sel_analytics_year" style="font-size:13px; font-weight:800; color:#334155; margin:0; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                    📅 Chọn năm xem chi tiết:
+                </label>
+                <select id="sel_analytics_year" onchange="selectAnalyticsYear(this.value)" 
+                        style="width:auto; min-width:260px; padding:8px 14px; font-size:14px; font-weight:700; color:#1e40af; border:2px solid #93c5fd; border-radius:8px; background:#fff; cursor:pointer;">
+                    <option value="all">🌐 Tất Cả Các Năm (Toàn Bộ Lịch Sử)</option>
+                    <!-- Danh sách các năm sẽ nạp tự động từ JS -->
+                </select>
+                <span style="font-size:12.5px; color:#64748b; font-weight:600;">
+                    (Tự động thống kê tháng cao nhất, tháng thấp nhất và biểu đồ của năm được chọn)
+                </span>
+            </div>
+        </div>
+
+        <!-- Vùng chụp báo cáo Thống Kê -->
+        <div id="analytics-capture-area">
+            <div class="report-header">
+                <div>
+                    <h1 class="report-title" id="an_title">
+                        BÁO CÁO PHÂN TÍCH & THỐNG KÊ DOANH SỐ ĐÈN
+                    </h1>
+                    <div class="report-subtitle" id="an_subtitle">
+                        Toàn bộ lịch sử các năm (2022 – 2026)
+                    </div>
+                </div>
+                <div class="report-badge" id="an_timestamp">Ngày xuất: {{ today_vn }}</div>
+            </div>
+
+            <!-- 4 Thẻ Kỷ Lục Trọng Điểm: Tự động đổi theo Năm được chọn -->
+            <div class="cards-grid" style="margin-bottom:18px;">
+            <!-- Thẻ 1 -->
+            <div class="stat-card" style="background:linear-gradient(135deg, #065f46, #059669); color:#fff; border:none; position:relative; overflow:hidden; padding:18px 20px;">
+                <div class="floating-icon icon-delay-1">👑</div>
+                <div class="stat-label" id="card_lbl_1" style="color:#d1fae5; font-size:11.5px;">🏆 NĂM DOANH SỐ CAO NHẤT</div>
+                <div class="stat-value" id="stat_best_year_title" style="color:#fff; font-size:24px; margin-top:4px;">Năm ----</div>
+                <div style="font-size:18px; font-weight:800; margin-top:5px; color:#fef08a;" id="stat_best_year_val">0 đ</div>
+                <div class="stat-sub" style="color:#e6fffa; opacity:0.95; margin-top:5px;" id="stat_best_year_sub">Đang nạp dữ liệu...</div>
+            </div>
+
+            <!-- Thẻ 2 -->
+            <div class="stat-card" style="background:linear-gradient(135deg, #7c2d12, #c2410c); color:#fff; border:none; position:relative; overflow:hidden; padding:18px 20px;">
+                <div class="floating-icon icon-delay-2">🔻</div>
+                <div class="stat-label" id="card_lbl_2" style="color:#ffedd5; font-size:11.5px;">📉 NĂM DOANH SỐ THẤP NHẤT</div>
+                <div class="stat-value" id="stat_worst_year_title" style="color:#fff; font-size:24px; margin-top:4px;">Năm ----</div>
+                <div style="font-size:18px; font-weight:800; margin-top:5px; color:#fed7aa;" id="stat_worst_year_val">0 đ</div>
+                <div class="stat-sub" style="color:#fff7ed; opacity:0.95; margin-top:5px;" id="stat_worst_year_sub">Đang nạp dữ liệu...</div>
+            </div>
+
+            <!-- Thẻ 3 -->
+            <div class="stat-card" style="background:linear-gradient(135deg, #1e3a8a, #2563eb); color:#fff; border:none; position:relative; overflow:hidden; padding:18px 20px;">
+                <div class="floating-icon icon-delay-3">🚀</div>
+                <div class="stat-label" id="card_lbl_3" style="color:#dbeafe; font-size:11.5px;">🌟 THÁNG KỶ LỤC CAO NHẤT</div>
+                <div class="stat-value" id="stat_best_month_title" style="color:#fff; font-size:24px; margin-top:4px;">Tháng --/----</div>
+                <div style="font-size:18px; font-weight:800; margin-top:5px; color:#fde047;" id="stat_best_month_val">0 đ</div>
+                <div class="stat-sub" style="color:#eff6ff; opacity:0.95; margin-top:5px;" id="stat_best_month_sub">Đang nạp dữ liệu...</div>
+            </div>
+
+            <!-- Thẻ 4 -->
+            <div class="stat-card" style="background:linear-gradient(135deg, #475569, #64748b); color:#fff; border:none; position:relative; overflow:hidden; padding:18px 20px;">
+                <div class="floating-icon icon-delay-4">⚓</div>
+                <div class="stat-label" id="card_lbl_4" style="color:#e2e8f0; font-size:11.5px;">💤 THÁNG DOANH SỐ THẤP NHẤT</div>
+                <div class="stat-value" id="stat_worst_month_title" style="color:#fff; font-size:24px; margin-top:4px;">Tháng --/----</div>
+                <div style="font-size:18px; font-weight:800; margin-top:5px; color:#f1f5f9;" id="stat_worst_month_val">0 đ</div>
+                <div class="stat-sub" style="color:#f8fafc; opacity:0.95; margin-top:5px;" id="stat_worst_month_sub">Đang nạp dữ liệu...</div>
+            </div>
+        </div>
+
+        <!-- Thẻ Tổng Quan Toàn Diện -->
+        <div class="cards-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:22px;">
+            <div class="stat-card">
+                <div class="stat-label" id="stat_all_vnd_lbl">💰 Tổng Doanh Thu Toàn Lịch Sử</div>
+                <div class="stat-value" id="stat_all_vnd" style="color:#059669; font-size:20px;">0 đ</div>
+                <div class="stat-sub" id="stat_all_months">Trong 0 tháng hoạt động</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" id="stat_all_qty_lbl">💡 Tổng Số Bộ Đèn Đã Lắp</div>
+                <div class="stat-value" id="stat_all_qty" style="color:#2563eb; font-size:20px;">0 bộ</div>
+                <div class="stat-sub" id="stat_all_qty_sub">Toàn bộ các năm cộng lại</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" id="stat_all_cars_lbl">🚗 Tổng Lượt Xe Nâng Cấp</div>
+                <div class="stat-value" id="stat_all_cars" style="color:#7c3aed; font-size:20px;">0 lượt xe</div>
+                <div class="stat-sub" id="stat_all_cars_sub">Khách hàng làm đèn tại xưởng</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" id="stat_avg_month_lbl">📊 Doanh Thu TB / Tháng</div>
+                <div class="stat-value" id="stat_avg_month" style="color:#d97706; font-size:20px;">0 đ</div>
+                <div class="stat-sub" id="stat_avg_month_sub">Bình quân các tháng ghi nhận</div>
+            </div>
+        </div>
+
+        <!-- KHU VỰC BIỂU ĐỒ 1 & 2 -->
+        <div class="analytics-charts-row">
+            <!-- Biểu đồ Doanh thu -->
+            <div class="panel" style="margin:0; padding:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                    <div style="font-size:15px; font-weight:800; color:#1e3a8a;" id="chart1_title">
+                        📊 Xu Hướng Doanh Thu Qua Các Năm (2022 - 2026)
+                    </div>
+                    <span style="font-size:12px; background:#eff6ff; color:#1e40af; padding:3px 8px; border-radius:6px; font-weight:700;">Đơn vị: Triệu VNĐ</span>
+                </div>
+                <div style="position:relative; height:290px; width:100%;">
+                    <canvas id="chartYearlyRevenue"></canvas>
+                </div>
+            </div>
+
+            <!-- Biểu đồ Top Sản Phẩm Doanh Thu Khủng -->
+            <div class="panel" style="margin:0; padding:20px;">
+                <div style="font-size:15px; font-weight:800; color:#1e3a8a; margin-bottom:14px;" id="chart2_title">
+                    🥧 Top Mã Đèn Đem Lại Doanh Thu Cao Nhất
+                </div>
+                <div style="position:relative; height:290px; width:100%; display:flex; align-items:center; justify-content:center;">
+                    <canvas id="chartTopProducts"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- KHU VỰC BIỂU ĐỒ 3: SO SÁNH 12 THÁNG QUA CÁC NĂM -->
+        <div class="panel" id="chart3_container" style="margin:0 0 22px 0; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <div style="font-size:15px; font-weight:800; color:#1e3a8a;">
+                        📈 So Sánh Chu Kỳ Doanh Thu 12 Tháng Giữa Các Năm (Mùa Vụ Kinh Doanh)
+                    </div>
+                    <div style="font-size:12.5px; color:#64748b; margin-top:3px;">
+                        👉 Bấm vào ô tên năm trên phần Chú thích biểu đồ để ẩn/hiện so sánh từng năm
+                    </div>
+                </div>
+                <span style="font-size:12px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px 10px; border-radius:6px; font-weight:700;">
+                    💡 Tháng 11 - 12 - 1 thường đạt doanh số đỉnh cao
+                </span>
+            </div>
+            <div style="position:relative; height:320px; width:100%;">
+                <canvas id="chartMonthlyComparison"></canvas>
+            </div>
+        </div>
+
+        <!-- KHU VỰC BẢNG BÁO CÁO TỔNG KẾT CHI TIẾT -->
+        <div class="analytics-tables-row">
+            <!-- Bảng tổng kết -->
+            <div class="panel" style="margin:0; padding:20px;">
+                <div style="font-size:15px; font-weight:800; color:#1e3a8a; margin-bottom:14px;" id="table1_title">
+                    📋 Bảng Thống Kê Tổng Hợp Từng Năm
+                </div>
+                <div class="table-responsive">
+                    <table id="analytics_table_1">
+                        <thead id="analytics_thead_1">
+                            <tr>
+                                <th>Năm</th>
+                                <th class="text-right">Tổng Doanh Thu</th>
+                                <th class="text-center">Số Bộ</th>
+                                <th class="text-center">Lượt Xe</th>
+                                <th>Tháng Đỉnh Cao</th>
+                                <th>Tháng Thấp Nhất</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics_yearly_tbody">
+                            <!-- Nạp từ JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bảng Top 5 Tháng Doanh Số Kỷ Lục -->
+            <div class="panel" style="margin:0; padding:20px;">
+                <div style="font-size:15px; font-weight:800; color:#1e3a8a; margin-bottom:14px;" id="table2_title">
+                    🏆 Top 5 Tháng Doanh Số Kỷ Lục Mọi Thời Đại
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead id="analytics_thead_2">
+                            <tr>
+                                <th style="width:52px;" class="text-center">Hạng</th>
+                                <th>Thời Gian</th>
+                                <th class="text-right">Doanh Thu</th>
+                                <th class="text-center">Số Lắp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics_top_months_tbody">
+                            <!-- Nạp từ JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div><!-- /#analytics-capture-area -->
+    </div><!-- /#panel-thongke -->
+
+    <!-- ═══════════════════════════════════════════════════
+         TAB 4 · TRA CỨU LỊCH SỬ
+    ════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="panel-tracuu">
+        <div class="panel">
+            <div class="panel-title">🔍 Tra Cứu Lịch Sử Khách Hàng</div>
+            <p style="color:#64748b; font-size:13.5px; margin:0 0 18px 0; line-height:1.6;">
+                Tìm kiếm theo <b>tên khách</b>, <b>biển số xe</b> hoặc <b>tên mã đèn</b>
+                — hiển thị toàn bộ lịch sử qua các năm.
+            </p>
+            <div class="form-group search-wrap">
+                <span class="search-ico">🔎</span>
+                <input type="text" id="search_box"
+                    placeholder="Gõ ít nhất 2 ký tự để tìm... (VD: ANH KHÁNH, 63A, F10 HYPER)"
+                    oninput="searchHistory()">
+            </div>
+            <div id="search_results"></div>
+        </div>
+    </div>
+
+</div><!-- /.app-body -->
+
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+/* ── Tab switching ── */
+function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.m-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+    const pcTab = document.getElementById('tab-' + name);
+    if (pcTab) pcTab.classList.add('active');
+    const mTab = document.getElementById('m-tab-' + name);
+    if (mTab) mTab.classList.add('active');
+
+    const panel = document.getElementById('panel-' + name);
+    if (panel) panel.classList.add('active');
+
+    // Cập nhật dòng chữ ở góc trên bên trái theo tab đang mở
+    const tabTitles = {
+        'nhap':    { icon: '⚡', title: 'Nhập Đơn Đèn' },
+        'baocao':  { icon: '📊', title: 'Báo Cáo Doanh Thu' },
+        'thongke': { icon: '📈', title: 'Phân Tích & Thống Kê' },
+        'tracuu':  { icon: '🔍', title: 'Tra Cứu Lịch Sử' }
+    };
+    const curTab = tabTitles[name] || { icon: '💡', title: 'Doanh Thu Đèn' };
+    const tabIconEl = document.getElementById('header-tab-icon');
+    const tabNameEl = document.getElementById('header-tab-name');
+    if (tabIconEl) tabIconEl.innerText = curTab.icon;
+    if (tabNameEl) tabNameEl.innerText = curTab.title;
+
+    // Hiệu ứng Pop nhún nhẹ tiêu đề logo khi đổi tab
+    const logoEl = document.getElementById('header-tab-title');
+    if (logoEl) {
+        logoEl.classList.remove('logo-pop');
+        void logoEl.offsetWidth; // Trigger reflow
+        logoEl.classList.add('logo-pop');
+    }
+
+    if (name === 'baocao')  loadReport();
+    if (name === 'thongke') loadAnalytics();
+    if (name === 'tracuu') {
+        setTimeout(() => {
+            const sb = document.getElementById('search_box');
+            if (sb) sb.focus();
+        }, 150);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── Toast Thông Báo (Hiệu ứng trượt mượt mà) ── */
+let toastTimer = null;
+function showToast(msg, bg = '#0f172a') {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.style.background = bg;
+    t.innerText = msg;
+    t.classList.remove('show');
+    void t.offsetWidth; // Trigger reflow
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+        t.classList.remove('show');
+    }, 3200);
+}
+
+/* ── Hoạt ảnh nhảy số trực quan (Number Count-Up Animation) ── */
+function animateValue(el, start, end, duration = 480, isCurrency = true, suffix = '') {
+    if (!el) return;
+    el.classList.remove('data-pulse');
+    void el.offsetWidth; // Trigger reflow
+    el.classList.add('data-pulse');
+
+    start = Number(start) || 0;
+    end = Number(end) || 0;
+    if (start === end || duration <= 0) {
+        el.innerText = isCurrency ? formatVND(end) : end.toLocaleString('vi-VN') + suffix;
+        return;
+    }
+
+    const startTime = performance.now();
+    function step(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
+        const current = Math.round(start + (end - start) * easeOut);
+        el.innerText = isCurrency ? formatVND(current) : current.toLocaleString('vi-VN') + suffix;
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        } else {
+            el.innerText = isCurrency ? formatVND(end) : end.toLocaleString('vi-VN') + suffix;
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+/* ── Format tiền tệ ── */
+function formatVND(num) {
+    return Number(num).toLocaleString('vi-VN') + ' đ';
+}
+/* ── Tính toán & Xem trước giá bán có giảm giá ── */
+function calculateDiscountInfo(base_k, discountStr) {
+    base_k = parseFloat(base_k) || 0;
+    discountStr = (discountStr || '').toString().trim();
+    
+    if (!discountStr || base_k <= 0) {
+        return {
+            base_k: base_k,
+            discount_k: 0,
+            final_k: base_k,
+            discount_str: '',
+            label: ''
+        };
+    }
+
+    let discount_k = 0;
+    let label = '';
+
+    if (discountStr.includes('%')) {
+        const pct = parseFloat(discountStr.replace('%', '').trim()) || 0;
+        discount_k = Math.round(base_k * (pct / 100));
+        label = `-${pct}% (${formatVND(discount_k * 1000)})`;
+    } else {
+        // Nhập 500 = 500.000đ; hoặc 500k; hoặc 500.000 / 500000
+        const clean = discountStr.toLowerCase().replace(/k/g, '').replace(/\./g, '').replace(/,/g, '').trim();
+        const num = parseFloat(clean) || 0;
+        if (num >= 10000) {
+            discount_k = Math.round(num / 1000);
+        } else {
+            discount_k = num;
+        }
+        label = `-${formatVND(discount_k * 1000)}`;
+    }
+
+    if (discount_k < 0) discount_k = 0;
+    if (discount_k > base_k) discount_k = base_k; // Giảm tối đa bằng giá gốc
+    const final_k = Math.max(0, base_k - discount_k);
+
+    return {
+        base_k: base_k,
+        discount_k: discount_k,
+        final_k: final_k,
+        discount_str: discountStr,
+        label: label
+    };
+}
+
+function calculateFinalPrice() {
+    const base_k = parseFloat(document.getElementById('price_k').value) || 0;
+    const discountStr = document.getElementById('discount_input').value;
+    const info = calculateDiscountInfo(base_k, discountStr);
+    const previewEl = document.getElementById('vnd_preview');
+
+    if (info.base_k <= 0) {
+        previewEl.innerHTML = '= 0 đ';
+        return info;
+    }
+
+    if (info.discount_k > 0) {
+        previewEl.innerHTML = `
+            <span style="color:#059669; font-weight:800; font-size:16px;">= ${formatVND(info.final_k * 1000)}</span>
+            <span style="color:#64748b; font-size:13px; font-weight:600; margin-left:6px;">
+                (Gốc: ${formatVND(info.base_k * 1000)} &minus; Giảm: <b style="color:#dc2626;">${formatVND(info.discount_k * 1000)}</b>)
+            </span>
+        `;
+    } else {
+        previewEl.innerHTML = `<span style="color:#059669; font-weight:800; font-size:16px;">= ${formatVND(info.base_k * 1000)}</span>`;
+    }
+
+    return info;
+}
+
+function updateVndPreview() {
+    return calculateFinalPrice();
+}
+
+/* ── Tự động điền giá khi chọn/gõ tên sản phẩm từ danh sách gợi ý ── */
+const PRODUCT_PRICES = {{ product_price_map_json|safe if product_price_map_json else '{}' }};
+
+function onProductInputChange() {
+    const name = document.getElementById('product_name').value.trim().toUpperCase();
+    if (PRODUCT_PRICES[name]) {
+        const qty = parseInt(document.getElementById('quantity').value) || 1;
+        document.getElementById('price_k').value = PRODUCT_PRICES[name] * qty;
+        calculateFinalPrice();
+    }
+}
+
+/* ── Reset form ── */
+function resetForm(keepVehicle) {
+    document.getElementById('order_id').value = '';
+    document.getElementById('edit-badge').style.display = 'none';
+    document.getElementById('btn-cancel-edit').style.display = 'none';
+    document.getElementById('product_name').value = '';
+    document.getElementById('quantity').value = '1';
+    document.getElementById('price_k').value = '';
+    document.getElementById('discount_input').value = '';
+    calculateFinalPrice();
+
+    if (!keepVehicle) {
+        document.getElementById('customer_name').value = '';
+        document.getElementById('car_model').value = '';
+    }
+    document.getElementById('product_name').focus();
+}
+
+
+/* ── Quản lý Danh sách đơn tạm (Staging Drafts) ── */
+let draftOrders = [];
+let editingDraftIndex = -1;
+
+async function addDraftOrder(keepVehicle) {
+    const order_date    = document.getElementById('order_date').value;
+    const product_name  = document.getElementById('product_name').value.trim().toUpperCase();
+    const customer_name = document.getElementById('customer_name').value.trim().toUpperCase();
+    const car_model     = document.getElementById('car_model').value.trim().toUpperCase();
+    const quantity      = parseInt(document.getElementById('quantity').value) || 1;
+    const order_id      = document.getElementById('order_id').value;
+
+    const priceInfo = calculateFinalPrice();
+    const price_k = priceInfo.final_k; // Giá bán thực tế (đã trừ giảm giá)
+    const base_price_k = priceInfo.base_k;
+    const discount_str = priceInfo.discount_str;
+    const discount_k = priceInfo.discount_k;
+
+    if (!order_date || !product_name || base_price_k <= 0) {
+        showToast('⚠️ Vui lòng nhập đầy đủ Ngày, Tên sản phẩm và Giá bán!', '#dc2626');
+        return;
+    }
+
+    // Nếu đang sửa trực tiếp đơn hàng trong Database
+    if (order_id) {
+        const payload = {
+            id: parseInt(order_id),
+            order_date,
+            product_name,
+            customer_name,
+            car_model,
+            quantity,
+            price_k
+        };
+        try {
+            const res = await saveOrderDirect(payload);
+            if (res.success) {
+                showToast('✅ Đã cập nhật đơn hàng thành công!', '#059669');
+                resetForm(false);
+                loadReport();
+            } else {
+                showToast('❌ Lỗi cập nhật: ' + (res.message || 'Lỗi server'), '#dc2626');
+            }
+        } catch(e) {
+            showToast('❌ Lỗi kết nối: ' + e, '#dc2626');
+        }
+        return;
+    }
+
+    const item = {
+        order_date,
+        product_name,
+        customer_name,
+        car_model,
+        quantity,
+        base_price_k,
+        discount_str,
+        discount_k,
+        price_k // Giá thực tế lưu vào DB
+    };
+
+    if (editingDraftIndex >= 0) {
+        // Đang sửa một đơn nháp sẵn có
+        draftOrders[editingDraftIndex] = item;
+        editingDraftIndex = -1;
+        document.getElementById('edit-badge').style.display = 'none';
+        document.getElementById('btn-cancel-edit').style.display = 'none';
+        showToast('✏️ Đã cập nhật đơn nháp thành công!', '#0284c7');
+    } else {
+        // Thêm đơn nháp mới vào danh sách
+        draftOrders.push(item);
+        showToast(keepVehicle ? '➕ Đã thêm vào danh sách! Mời chọn tiếp món thứ 2 cho xe này.' : '➕ Đã thêm đơn vào danh sách chờ lưu bên dưới!', '#059669');
+    }
+
+    renderDraftTable();
+    resetForm(keepVehicle);
+
+    // Cuộn nhẹ xuống bảng nháp để người dùng nhìn thấy ngay
+    const draftSec = document.getElementById('draft_section');
+    if (draftSec) {
+        draftSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+function renderDraftTable() {
+    const sec = document.getElementById('draft_section');
+    const tbody = document.getElementById('draft_tbody');
+    const mobileCards = document.getElementById('draft_mobile_cards');
+    const badge = document.getElementById('draft_count_badge');
+    const summary = document.getElementById('draft_total_summary');
+
+    if (draftOrders.length === 0) {
+        sec.style.display = 'none';
+        return;
+    }
+
+    sec.style.display = 'block';
+    badge.innerText = `${draftOrders.length} món`;
+
+    let totalQty = 0;
+    let totalK = 0;
+    tbody.innerHTML = '';
+    if (mobileCards) mobileCards.innerHTML = '';
+
+    draftOrders.forEach((r, idx) => {
+        totalQty += r.quantity;
+        totalK += r.price_k;
+
+        let dateVn = r.order_date;
+        try {
+            const parts = r.order_date.split('-');
+            if (parts.length === 3) dateVn = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        } catch(e) {}
+
+        let priceHtml = `<div style="font-weight:800; color:#059669;">${formatVND(r.price_k * 1000)}</div>`;
+        if (r.discount_k > 0) {
+            priceHtml += `<div style="font-size:11px; color:#dc2626; font-weight:700;">
+                <s>${formatVND(r.base_price_k * 1000)}</s> (-${r.discount_str})
+            </div>`;
+        }
+
+        // Render Desktop Table Row
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-center" style="font-weight:700;">${idx + 1}</td>
+            <td class="text-center">${dateVn}</td>
+            <td><b>${r.product_name}</b></td>
+            <td>${r.customer_name || '<i style="color:#94a3b8;">Không ghi</i>'}</td>
+            <td>${r.car_model || '<i style="color:#94a3b8;">Không ghi</i>'}</td>
+            <td class="text-center font-bold">${r.quantity}</td>
+            <td class="text-right price-col">${priceHtml}</td>
+            <td class="action-cell">
+                <button class="btn-icon" title="Chỉnh sửa đơn này" onclick="editDraftOrder(${idx})">✏️</button>
+                <button class="btn-icon" title="Xóa khỏi danh sách" onclick="removeDraftOrder(${idx})">🗑️</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+
+        // Render Mobile Card Item
+        if (mobileCards) {
+            const card = document.createElement('div');
+            card.className = 'draft-card-item';
+            let vehicleInfo = [];
+            if (r.customer_name) vehicleInfo.push(`👤 ${r.customer_name}`);
+            if (r.car_model) vehicleInfo.push(`🚙 ${r.car_model}`);
+
+            card.innerHTML = `
+                <div class="draft-card-head">
+                    <span class="draft-card-badge">#${idx + 1} • ${dateVn}</span>
+                    <span class="draft-card-qty">${r.quantity} bộ</span>
+                </div>
+                <div class="draft-card-title">${r.product_name}</div>
+                ${vehicleInfo.length > 0 ? `<div class="draft-card-vehicle">${vehicleInfo.join(' &nbsp;|&nbsp; ')}</div>` : ''}
+                <div class="draft-card-bottom">
+                    <div class="draft-card-price">${priceHtml}</div>
+                    <div class="draft-card-actions">
+                        <button class="m-card-btn m-btn-edit" onclick="editDraftOrder(${idx})">✏️ Sửa</button>
+                        <button class="m-card-btn m-btn-del" onclick="removeDraftOrder(${idx})">🗑️ Xóa</button>
+                    </div>
+                </div>
+            `;
+            mobileCards.appendChild(card);
+        }
+    });
+
+    summary.innerText = `${totalQty} bộ | ${formatVND(totalK * 1000)}`;
+}
+
+function editDraftOrder(idx) {
+    const r = draftOrders[idx];
+    editingDraftIndex = idx;
+
+    document.getElementById('order_id').value = '';
+    document.getElementById('edit-id-label').innerText = `nháp #${idx + 1}`;
+    document.getElementById('edit-badge').style.display = 'inline-flex';
+    document.getElementById('btn-cancel-edit').style.display = 'block';
+
+    document.getElementById('order_date').value    = r.order_date;
+    document.getElementById('product_name').value  = r.product_name;
+    document.getElementById('customer_name').value = r.customer_name;
+    document.getElementById('car_model').value     = r.car_model;
+    document.getElementById('quantity').value      = r.quantity;
+    document.getElementById('price_k').value       = (r.base_price_k !== undefined) ? r.base_price_k : r.price_k;
+    document.getElementById('discount_input').value = r.discount_str || '';
+    calculateFinalPrice();
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function removeDraftOrder(idx) {
+    draftOrders.splice(idx, 1);
+    if (editingDraftIndex === idx) {
+        cancelDraftEdit();
+    } else if (editingDraftIndex > idx) {
+        editingDraftIndex--;
+    }
+    renderDraftTable();
+    showToast('🗑️ Đã xóa món khỏi danh sách chờ lưu!', '#d97706');
+}
+
+function cancelDraftEdit() {
+    editingDraftIndex = -1;
+    document.getElementById('order_id').value = '';
+    document.getElementById('edit-badge').style.display = 'none';
+    document.getElementById('btn-cancel-edit').style.display = 'none';
+    resetForm(false);
+}
+
+function clearAllDrafts() {
+    if (!confirm('Bạn có chắc muốn xóa sạch toàn bộ danh sách đơn nháp này?')) return;
+    draftOrders = [];
+    cancelDraftEdit();
+    renderDraftTable();
+    showToast('🧹 Đã xóa sạch danh sách đơn chờ lưu!', '#64748b');
+}
+
+async function commitAllDrafts() {
+    if (draftOrders.length === 0) {
+        showToast('⚠️ Không có đơn nào trong danh sách để lưu!', '#dc2626');
+        return;
+    }
+
+    showToast('⏳ Đang lưu toàn bộ vào hệ thống...', '#1e40af');
+    try {
+        const res = await fetch('/den/api/save_batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: draftOrders })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const count = draftOrders.length;
+            draftOrders = [];
+            editingDraftIndex = -1;
+            renderDraftTable();
+            resetForm(false);
+
+            // Chuyển sang đúng kỳ báo cáo
+            if (data.cycle_month && data.cycle_year) {
+                document.getElementById('sel_month').value = data.cycle_month;
+                document.getElementById('sel_year').value  = data.cycle_year;
+            }
+
+            showToast(`🎉 ĐÃ LƯU THÀNH CÔNG TOÀN BỘ ${count} ĐƠN VÀO HỆ THỐNG!`, '#059669');
+            loadReport();
+        } else {
+            showToast('❌ Lỗi khi lưu: ' + data.message, '#dc2626');
+        }
+    } catch (e) {
+        showToast('❌ Lỗi kết nối khi lưu: ' + e, '#dc2626');
+    }
+}
+
+/* ── Edit order từ bảng Báo Cáo chính ── */
+async function saveOrderDirect(payload) {
+    const res  = await fetch('/den/api/save_order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return await res.json();
+}
+
+function editOrder(row) {
+    switchTab('nhap');
+    document.getElementById('order_id').value    = row.id;
+    document.getElementById('edit-id-label').innerText = row.id;
+    document.getElementById('edit-badge').style.display      = 'inline-flex';
+    document.getElementById('btn-cancel-edit').style.display = 'block';
+    document.getElementById('order_date').value    = row.order_date;
+    document.getElementById('product_name').value  = row.product_name;
+    document.getElementById('customer_name').value = row.customer_name;
+    document.getElementById('car_model').value     = row.car_model;
+    document.getElementById('quantity').value      = row.quantity;
+    document.getElementById('price_k').value       = row.price_k;
+    document.getElementById('discount_input').value = '';
+    calculateFinalPrice();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── Delete order từ bảng Báo Cáo chính ── */
+async function deleteOrder(id) {
+    if (!confirm('Bạn có chắc muốn xóa dòng này khỏi báo cáo?')) return;
+    const res  = await fetch('/den/api/delete_order/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+        loadReport();
+        showToast('🗑️ Đã xóa dòng dữ liệu!', '#d97706');
+    }
+}
+
+
+/* ── Load report ── */
+async function loadReport() {
+    try {
+        const month      = document.getElementById('sel_month').value;
+        const year       = document.getElementById('sel_year').value;
+        const groupCombo = document.getElementById('group_combo').checked;
+
+        const res  = await fetch(`/den/api/report?month=${month}&year=${year}`);
+        if (!res.ok) throw new Error('Không thể kết nối máy chủ');
+        const data = await res.json();
+
+        document.getElementById('rp_title').innerText     = `BÁO CÁO DOANH THU ĐÈN THÁNG ${String(month).padStart(2,'0')}/${year}`;
+        document.getElementById('rp_cycle').innerText     = `Kỳ chốt sổ: ${data.start_vn} đến ${data.end_vn}`;
+        document.getElementById('rp_timestamp').innerText = `Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`;
+
+        // Cập nhật tổng doanh thu với hiệu ứng nhảy số
+        const revEl = document.getElementById('stat_revenue');
+        if (revEl) {
+            animateValue(revEl, 0, data.total_vnd !== undefined ? data.total_vnd : 0, 500, true);
+        }
+
+        // Cập nhật so với tháng trước
+        const diffPrevEl = document.getElementById('stat_diff_prev');
+        if (diffPrevEl) {
+            let prevText = data.diff_prev_text;
+            if (!prevText && data.diff_text) {
+                prevText = data.diff_text.split('<br>')[0];
+            }
+            diffPrevEl.innerHTML = prevText || '◀ So với tháng trước: Chưa có số liệu';
+        }
+
+        // Cập nhật so với tháng sau
+        const diffNextEl = document.getElementById('stat_diff_next');
+        if (diffNextEl) {
+            let nextText = data.diff_next_text;
+            if (!nextText && data.diff_text && data.diff_text.includes('<br>')) {
+                nextText = data.diff_text.split('<br>')[1];
+            }
+            diffNextEl.innerHTML = nextText || '▶ So với tháng sau: Chưa có số liệu';
+        }
+
+        const qtyEl = document.getElementById('stat_qty');
+        if (qtyEl) {
+            animateValue(qtyEl, 0, data.total_qty || 0, 450, false, ' bộ');
+        }
+        document.getElementById('stat_rows').innerText    = `Trên tổng ${data.rows ? data.rows.length : 0} hạng mục`;
+        const carsEl = document.getElementById('stat_cars');
+        if (carsEl) {
+            animateValue(carsEl, 0, data.unique_cars || 0, 450, false, ' lượt xe');
+        }
+        document.getElementById('stat_avg').innerText     = `Trung bình: ${formatVND(data.avg_per_car || 0)} / xe`;
+        document.getElementById('stat_top_products').innerHTML = data.top_products_html || 'Chưa có dữ liệu';
+
+    const tbody = document.getElementById('report_tbody');
+    tbody.innerHTML = '';
+
+    // Nhóm các dòng theo xe (order_date + customer_name + car_model)
+    const groups = [];
+    data.rows.forEach(r => {
+        const key = `${r.order_date}_${r.customer_name}_${r.car_model}`;
+        if (groupCombo && groups.length > 0 && groups[groups.length - 1].key === key && (r.customer_name !== '' || r.car_model !== '')) {
+            groups[groups.length - 1].items.push(r);
+            groups[groups.length - 1].total_k += r.price_k;
+            groups[groups.length - 1].total_qty += r.quantity;
+        } else {
+            groups.push({
+                key: key,
+                items: [r],
+                total_k: r.price_k,
+                total_qty: r.quantity
+            });
+        }
+    });
+
+    let stt = 0;
+    groups.forEach(g => {
+        stt++;
+        const isMulti = g.items.length > 1;
+
+        g.items.forEach((r, idx) => {
+            const tr = document.createElement('tr');
+            if (isMulti) {
+                tr.classList.add(idx === 0 ? 'combo-first' : 'combo-sub');
+            }
+
+            if (idx === 0) {
+                // Dòng đầu tiên của xe
+                const badgeHtml = isMulti ? `<span class="badge-combo">📦 Combo ${g.items.length} món</span>` : '';
+                const totalTagHtml = isMulti ? `<br><span class="combo-total-tag">Tổng xe: ${formatVND(g.total_k * 1000)} (${g.total_qty} bộ)</span>` : '';
+
+                tr.innerHTML = `
+                    <td class="text-center" style="font-weight:700;">${stt}</td>
+                    <td class="text-center">${r.date_vn}</td>
+                    <td>
+                        ${isMulti ? '<span class="item-tree">┌</span>' : ''}
+                        <b>${r.product_name}</b>
+                    </td>
+                    <td>
+                        <b>${r.customer_name || '—'}</b>${badgeHtml}
+                        ${totalTagHtml}
+                    </td>
+                    <td><b>${r.car_model || '—'}</b></td>
+                    <td class="text-center">${r.quantity}</td>
+                    <td class="text-right price-col">${formatVND(r.price_k * 1000)}</td>
+                    <td class="no-capture action-cell">
+                        <button class="btn-icon" title="Sửa" onclick='editOrder(${JSON.stringify(r)})'>✏️</button>
+                        <button class="btn-icon" title="Xóa" onclick="deleteOrder(${r.id})">🗑️</button>
+                    </td>
+                `;
+            } else {
+                // Các dòng món tiếp theo cùng xe
+                const isLast = idx === g.items.length - 1;
+                const branchChar = isLast ? '└' : '├';
+                tr.innerHTML = `
+                    <td class="text-center" style="color:#94a3b8; font-size:11px;">${stt}.${idx + 1}</td>
+                    <td class="text-center combo-empty">〃</td>
+                    <td>
+                        <span class="item-tree">${branchChar}</span>
+                        <span>${r.product_name}</span>
+                    </td>
+                    <td class="combo-empty" style="color:#64748b; font-size:12px;">↳ Cùng xe trên</td>
+                    <td class="combo-empty" style="color:#64748b; font-size:12px;">↳ Cùng xe trên</td>
+                    <td class="text-center">${r.quantity}</td>
+                    <td class="text-right price-col">${formatVND(r.price_k * 1000)}</td>
+                    <td class="no-capture action-cell">
+                        <button class="btn-icon" title="Sửa" onclick='editOrder(${JSON.stringify(r)})'>✏️</button>
+                        <button class="btn-icon" title="Xóa" onclick="deleteOrder(${r.id})">🗑️</button>
+                    </td>
+                `;
+            }
+            tbody.appendChild(tr);
+        });
+    });
+
+
+    if (data.rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center"
+            style="padding:28px; color:#64748b; font-style:italic;">
+            Chưa có đơn hàng nào trong kỳ ${data.start_vn} – ${data.end_vn}
+        </td></tr>`;
+    }
+
+    const footQtyEl = document.getElementById('foot_qty');
+    if (footQtyEl) footQtyEl.innerText = `${(data.total_qty || 0).toLocaleString('vi-VN')} bộ`;
+    const footRevEl = document.getElementById('foot_revenue');
+    if (footRevEl) footRevEl.innerText = formatVND(data.total_vnd || 0);
+    } catch (err) {
+        console.error("Lỗi khi tải báo cáo:", err);
+        const diffPrevEl = document.getElementById('stat_diff_prev');
+        const diffNextEl = document.getElementById('stat_diff_next');
+        if (diffPrevEl) diffPrevEl.innerText = '◀ So với tháng trước: Lỗi nạp dữ liệu';
+        if (diffNextEl) diffNextEl.innerText = '▶ So với tháng sau: Lỗi nạp dữ liệu';
+        showToast('⚠️ Không thể tải báo cáo từ máy chủ!', '#dc2626');
+    }
+}
+
+/* ── Search history ── */
+async function searchHistory() {
+    const q   = document.getElementById('search_box').value.trim();
+    const box = document.getElementById('search_results');
+    if (q.length < 2) { box.innerHTML = ''; return; }
+
+    const res  = await fetch('/den/api/search?q=' + encodeURIComponent(q));
+    const rows = await res.json();
+
+    if (rows.length === 0) {
+        box.innerHTML = '<div class="search-empty">🔍 Không tìm thấy kết quả phù hợp</div>';
+        return;
+    }
+
+    box.innerHTML = rows.map(r => `
+        <div class="result-item">
+            <div class="result-meta">
+                <b>${r.date_vn}</b> &nbsp;|&nbsp;
+                ${r.customer_name || '—'} &nbsp;(${r.car_model || '—'})
+                &nbsp;—&nbsp; <span style="color:#1e40af; font-weight:700;">${r.product_name}</span>
+            </div>
+            <div class="result-price">${formatVND(r.price_k * 1000)}</div>
+        </div>
+    `).join('');
+}
+
+/* ── Sync Excel ── */
+async function syncExcel() {
+    showToast('⏳ Đang đồng bộ dữ liệu ra file Excel...', '#0284c7');
+    const res  = await fetch('/den/api/sync_excel', { method: 'POST' });
+    const data = await res.json();
+    showToast(
+        data.success ? '✅ ' + data.message : '❌ ' + data.message,
+        data.success ? '#059669' : '#dc2626'
+    );
+}
+
+/* ── Capture / export report as image ── */
+async function captureReport(copyToClipboard) {
+    const area = document.getElementById('report-capture-area');
+    area.classList.add('capturing');
+    showToast('📸 Đang tạo ảnh báo cáo độ phân giải cao...', '#0284c7');
+    try {
+        const canvas = await html2canvas(area, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        area.classList.remove('capturing');
+        if (copyToClipboard && navigator.clipboard && window.ClipboardItem) {
+            canvas.toBlob(async blob => {
+                try {
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                    showToast('✅ Đã Copy ảnh vào bộ nhớ tạm! Mở Zalo bấm Ctrl+V để gửi sếp.', '#7c3aed');
+                } catch { downloadCanvas(canvas); }
+            });
+        } else {
+            downloadCanvas(canvas);
+        }
+    } catch (e) {
+        area.classList.remove('capturing');
+        showToast('❌ Lỗi khi chụp ảnh: ' + e, '#dc2626');
+    }
+}
+
+function downloadCanvas(canvas) {
+    const month = document.getElementById('sel_month').value;
+    const year  = document.getElementById('sel_year').value;
+    const link  = document.createElement('a');
+    link.download = `BAO_CAO_DEN_THANG_${String(month).padStart(2,'0')}_${year}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('✅ Đã tải xuống file ảnh báo cáo (.PNG) cực nét!', '#059669');
+}
+
+/* ── Chụp / Xuất ảnh Tab Thống Kê & Phân Tích (PNG & Zalo) ── */
+async function captureAnalytics(copyToClipboard) {
+    const area = document.getElementById('analytics-capture-area');
+    if (!area) return;
+    area.classList.add('capturing');
+    showToast('📸 Đang tạo ảnh thống kê & biểu đồ độ phân giải cao...', '#0284c7');
+    try {
+        const canvas = await html2canvas(area, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        area.classList.remove('capturing');
+        if (copyToClipboard && navigator.clipboard && window.ClipboardItem) {
+            canvas.toBlob(async blob => {
+                try {
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                    showToast('✅ Đã Copy ảnh Thống kê vào bộ nhớ tạm! Mở Zalo bấm Ctrl+V để gửi.', '#7c3aed');
+                } catch { downloadAnalyticsCanvas(canvas); }
+            });
+        } else {
+            downloadAnalyticsCanvas(canvas);
+        }
+    } catch (e) {
+        area.classList.remove('capturing');
+        showToast('❌ Lỗi khi chụp ảnh thống kê: ' + e, '#dc2626');
+    }
+}
+
+function downloadAnalyticsCanvas(canvas) {
+    const selYear = document.getElementById('sel_analytics_year') ? document.getElementById('sel_analytics_year').value : 'all';
+    const yearStr = (selYear === 'all') ? 'TOAN_BO_LICH_SU' : `NAM_${selYear}`;
+    const link  = document.createElement('a');
+    link.download = `THONG_KE_DOANH_SO_DEN_${yearStr}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('✅ Đã tải xuống file ảnh thống kê (.PNG) cực nét!', '#059669');
+}
+
+/* ══════════════════════════════════════════════════════
+   PHÂN TÍCH & THỐNG KÊ DOANH SỐ (CHART.JS)
+══════════════════════════════════════════════════════ */
+let chartYearly = null;
+let chartProducts = null;
+let chartMonthly = null;
+let analyticsDataCache = null;
+let currentAnalyticsYear = 'all';
+
+async function loadAnalytics(forceRefresh = false) {
+    if (analyticsDataCache && !forceRefresh) {
+        renderAnalyticsUI(analyticsDataCache);
+        return;
+    }
+
+    showToast('⏳ Đang phân tích dữ liệu toàn bộ lịch sử...', '#0284c7');
+    try {
+        const res = await fetch('/den/api/analytics');
+        if (!res.ok) throw new Error('Không thể kết nối máy chủ');
+        const data = await res.json();
+        if (data.empty) {
+            showToast('⚠️ Chưa có dữ liệu đơn hàng để thống kê!', '#d97706');
+            return;
+        }
+
+        analyticsDataCache = data;
+        renderAnalyticsUI(data);
+
+        if (forceRefresh) {
+            showToast('✅ Đã làm mới số liệu & vẽ lại toàn bộ biểu đồ!', '#059669');
+        }
+    } catch (err) {
+        console.error("Lỗi khi tải thống kê:", err);
+        showToast('❌ Lỗi khi tải dữ liệu thống kê: ' + err.message, '#dc2626');
+    }
+}
+
+function renderAnalyticsUI(data) {
+    // 1. Tạo danh sách các tùy chọn trong Bảng Sổ Xuống (Select Dropdown)
+    const yearSelect = document.getElementById('sel_analytics_year');
+    if (yearSelect && data.years) {
+        const sortedY = [...data.years].reverse(); // Đưa năm mới nhất lên đầu
+        let selectHtml = `<option value="all" ${currentAnalyticsYear === 'all' ? 'selected' : ''}>🌐 Tất Cả Các Năm (Toàn Bộ Lịch Sử)</option>`;
+        sortedY.forEach(y => {
+            const isAct = (String(currentAnalyticsYear) === String(y));
+            const isBestYear = (y === data.best_year.year);
+            const extraTag = isBestYear ? ' 🏆 (Kỷ lục đỉnh cao)' : '';
+            selectHtml += `
+                <option value="${y}" ${isAct ? 'selected' : ''}>
+                    📅 Năm ${y}${extraTag}
+                </option>
+            `;
+        });
+        yearSelect.innerHTML = selectHtml;
+    }
+
+    // 2. Áp dụng chế độ xem (toàn bộ hoặc từng năm)
+    applyYearView(currentAnalyticsYear);
+}
+
+function selectAnalyticsYear(year) {
+    currentAnalyticsYear = year;
+    const yearSelect = document.getElementById('sel_analytics_year');
+    if (yearSelect && yearSelect.value !== String(year)) {
+        yearSelect.value = year;
+    }
+
+    if (analyticsDataCache) {
+        applyYearView(year);
+    }
+}
+
+function applyYearView(year) {
+    const data = analyticsDataCache;
+    if (!data) return;
+
+    if (year === 'all') {
+        // ── CHẾ ĐỘ XEM TOÀN BỘ LỊCH SỬ ──
+        document.getElementById('analytics_badge').innerHTML = '🌟 Đang xem: Toàn bộ lịch sử các năm (2022 – 2026)';
+        const anTitle = document.getElementById('an_title');
+        if (anTitle) anTitle.innerText = 'BÁO CÁO PHÂN TÍCH & THỐNG KÊ DOANH SỐ ĐÈN';
+        const anSub = document.getElementById('an_subtitle');
+        if (anSub) anSub.innerText = 'Toàn bộ lịch sử các năm (2022 – 2026)';
+
+        // 4 Thẻ Kỷ Lục Toàn Lịch Sử
+        document.getElementById('card_lbl_1').innerText = '🏆 NĂM DOANH SỐ CAO NHẤT';
+        document.getElementById('stat_best_year_title').innerText = `Năm ${data.best_year.year}`;
+        animateValue(document.getElementById('stat_best_year_val'), 0, data.best_year.total_vnd, 450, true);
+        document.getElementById('stat_best_year_sub').innerText   = `💡 ${data.best_year.qty} bộ đèn · 🚗 ${data.best_year.cars} lượt xe`;
+
+        document.getElementById('card_lbl_2').innerText = '📉 NĂM DOANH SỐ THẤP NHẤT';
+        document.getElementById('stat_worst_year_title').innerText = `Năm ${data.worst_year.year}`;
+        animateValue(document.getElementById('stat_worst_year_val'), 0, data.worst_year.total_vnd, 450, true);
+        document.getElementById('stat_worst_year_sub').innerText   = `💡 ${data.worst_year.qty} bộ đèn · 🚗 ${data.worst_year.cars} lượt xe`;
+
+        document.getElementById('card_lbl_3').innerText = '🌟 THÁNG KỶ LỤC CAO NHẤT';
+        document.getElementById('stat_best_month_title').innerText = data.best_month.month_str;
+        animateValue(document.getElementById('stat_best_month_val'), 0, data.best_month.total_vnd, 450, true);
+        document.getElementById('stat_best_month_sub').innerText   = `💡 ${data.best_month.qty} bộ đèn · 🚗 ${data.best_month.cars} lượt xe`;
+
+        document.getElementById('card_lbl_4').innerText = '💤 THÁNG DOANH SỐ THẤP NHẤT';
+        document.getElementById('stat_worst_month_title').innerText = data.worst_month.month_str;
+        animateValue(document.getElementById('stat_worst_month_val'), 0, data.worst_month.total_vnd, 450, true);
+        document.getElementById('stat_worst_month_sub').innerText   = `💡 ${data.worst_month.qty} bộ đèn · 🚗 ${data.worst_month.cars} lượt xe`;
+
+        // 4 Thẻ Tổng Quan
+        document.getElementById('stat_all_vnd_lbl').innerText  = '💰 Tổng Doanh Thu Toàn Lịch Sử';
+        animateValue(document.getElementById('stat_all_vnd'), 0, data.all_time_vnd, 480, true);
+        document.getElementById('stat_all_months').innerText   = `Ghi nhận qua ${data.total_active_months} tháng hoạt động`;
+
+        document.getElementById('stat_all_qty_lbl').innerText  = '💡 Tổng Số Bộ Đèn Đã Lắp';
+        animateValue(document.getElementById('stat_all_qty'), 0, data.all_time_qty, 400, false, ' bộ');
+        document.getElementById('stat_all_qty_sub').innerText  = 'Toàn bộ các năm cộng lại';
+
+        document.getElementById('stat_all_cars_lbl').innerText = '🚗 Tổng Lượt Xe Nâng Cấp';
+        animateValue(document.getElementById('stat_all_cars'), 0, data.all_time_cars, 400, false, ' lượt xe');
+        document.getElementById('stat_all_cars_sub').innerText = 'Khách hàng làm đèn tại xưởng';
+
+        document.getElementById('stat_avg_month_lbl').innerText = '📊 Doanh Thu TB / Tháng';
+        animateValue(document.getElementById('stat_avg_month'), 0, data.avg_monthly_vnd, 450, true);
+        document.getElementById('stat_avg_month_sub').innerText = 'Bình quân các tháng ghi nhận';
+
+        // Biểu đồ 1: Cột so sánh các năm
+        document.getElementById('chart1_title').innerText = '📊 Xu Hướng Doanh Thu Qua Các Năm (2022 - 2026)';
+        renderChartYearly(data.yearly_summary, data.best_year.year);
+
+        // Biểu đồ 2: Top mã đèn toàn thời gian
+        document.getElementById('chart2_title').innerText = '🥧 Top Mã Đèn Đem Lại Doanh Thu Cao Nhất';
+        renderChartTopProducts(data.top_products);
+
+        // Biểu đồ 3: So sánh 12 tháng
+        renderChartMonthly(data.monthly_matrix, null);
+
+        // Bảng 1: Tổng hợp từng năm
+        document.getElementById('table1_title').innerText = '📋 Bảng Thống Kê Tổng Hợp Từng Năm';
+        document.getElementById('analytics_thead_1').innerHTML = `
+            <tr>
+                <th>Năm</th>
+                <th class="text-right">Tổng Doanh Thu</th>
+                <th class="text-center">Số Bộ</th>
+                <th class="text-center">Lượt Xe</th>
+                <th>Tháng Đỉnh Cao</th>
+                <th>Tháng Thấp Nhất</th>
+            </tr>
+        `;
+        const yTbody = document.getElementById('analytics_yearly_tbody');
+        yTbody.innerHTML = data.yearly_summary.map(y => {
+            const isBest = y.year === data.best_year.year;
+            const isWorst = y.year === data.worst_year.year;
+            const tag = isBest ? '<span style="background:#dcfce7; color:#15803d; font-size:11px; padding:2px 7px; border-radius:4px; font-weight:800; margin-left:6px;">🏆 KỶ LỤC</span>' 
+                      : (isWorst ? '<span style="background:#fee2e2; color:#b91c1c; font-size:11px; padding:2px 7px; border-radius:4px; font-weight:800; margin-left:6px;">🔻 THẤP NHẤT</span>' : '');
+            return `
+                <tr style="${isBest ? 'background:#f0fdf4;' : ''}">
+                    <td><b>Năm ${y.year}</b> ${tag}</td>
+                    <td class="text-right price-col" style="color:#1e40af; font-weight:800;">${formatVND(y.total_vnd)}</td>
+                    <td class="text-center">${y.qty} bộ</td>
+                    <td class="text-center">${y.cars} xe</td>
+                    <td style="color:#059669; font-weight:700;">${y.best_month}</td>
+                    <td style="color:#64748b; font-weight:600;">${y.worst_month}</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Bảng 2: Top 5 tháng kỷ lục mọi thời đại
+        document.getElementById('table2_title').innerText = '🏆 Top 5 Tháng Doanh Số Kỷ Lục Mọi Thời Đại';
+        document.getElementById('analytics_thead_2').innerHTML = `
+            <tr>
+                <th style="width:52px;" class="text-center">Hạng</th>
+                <th>Thời Gian</th>
+                <th class="text-right">Doanh Thu</th>
+                <th class="text-center">Số Lắp</th>
+            </tr>
+        `;
+        const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+        const mTbody = document.getElementById('analytics_top_months_tbody');
+        mTbody.innerHTML = data.top_5_months.map((m, idx) => `
+            <tr>
+                <td class="text-center" style="font-size:18px;">${medals[idx] || (idx+1)}</td>
+                <td><b style="color:#1e3a8a;">${m.month_str}</b></td>
+                <td class="text-right price-col" style="color:#059669; font-weight:800;">${formatVND(m.total_vnd)}</td>
+                <td class="text-center" style="color:#475569;">${m.qty} bộ (${m.cars} xe)</td>
+            </tr>
+        `).join('');
+
+    } else {
+        // ── CHẾ ĐỘ XEM RIÊNG TỪNG NĂM ──
+        const yData = (data.by_year && data.by_year[String(year)]) ? data.by_year[String(year)] : null;
+        if (!yData) return;
+
+        document.getElementById('analytics_badge').innerHTML = `🌟 Đang xem chi tiết riêng: <b>Năm ${year}</b>`;
+        const anTitle = document.getElementById('an_title');
+        if (anTitle) anTitle.innerText = `BÁO CÁO CHI TIẾT DOANH SỐ ĐÈN NĂM ${year}`;
+        const anSub = document.getElementById('an_subtitle');
+        if (anSub) anSub.innerText = `Phân tích doanh thu 12 tháng & diễn biến kinh doanh năm ${year}`;
+
+        // 4 Thẻ Kỷ Lục RIÊNG CỦA NĂM ĐÓ
+        document.getElementById('card_lbl_1').innerText = `🌟 THÁNG CAO NHẤT NĂM ${year}`;
+        document.getElementById('stat_best_year_title').innerText = yData.best_month.month_str;
+        animateValue(document.getElementById('stat_best_year_val'), 0, yData.best_month.total_vnd, 450, true);
+        document.getElementById('stat_best_year_sub').innerText   = `💡 ${yData.best_month.qty} bộ đèn · 🚗 ${yData.best_month.cars} lượt xe`;
+
+        document.getElementById('card_lbl_2').innerText = `💤 THÁNG THẤP NHẤT NĂM ${year}`;
+        document.getElementById('stat_worst_year_title').innerText = yData.worst_month.month_str;
+        animateValue(document.getElementById('stat_worst_year_val'), 0, yData.worst_month.total_vnd, 450, true);
+        document.getElementById('stat_worst_year_sub').innerText   = `💡 ${yData.worst_month.qty} bộ đèn · 🚗 ${yData.worst_month.cars} lượt xe`;
+
+        document.getElementById('card_lbl_3').innerText = `💰 TỔNG DOANH THU CẢ NĂM ${year}`;
+        document.getElementById('stat_best_month_title').innerText = `Năm ${year}`;
+        animateValue(document.getElementById('stat_best_month_val'), 0, yData.total_vnd, 450, true);
+        const pctAll = ((yData.total_vnd / data.all_time_vnd) * 100).toFixed(1);
+        document.getElementById('stat_best_month_sub').innerText   = `Chiếm ${pctAll}% tổng doanh thu toàn lịch sử`;
+
+        document.getElementById('card_lbl_4').innerText = `💡 TỔNG SỐ BỘ ĐÈN NĂM ${year}`;
+        document.getElementById('stat_worst_month_title').innerText = `${yData.qty} bộ đèn`;
+        const worstValEl = document.getElementById('stat_worst_month_val');
+        if (worstValEl) {
+            worstValEl.classList.remove('data-pulse');
+            void worstValEl.offsetWidth;
+            worstValEl.classList.add('data-pulse');
+            worstValEl.innerText = `${yData.cars} lượt xe`;
+        }
+        const avgPerCar = Math.round(yData.total_vnd / Math.max(yData.cars, 1));
+        document.getElementById('stat_worst_month_sub').innerText   = `Trung bình: ${formatVND(avgPerCar)} / xe`;
+
+        // 4 Thẻ Tổng Quan CỦA NĂM ĐÓ
+        document.getElementById('stat_all_vnd_lbl').innerText  = `💰 Doanh Thu Năm ${year}`;
+        animateValue(document.getElementById('stat_all_vnd'), 0, yData.total_vnd, 480, true);
+        document.getElementById('stat_all_months').innerText   = `Trong 12 tháng của năm ${year}`;
+
+        document.getElementById('stat_all_qty_lbl').innerText  = `💡 Đèn Đã Lắp Năm ${year}`;
+        animateValue(document.getElementById('stat_all_qty'), 0, yData.qty, 400, false, ' bộ đèn');
+        document.getElementById('stat_all_qty_sub').innerText  = `Tại xưởng trong năm ${year}`;
+
+        document.getElementById('stat_all_cars_lbl').innerText = `🚗 Lượt Xe Năm ${year}`;
+        animateValue(document.getElementById('stat_all_cars'), 0, yData.cars, 400, false, ' lượt xe');
+        document.getElementById('stat_all_cars_sub').innerText = `Đến làm đèn năm ${year}`;
+
+        document.getElementById('stat_avg_month_lbl').innerText = `📊 Doanh Thu TB / Tháng Năm ${year}`;
+        animateValue(document.getElementById('stat_avg_month'), 0, Math.round(yData.total_vnd / 12), 450, true);
+        document.getElementById('stat_avg_month_sub').innerText = `Bình quân 12 tháng năm ${year}`;
+
+        // Biểu đồ 1: Diễn biến 12 tháng của riêng năm đó
+        document.getElementById('chart1_title').innerText = `📊 Diễn Biến Doanh Thu 12 Tháng Trong Năm ${year}`;
+        renderChartYearSingle(yData.months_12, year);
+
+        // Biểu đồ 2: Top mã đèn bán chạy trong năm đó
+        document.getElementById('chart2_title').innerText = `🥧 Top Mã Đèn Bán Chạy Nhất Năm ${year}`;
+        renderChartTopProducts(yData.top_products && yData.top_products.length ? yData.top_products : data.top_products);
+
+        // Biểu đồ 3: Highlight năm đang chọn
+        renderChartMonthly(data.monthly_matrix, year);
+
+        // Bảng 1: Chi tiết 12 tháng của năm đó
+        document.getElementById('table1_title').innerText = `📋 Chi Tiết Doanh Thu 12 Tháng Của Năm ${year}`;
+        document.getElementById('analytics_thead_1').innerHTML = `
+            <tr>
+                <th>Tháng</th>
+                <th class="text-right">Doanh Thu</th>
+                <th class="text-center">Số Bộ</th>
+                <th class="text-center">Lượt Xe</th>
+                <th>Đánh Giá Kỷ Lục</th>
+            </tr>
+        `;
+        const yTbody = document.getElementById('analytics_yearly_tbody');
+        yTbody.innerHTML = yData.months_12.map(m => {
+            let tag = '<span style="color:#64748b; font-size:12px;">Bình thường</span>';
+            let rowBg = '';
+            if (m.is_best) {
+                tag = '<span style="background:#dcfce7; color:#15803d; font-size:11px; padding:2px 7px; border-radius:4px; font-weight:800;">🥇 CAO NHẤT NĂM</span>';
+                rowBg = 'background:#f0fdf4;';
+            } else if (m.is_worst) {
+                tag = '<span style="background:#fed7aa; color:#c2410c; font-size:11px; padding:2px 7px; border-radius:4px; font-weight:800;">🔻 THẤP NHẤT NĂM</span>';
+                rowBg = 'background:#fff7ed;';
+            } else if (m.total_vnd === 0) {
+                tag = '<span style="color:#94a3b8; font-size:12px; font-style:italic;">Chưa có đơn</span>';
+            }
+            return `
+                <tr style="${rowBg}">
+                    <td><b>${m.month_str}</b></td>
+                    <td class="text-right price-col" style="color:#1e40af; font-weight:800;">${formatVND(m.total_vnd)}</td>
+                    <td class="text-center">${m.qty} bộ</td>
+                    <td class="text-center">${m.cars} xe</td>
+                    <td>${tag}</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Bảng 2: Top dòng xe được độ đèn nhiều nhất năm đó
+        document.getElementById('table2_title').innerText = `🚗 Top Dòng Xe Đến Nâng Cấp Đèn Năm ${year}`;
+        document.getElementById('analytics_thead_2').innerHTML = `
+            <tr>
+                <th style="width:52px;" class="text-center">Hạng</th>
+                <th>Dòng Xe</th>
+                <th class="text-right">Doanh Thu</th>
+                <th class="text-center">Lượt Làm</th>
+            </tr>
+        `;
+        const carList = yData.top_cars && yData.top_cars.length ? yData.top_cars : data.top_cars;
+        const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣'];
+        const mTbody = document.getElementById('analytics_top_months_tbody');
+        mTbody.innerHTML = carList.map((c, idx) => `
+            <tr>
+                <td class="text-center" style="font-size:18px;">${medals[idx] || (idx+1)}</td>
+                <td><b style="color:#1e3a8a;">${c.model}</b></td>
+                <td class="text-right price-col" style="color:#059669; font-weight:800;">${formatVND(c.total_vnd)}</td>
+                <td class="text-center" style="color:#475569;">${c.count} xe</td>
+            </tr>
+        `).join('');
+    }
+}
+
+/* ── BIỂU ĐỒ 1A: TỔNG DOANH THU THEO TỪNG NĂM (KHI XEM TẤT CẢ) ── */
+function renderChartYearly(yearlyList, bestYear) {
+    const canvas = document.getElementById('chartYearlyRevenue');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (chartYearly) chartYearly.destroy();
+
+    const labels = yearlyList.map(y => 'Năm ' + y.year);
+    const dataMillion = yearlyList.map(y => Math.round(y.total_vnd / 1000000));
+    const bgColors = yearlyList.map(y => y.year === bestYear ? '#10b981' : '#3b82f6');
+    const borderColors = yearlyList.map(y => y.year === bestYear ? '#059669' : '#1d4ed8');
+
+    chartYearly = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Doanh thu (Triệu VNĐ)',
+                    data: dataMillion,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1.5,
+                    borderRadius: 8,
+                    maxBarThickness: 54,
+                    order: 2
+                },
+                {
+                    label: 'Đường xu hướng',
+                    data: dataMillion,
+                    type: 'line',
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 2.5,
+                    tension: 0.3,
+                    fill: false,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#f59e0b',
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { weight: '600', size: 12 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const val = ctx.parsed.y;
+                            return ` ${ctx.dataset.label}: ${val.toLocaleString('vi-VN')} Triệu đ (${(val * 1000000).toLocaleString('vi-VN')} đ)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: val => val + ' Tr',
+                        font: { weight: '600' }
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: { font: { weight: '700' } },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+/* ── BIỂU ĐỒ 1B: CHI TIẾT 12 THÁNG CỦA MỘT NĂM CỤ THỂ ── */
+function renderChartYearSingle(months12, year) {
+    const canvas = document.getElementById('chartYearlyRevenue');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (chartYearly) chartYearly.destroy();
+
+    const labels = months12.map(m => m.month_str);
+    const dataMillion = months12.map(m => Math.round(m.total_vnd / 1000000));
+    const bgColors = months12.map(m => {
+        if (m.is_best) return '#10b981'; // Xanh lục bảo cho tháng đỉnh cao
+        if (m.is_worst) return '#f97316'; // Cam đậm cho tháng thấp nhất
+        return '#3b82f6';
+    });
+
+    chartYearly = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: `Doanh thu Năm ${year} (Triệu VNĐ)`,
+                    data: dataMillion,
+                    backgroundColor: bgColors,
+                    borderRadius: 6,
+                    maxBarThickness: 38,
+                    order: 2
+                },
+                {
+                    label: 'Đường diễn biến',
+                    data: dataMillion,
+                    type: 'line',
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 2.5,
+                    tension: 0.3,
+                    fill: false,
+                    pointRadius: 4.5,
+                    pointBackgroundColor: '#f59e0b',
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { weight: '600', size: 12 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const val = ctx.parsed.y;
+                            return ` ${ctx.dataset.label}: ${val.toLocaleString('vi-VN')} Tr đ (${(val * 1000000).toLocaleString('vi-VN')} đ)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: val => val + ' Tr',
+                        font: { weight: '600' }
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: { font: { weight: '600' } },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+/* ── BIỂU ĐỒ 2: TOP MÃ ĐÈN DOANH THU CAO NHẤT ── */
+function renderChartTopProducts(products) {
+    const canvas = document.getElementById('chartTopProducts');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (chartProducts) chartProducts.destroy();
+
+    const labels = products.map(p => p.name);
+    const dataMillion = products.map(p => Math.round(p.total_vnd / 1000000));
+    const colors = [
+        '#1e40af', '#3b82f6', '#059669', '#10b981', '#f59e0b', '#8b5cf6'
+    ];
+
+    chartProducts = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataMillion,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#ffffff',
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        font: { weight: '600', size: 11.5 },
+                        padding: 10
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const val = ctx.parsed;
+                            return ` ${ctx.label}: ${val.toLocaleString('vi-VN')} Tr đ (${(val * 1000000).toLocaleString('vi-VN')} đ)`;
+                        }
+                    }
+                }
+            },
+            cutout: '62%'
+        }
+    });
+}
+
+/* ── BIỂU ĐỒ 3: SO SÁNH 12 THÁNG GIỮA CÁC NĂM ── */
+function renderChartMonthly(matrix, highlightYear = null) {
+    const canvas = document.getElementById('chartMonthlyComparison');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (chartMonthly) chartMonthly.destroy();
+
+    const yearColors = {
+        '2022': { border: '#64748b', bg: 'rgba(100, 116, 139, 0.08)' },
+        '2023': { border: '#0284c7', bg: 'rgba(2, 132, 199, 0.08)' },
+        '2024': { border: '#dc2626', bg: 'rgba(220, 38, 38, 0.08)' },
+        '2025': { border: '#7c3aed', bg: 'rgba(124, 58, 237, 0.08)' },
+        '2026': { border: '#059669', bg: 'rgba(5, 150, 105, 0.08)' }
+    };
+
+    const datasets = matrix.years.map(y => {
+        const yStr = String(y);
+        const col = yearColors[yStr] || { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)' };
+        const rawValues = matrix.series[yStr] || [];
+        const millionValues = rawValues.map(v => Math.round(v / 1000000));
+
+        let isHighlight = false;
+        if (highlightYear && String(highlightYear) === yStr) {
+            isHighlight = true;
+        } else if (!highlightYear && y === 2024) {
+            isHighlight = true;
+        }
+
+        return {
+            label: `Năm ${y}${y === 2024 ? ' (Kỷ lục 🏆)' : ''}`,
+            data: millionValues,
+            borderColor: col.border,
+            backgroundColor: col.bg,
+            borderWidth: isHighlight ? 3.5 : (highlightYear ? 1.5 : 2),
+            tension: 0.28,
+            fill: false,
+            pointRadius: isHighlight ? 5 : 3.5,
+            pointHoverRadius: 7
+        };
+    });
+
+    chartMonthly = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: matrix.months,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        font: { weight: '700', size: 12 },
+                        boxWidth: 16,
+                        padding: 12
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const val = ctx.parsed.y;
+                            if (val === 0) return ` ${ctx.dataset.label}: 0 đ (Chưa có đơn)`;
+                            return ` ${ctx.dataset.label}: ${val.toLocaleString('vi-VN')} Tr đ (${(val * 1000000).toLocaleString('vi-VN')} đ)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: val => val + ' Tr',
+                        font: { weight: '600' }
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    ticks: { font: { weight: '600' } },
+                    grid: { color: '#f8fafc' }
+                }
+            }
+        }
+    });
+}
+
+/* ── Init ── */
+window.onload = loadReport;
+</script>
+</body>
+</html>
+

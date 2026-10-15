@@ -1,0 +1,56 @@
+[
+  {
+    "id": "banhang",
+    "name": "Bán Hàng & Kho",
+    "prefix": "/banhang",
+    "module": "app_banhang",
+    "blueprint_var": "banhang_bp",
+    "init_func": "init_db",
+    "desc": "Tạo đơn hàng, in hóa đơn bảo hành cho khách, quản lý bảng giá và kiểm kê tồn kho theo Excel.",
+    "icon": "bi-cart3",
+    "theme_color": "green",
+    "status": "active",
+    "features": [
+      "Nhập đơn & in phiếu khách hàng",
+      "Tra cứu bảo hành theo biển số xe",
+      "Quản lý 2.700+ mặt hàng & giá vốn",
+      "Tải sao lưu SQLite & xuất file Excel"
+    ]
+  },
+  {
+    "id": "den",
+    "name": "Báo Cáo Doanh Thu Đèn",
+    "prefix": "/den",
+    "module": "app_baocao_den",
+    "blueprint_var": "den_bp",
+    "init_func": "init_db",
+    "desc": "Quản lý doanh thu chuyên biệt cho các sản phẩm bóng đèn xe hơi, bi gầm, bi pha theo chu kỳ.",
+    "icon": "bi-lightbulb-fill",
+    "theme_color": "yellow",
+    "status": "active",
+    "features": [
+      "Nhập nhanh theo phím tắt (F10, NAOEVO...)",
+      "Báo cáo doanh thu & chốt sổ chu kỳ ngày 9-8",
+      "Biểu đồ trực quan & phân tích dòng xe",
+      "Xuất ảnh báo cáo gửi Zalo độ nét cao"
+    ]
+  },
+  {
+    "id": "thuchi",
+    "name": "Sổ Quản Lý Thu Chi",
+    "prefix": "/thuchi",
+    "module": "app_thuchi",
+    "blueprint_var": "thuchi_bp",
+    "init_func": "init_db",
+    "desc": "Theo dõi dòng tiền hàng ngày, quản lý chi phí cửa hàng, chốt kỳ linh hoạt và báo cáo tổng hợp.",
+    "icon": "bi-wallet2",
+    "theme_color": "purple",
+    "status": "active",
+    "features": [
+      "Ghi nhận khoản thu / chi cực nhanh",
+      "Tự động x1.000 và đọc thành chữ tiếng Việt",
+      "Quản lý chốt kỳ & tạo bảng trắng mới",
+      "Xem lại lịch sử & số dư tất cả các kỳ"
+    ]
+  }
+]
