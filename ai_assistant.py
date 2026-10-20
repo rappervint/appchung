@@ -497,20 +497,36 @@ def handle_wizard_step(user_text, session_id):
                 )
             }
 
-        # Bước 5: Giảm giá / Chiết khấu (Có chữ k tự hiểu nhân thêm 1000)
+        # Bước 5: Giảm giá / Chiết khấu (Hỗ trợ cả phần trăm % và số tiền k / triệu)
         elif step == 5:
-            if clean in ['0', 'không', 'khong', 'k', 'ko', '', 'ko giam', 'khong giam']:
+            base_k = data.get('base_price_k', 0)
+            
+            # 1. Nhận diện phần trăm: '10%', 'giảm 10%', '10 phan tram', '5%'
+            m_pct = re.search(r'(\d+(?:[.,]\d+)?)\s*(?:%|phan\s*tram|phần\s*trăm)', user_text, re.IGNORECASE)
+            
+            if m_pct:
+                pct = float(m_pct.group(1).replace(',', '.'))
+                discount_k = int(round(base_k * pct / 100))
+                data['discount_pct'] = pct
+            elif clean in ['0', 'không', 'khong', 'k', 'ko', '', 'ko giam', 'khong giam', 'khong bot', 'k giam']:
                 discount_k = 0
+                data['discount_pct'] = 0
             else:
                 p_val = parse_vietnamese_money(user_text, default_thousands=True)
                 if p_val > 0:
                     discount_k = int(round(p_val / 1000))
                 else:
                     discount_k = 0
+                data['discount_pct'] = 0
 
             data['discount_k'] = discount_k
             session['step'] = 6
-            disc_label = f"-{discount_k*1000:,.0f} đ (-{discount_k:,}k)" if discount_k > 0 else "0 đ (Không giảm)"
+            if discount_k > 0:
+                pct_str = f" ({data['discount_pct']:.0f}%)" if data.get('discount_pct', 0) > 0 else ""
+                disc_label = f"-{discount_k*1000:,.0f} đ (-{discount_k:,}k){pct_str}"
+            else:
+                disc_label = "0 đ (Không giảm)"
+
             return {
                 "type": "clarify",
                 "message": (
@@ -566,7 +582,8 @@ def handle_wizard_step(user_text, session_id):
             qty_label = f"{data['quantity']} bộ " if data['quantity'] > 1 else ""
             base_str = f"{data['base_price_k']*1000:,.0f} đ ({data['base_price_k']:,}k)"
             final_str = f"{final_price_k*1000:,.0f} đ ({final_price_k:,}k)"
-            disc_text = f"\n• 🏷️ **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k)" if data['discount_k'] > 0 else "\n• 🏷️ **Giảm giá:** 0 đ (Không giảm)"
+            pct_str = f" ({data['discount_pct']:.0f}%)" if data.get('discount_pct', 0) > 0 else ""
+            disc_text = f"\n• 🏷️ **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k){pct_str}" if data['discount_k'] > 0 else "\n• 🏷️ **Giảm giá:** 0 đ (Không giảm)"
             plate_text = f" (Biển số: {data['plate']})" if data['plate'] else ""
 
             return {
