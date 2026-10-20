@@ -1,3 +1,25 @@
+def extract_product_keyword(text):
+    """Bóc tách từ khóa sản phẩm bất chấp có dấu, không dấu, câu hỏi, dấu chấm hỏi"""
+    # 1. Bỏ dấu câu
+    clean = re.sub(r'[^\w\s]', ' ', text)
+    
+    # 2. Danh sách các cụm từ hỏi giá / tồn kho (cả có dấu lẫn không dấu)
+    remove_patterns = [
+        r'gia\s+bao\s+nhieu', r'bao\s+nhieu\s+tien', r'bao\s+nhieu', r'nhieu\s+tien',
+        r'giá\s+bao\s+nhiêu', r'bao\s+nhiêu\s+tiền', r'bao\s+nhiêu', r'nhiêu\s+tiền',
+        r'ton\s+kho', r'tồn\s+kho', r'gia\s+ban', r'giá\s+bán', r'gia\s+von', r'giá\s+vốn',
+        r'con\s+hang\s+khong', r'còn\s+hàng\s+không', r'con\s+hang', r'còn\s+hàng',
+        r'het\s+hang', r'hết\s+hàng', r'bao\s+gia', r'báo\s+giá',
+        r'cho\s+toi\s+hoi', r'cho\s+tôi\s+hỏi', r'hoi\s+gia', r'hỏi\s+giá',
+        r'xem\s+gia', r'xem\s+giá', r'gia\s+sao', r'giá\s+sao',
+        r'gia', r'giá', r'kho', r'mon', r'món', r'cai', r'cái', r'bo', r'bộ',
+        r'khong', r'không', r'vay', r'vậy', r'a', r'ạ', r'ha', r'hả', r'tien', r'tiền'
+    ]
+    for pat in remove_patterns:
+        clean = re.sub(r'(?i)\b' + pat + r'\b', ' ', clean)
+    
+    return ' '.join(clean.split()).strip()
+
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║        TRỢ LÝ AI ĐIỀU HÀNH GARA Ô TÔ TRẦN BÌNH AUTO (ai_assistant.py) ║
@@ -398,18 +420,16 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
     return {"type": "success", "message": res_text}
 
 def handle_stock_and_price(raw_text, clean_text):
-    """Tra cứu tồn kho & giá bán sản phẩm"""
-    is_stock = bool(re.search(r'\b(ton kho|gia ban|con hang|het hang|bao nhieu tien|gia von|kho|gia|bao gia|nhieu tien)\b', clean_text))
+    """Tra cứu tồn kho & giá bán sản phẩm thông minh (hiểu câu hỏi tự nhiên: f10 pro giá bao nhiêu, có còn hàng không...)"""
+    is_stock = bool(re.search(r'\b(ton kho|gia ban|con hang|het hang|bao nhieu tien|gia von|kho|gia|bao gia|nhieu tien|bao nhieu|nhieu)\b', clean_text))
     if not is_stock:
         return None
 
-    # Tìm tên sản phẩm
-    keyword = raw_text
-    keyword = re.sub(r'\b(ton kho|gia ban|con hang|het hang|bao nhieu|gia|kho|cua|mon)\b', '', keyword, flags=re.IGNORECASE).strip()
-    if not keyword or len(keyword) < 2:
+    kw = extract_product_keyword(raw_text)
+    if not kw or len(kw) < 2:
         return {
             "type": "clarify",
-            "message": "📦 Bạn muốn tra cứu **giá bán** hoặc **tồn kho** của sản phẩm nào? (Ví dụ: *'giá f10 turbo'*, *'tồn kho bóng led s3'*, *'vietmap live bao nhiêu'*)"
+            "message": "📦 Bạn muốn tra cứu **giá bán** hoặc **tồn kho** của sản phẩm nào? (Ví dụ: *'f10 pro giá bao nhiêu'*, *'giá f10 turbo'*, *'tồn kho vietmap'*)"
         }
 
     if not os.path.exists(DB_BANHANG):
@@ -419,25 +439,54 @@ def handle_stock_and_price(raw_text, clean_text):
         conn = sqlite3.connect(DB_BANHANG, timeout=10)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
+
+        # 1. Thử tìm chính xác cụm từ trước
         c.execute("""
             SELECT code, name, category, price, cost_price, stock, warranty_months 
             FROM products 
-            WHERE name LIKE ? OR code LIKE ? OR category LIKE ?
+            WHERE UPPER(name) LIKE ? OR UPPER(code) LIKE ?
             ORDER BY stock DESC LIMIT 6
-        """, (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"))
+        """, (f"%{kw.upper()}%", f"%{kw.upper()}%"))
         rows = c.fetchall()
+
+        # 2. Nếu không ra, tách từng từ khóa (token match: VD 'f10' và 'pro')
+        if not rows:
+            tokens = [t.strip() for t in kw.split() if len(t.strip()) >= 2]
+            if len(tokens) >= 2:
+                conditions = " AND ".join(["UPPER(name) LIKE ?" for _ in tokens])
+                params = [f"%{t.upper()}%" for t in tokens]
+                c.execute(f"""
+                    SELECT code, name, category, price, cost_price, stock, warranty_months 
+                    FROM products 
+                    WHERE {conditions}
+                    ORDER BY stock DESC LIMIT 6
+                """, params)
+                rows = c.fetchall()
+
+        # 3. Nếu vẫn chưa có, tìm theo từ đầu tiên
+        if not rows:
+            first_token = kw.split()[0]
+            if len(first_token) >= 2:
+                c.execute("""
+                    SELECT code, name, category, price, cost_price, stock, warranty_months 
+                    FROM products 
+                    WHERE UPPER(name) LIKE ?
+                    ORDER BY stock DESC LIMIT 6
+                """, (f"%{first_token.upper()}%",))
+                rows = c.fetchall()
+
         conn.close()
 
         if not rows:
-            return {"type": "info", "message": f"📦 Không tìm thấy sản phẩm nào khớp với tên: **'{keyword}'** trong kho."}
+            return {"type": "info", "message": f"📦 Không tìm thấy sản phẩm nào khớp với: **'{kw}'** trong kho hàng."}
 
-        reply = f"📦 **KHO HÀNG & BẢNG GIÁ KHỚP VỚI: '{keyword.upper()}'**\n\n"
+        reply = f"📦 **KHO HÀNG & BẢNG GIÁ KHỚP VỚI: '{kw.upper()}'**\n\n"
         for p in rows:
             stock_badge = f"🟢 Còn {p['stock']} cái" if p['stock'] > 0 else "🔴 HẾT HÀNG"
             reply += f"• **{p['name']}** ({p['code'] or 'SP'})\n"
-            reply += f"  - Giá bán: **{p['price']:,.0f} đ** | Giá vốn: {p['cost_price']:,.0f} đ\n"
-            reply += f"  - Tồn kho: **{stock_badge}** | BH: {p['warranty_months']} tháng\n\n"
-        reply += "👉 [Xem toàn bộ 2.700+ mặt hàng trong Kho Hàng](/banhang/)"
+            reply += f"  - Giá bán lẻ: **{p['price']:,.0f} đ** | Giá vốn: {p['cost_price']:,.0f} đ\n"
+            reply += f"  - Tồn kho: **{stock_badge}** | Bảo hành: **{p['warranty_months']} tháng**\n\n"
+        reply += "👉 [Bấm vào đây để mở Danh Mục Kho Hàng](/banhang/)"
         return {"type": "success", "message": reply}
     except Exception as e:
         return {"type": "error", "message": f"Lỗi tra cứu kho: {str(e)}"}
