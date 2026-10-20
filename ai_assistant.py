@@ -1232,73 +1232,122 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
 # 6. TRA CỨU TỒN KHO & GIÁ BÁN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def handle_stock_and_price(raw_text, clean_text):
-    """Tra cứu tồn kho & giá bán sản phẩm thông minh"""
-    is_stock = bool(re.search(r'\b(ton kho|gia ban|con hang|het hang|bao nhieu tien|gia von|kho|gia|bao gia|nhieu tien|bao nhieu|nhieu)\b', clean_text))
-    if not is_stock:
+def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
+    """
+    Tra cứu sản phẩm trong kho hàng cực kỳ thông minh (Fuzzy Search):
+    - Người dùng chỉ cần gõ bất kỳ từ ngữ nào (VD: '70mai', 'm310', 'blam', 'vincar', 'sub 10', 'innova 2026')
+    - Không cần phải gõ đúng 100% tên hàng
+    - Tìm không dấu, có dấu, tìm theo mã SP..., nhóm hàng, tên hàng
+    - Tự động sắp xếp sản phẩm còn tồn kho và có độ khớp cao nhất lên đầu
+    """
+    if not os.path.exists(DB_BANHANG):
         return None
 
-    kw = extract_product_keyword(raw_text)
-    if not kw or len(kw) < 2:
-        return {
-            "type": "clarify",
-            "message": "📦 Bạn muốn tra cứu **giá bán** hoặc **tồn kho** của sản phẩm nào? (Ví dụ: *'f10 pro giá bao nhiêu'*, *'giá f10 turbo'*, *'tồn kho vietmap'*)"
-        }
+    raw_q = raw_text.strip()
+    if not raw_q or len(raw_q) < 2:
+        return None
 
-    if not os.path.exists(DB_BANHANG):
-        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu kho hàng!"}
+    # Tách từ khóa
+    clean_q = remove_accents(raw_q).lower()
+    stop_words = [
+        'tim', 'kiem', 'tra', 'check', 'xem', 'hoi', 'gia', 'ban', 'bao', 'nhieu', 
+        'tien', 'kho', 'con', 'hang', 'khong', 'ko', 'a', 'ha', 'san', 'pham', 'mat',
+        'co', 'cho', 'minh', 'em', 'toi', 'biet', 'chua', 'hang', 'cho'
+    ]
+    tokens = [t for t in re.split(r'[\s\-_\.,/]+', clean_q) if t and t not in stop_words]
+    if not tokens:
+        tokens = [t for t in re.split(r'[\s\-_\.,/]+', clean_q) if t]
+    if not tokens:
+        return None
 
     try:
         conn = sqlite3.connect(DB_BANHANG, timeout=10)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("""
-            SELECT code, name, category, price, cost_price, stock, warranty_months 
-            FROM products 
-            WHERE UPPER(name) LIKE ? OR UPPER(code) LIKE ?
-            ORDER BY stock DESC LIMIT 6
-        """, (f"%{kw.upper()}%", f"%{kw.upper()}%"))
-        rows = c.fetchall()
-
-        if not rows:
-            tokens = [t.strip() for t in kw.split() if len(t.strip()) >= 2]
-            if len(tokens) >= 2:
-                conditions = " AND ".join(["UPPER(name) LIKE ?" for _ in tokens])
-                params = [f"%{t.upper()}%" for t in tokens]
-                c.execute(f"""
-                    SELECT code, name, category, price, cost_price, stock, warranty_months 
-                    FROM products 
-                    WHERE {conditions}
-                    ORDER BY stock DESC LIMIT 6
-                """, params)
-                rows = c.fetchall()
-
-        if not rows:
-            first_token = kw.split()[0]
-            if len(first_token) >= 2:
-                c.execute("""
-                    SELECT code, name, category, price, cost_price, stock, warranty_months 
-                    FROM products 
-                    WHERE UPPER(name) LIKE ?
-                    ORDER BY stock DESC LIMIT 6
-                """, (f"%{first_token.upper()}%",))
-                rows = c.fetchall()
-
+        c.execute("SELECT id, code, name, category, price, cost_price, stock, warranty_months, warranty_raw FROM products")
+        all_prods = c.fetchall()
         conn.close()
 
-        if not rows:
-            return {"type": "info", "message": f"📦 Không tìm thấy sản phẩm nào khớp với: **'{kw}'** trong kho hàng."}
+        results = []
+        clean_full_q = ' '.join(tokens)
 
-        reply = f"📦 **KHO HÀNG & BẢNG GIÁ KHỚP VỚI: '{kw.upper()}'**\n\n"
-        for p in rows:
-            stock_badge = f"🟢 Còn {p['stock']} cái" if p['stock'] > 0 else "🔴 HẾT HÀNG"
-            reply += f"• **{p['name']}** ({p['code'] or 'SP'})\n"
-            reply += f"  - Giá bán lẻ: **{p['price']:,.0f} đ** | Giá vốn: {p['cost_price']:,.0f} đ\n"
-            reply += f"  - Tồn kho: **{stock_badge}** | Bảo hành: **{p['warranty_months']} tháng**\n\n"
-        reply += "👉 [Bấm vào đây để mở Danh Mục Kho Hàng](/banhang/)"
-        return {"type": "success", "message": reply}
+        for p in all_prods:
+            p_name = p['name'] or ''
+            p_code = p['code'] or ''
+            p_cat = p['category'] or ''
+
+            p_name_clean = remove_accents(p_name).lower()
+            p_code_clean = p_code.lower()
+            p_cat_clean = remove_accents(p_cat).lower()
+            
+            score = 0
+            
+            # 1. Khớp mã hàng chính xác hoặc một phần mã
+            if clean_full_q == p_code_clean:
+                score += 1000
+            elif clean_full_q in p_code_clean:
+                score += 600
+
+            # 2. Khớp nguyên cụm từ người dùng gõ trong tên hàng
+            if clean_full_q in p_name_clean:
+                score += 400
+            elif clean_q in p_name_clean:
+                score += 350
+
+            # 3. Khớp từng token (từ rời rạc)
+            matched_count = 0
+            for tok in tokens:
+                if len(tok) == 1 and not tok.isdigit():
+                    continue
+                if tok in p_name_clean:
+                    matched_count += 1
+                elif tok in p_cat_clean or tok in p_code_clean:
+                    matched_count += 0.5
+
+            if len(tokens) > 0:
+                if matched_count == len(tokens):
+                    score += 250 + matched_count * 15
+                elif matched_count > 0:
+                    score += matched_count * 30
+
+            # Điểm ưu tiên nếu còn tồn kho
+            if score >= 30:
+                if p['stock'] and p['stock'] > 0:
+                    score += 20
+                results.append((score, dict(p)))
+
+        results.sort(key=lambda x: x[0], reverse=True)
+        top_matches = [r[1] for r in results[:6] if r[0] >= 30]
+
+        if not top_matches:
+            if require_explicit_intent:
+                return {"type": "info", "message": f"📦 Không tìm thấy mặt hàng nào khớp với từ khóa: **'{raw_q}'** trong kho."}
+            return None
+
+        reply = f"📦 **KẾT QUẢ TÌM KIẾM MẶT HÀNG TRONG KHO: '{raw_q.upper()}'**\n"
+        reply += f"*(Tìm thấy {len(results)} mặt hàng tương tự, hiển thị {len(top_matches)} kết quả phù hợp nhất)*\n\n"
+
+        for p in top_matches:
+            stock_qty = p['stock'] or 0
+            stock_badge = f"🟢 Còn {stock_qty} cái" if stock_qty > 0 else "🔴 HẾT HÀNG (0)"
+            war_m = p['warranty_months'] or 0
+            war_badge = f"{war_m} tháng" if war_m > 0 else (p['warranty_raw'] or 'Theo nhà sản xuất')
+            cat_label = f"📁 *{p['category']}*\n" if p['category'] else ""
+
+            reply += f"• **{p['name']}** `({p['code'] or 'SP'})`\n"
+            if cat_label:
+                reply += f"  {cat_label}"
+            reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | Giá vốn: {p['cost_price']:,.0f} đ\n"
+            reply += f"  - 📦 Tồn kho: **{stock_badge}** | 🛡️ Bảo hành: **{war_badge}**\n\n"
+
+        reply += "👉 [Bấm vào đây để mở Kho Hàng & Bán Hàng](/banhang/)"
+        return {
+            "type": "success",
+            "module": "banhang",
+            "message": reply
+        }
     except Exception as e:
-        return {"type": "error", "message": f"Lỗi tra cứu kho: {str(e)}"}
+        return {"type": "error", "message": f"Lỗi tra cứu mặt hàng kho: {str(e)}"}
 
 def handle_summary_stats(raw_text, clean_text):
     """Báo cáo tổng hợp số dư quỹ, doanh thu hôm nay"""
