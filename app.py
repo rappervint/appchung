@@ -268,6 +268,22 @@ def api_delete_app(app_id):
     return jsonify({'success': True, 'message': 'Đã xóa khỏi danh sách Hub!'})
 
 # Biến WSGI chuẩn cho PythonAnywhere
+
+# ── API TRỢ LÝ AI ĐIỀU HÀNH TOÀN DIỆN (AI ASSISTANT) ──
+@app.route('/api/ai/chat', methods=['POST'])
+def api_ai_chat():
+    data = request.json or {}
+    message = data.get('message', '').strip()
+    try:
+        from ai_assistant import process_ai_command
+        result = process_ai_command(message)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'type': 'error',
+            'message': f'Lỗi hệ thống trợ lý AI: {str(e)}'
+        }), 500
+
 application = app
 
 # ── HÀM LẤY IP NỘI BỘ WI-FI / MẠNG LAN ──

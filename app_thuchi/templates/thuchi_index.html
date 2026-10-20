@@ -665,5 +665,400 @@
         }
     }
 </script>
+
+<!-- ==========================================
+     BONG BÓNG CHAT TRỢ LÝ AI ĐIỀU HÀNH GARA (AI ASSISTANT WIDGET)
+     ========================================== -->
+<style>
+    /* Nút tròn bong bóng AI góc dưới màn hình */
+    .ai-chat-bubble-btn {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #0071e3 0%, #9333ea 50%, #f43f5e 100%);
+        box-shadow: 0 8px 28px rgba(147, 51, 234, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        cursor: pointer;
+        z-index: 99999;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        user-select: none;
+    }
+    .ai-chat-bubble-btn:hover {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 12px 35px rgba(147, 51, 234, 0.65);
+    }
+    .ai-chat-badge {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        background: #30d158;
+        color: #000;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 10px;
+        border: 2px solid #0c0d14;
+        animation: pulseBadge 2s infinite;
+    }
+    @keyframes pulseBadge {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+    }
+
+    /* Khung cửa sổ chat macOS phong cách Liquid Glass */
+    .ai-chat-window {
+        position: fixed;
+        bottom: 95px;
+        right: 24px;
+        width: 390px;
+        max-width: calc(100vw - 32px);
+        height: 580px;
+        max-height: calc(100vh - 120px);
+        background: rgba(18, 22, 36, 0.96);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 99999;
+        animation: chatSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    @keyframes chatSlideUp {
+        from { opacity: 0; transform: translateY(20px) scale(0.95); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Header của cửa sổ chat */
+    .ai-chat-header {
+        padding: 14px 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .ai-chat-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #fff;
+    }
+    .ai-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #0071e3, #a855f7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+    }
+    .ai-chat-close-btn {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 18px;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+    .ai-chat-close-btn:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Thân hội thoại */
+    .ai-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .ai-chat-messages::-webkit-scrollbar { width: 5px; }
+    .ai-chat-messages::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+
+    .ai-msg {
+        max-width: 85%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        word-break: break-word;
+    }
+    .ai-msg-bot {
+        align-self: flex-start;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #f1f5f9;
+        border-bottom-left-radius: 4px;
+    }
+    .ai-msg-user {
+        align-self: flex-end;
+        background: linear-gradient(135deg, #0071e3 0%, #005bb5 100%);
+        color: #ffffff;
+        border-bottom-right-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+    }
+    .ai-msg p { margin: 0 0 6px 0; }
+    .ai-msg p:last-child { margin-bottom: 0; }
+    .ai-msg strong { color: #38bdf8; }
+    .ai-msg a { color: #ffd60a; text-decoration: underline; }
+
+    /* Gợi ý lệnh nhanh */
+    .ai-quick-prompts {
+        display: flex;
+        gap: 6px;
+        padding: 8px 14px;
+        overflow-x: auto;
+        background: rgba(0, 0, 0, 0.2);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .ai-quick-prompts::-webkit-scrollbar { height: 3px; }
+    .ai-prompt-chip {
+        white-space: nowrap;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.74rem;
+        padding: 4px 10px;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .ai-prompt-chip:hover {
+        background: rgba(56, 189, 248, 0.2);
+        color: #38bdf8;
+        border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    /* Ô gõ tin nhắn */
+    .ai-chat-footer {
+        padding: 12px 14px;
+        background: rgba(0, 0, 0, 0.35);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ai-chat-input {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        color: #ffffff;
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        outline: none;
+        transition: all 0.2s;
+    }
+    .ai-chat-input:focus {
+        border-color: #38bdf8;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+    }
+    .ai-send-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #0071e3, #9333ea);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .ai-send-btn:hover {
+        transform: scale(1.05);
+        filter: brightness(1.15);
+    }
+    .ai-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Hiệu ứng đang gõ */
+    .ai-typing {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        padding: 4px 8px;
+    }
+    .ai-dot {
+        width: 6px;
+        height: 6px;
+        background: #38bdf8;
+        border-radius: 50%;
+        animation: typingDot 1.4s infinite ease-in-out;
+    }
+    .ai-dot:nth-child(2) { animation-delay: 0.2s; }
+    .ai-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingDot {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+        40% { transform: scale(1); opacity: 1; }
+    }
+</style>
+
+<!-- Nút Tròn Bong Bóng Chat AI -->
+<div class="ai-chat-bubble-btn" id="aiBubbleBtn" onclick="toggleAIChat()" title="Mở Trợ Lý AI Gara Trần Bình Auto">
+    <i class="bi bi-robot"></i>
+    <span class="ai-chat-badge">AI</span>
+</div>
+
+<!-- Khung Cửa Sổ Trò Chuyện AI -->
+<div class="ai-chat-window" id="aiChatWindow">
+    <div class="ai-chat-header">
+        <div class="ai-chat-title">
+            <div class="ai-avatar">🤖</div>
+            <div>
+                <div>Trợ Lý AI Gara</div>
+                <div style="font-size: 0.72rem; color: #30d158; font-weight: 500;">● Sẵn sàng nhận lệnh giọng nói / chữ</div>
+            </div>
+        </div>
+        <button class="ai-chat-close-btn" onclick="toggleAIChat()">✕</button>
+    </div>
+
+    <div class="ai-chat-messages" id="aiMessages">
+        <div class="ai-msg ai-msg-bot">
+            👋 Xin chào! Tôi là <strong>Trợ lý AI Gara Trần Bình Auto</strong>.<br><br>
+            Bạn có thể ra lệnh bằng tiếng Việt tự nhiên (hỗ trợ viết tắt, gõ sai chính tả):<br>
+            • <em>"chi 250k tiền cơm trưa"</em> (Tự ghi sổ chi)<br>
+            • <em>"thu 1.5tr khách cọc làm đèn"</em> (Tự ghi sổ thu)<br>
+            • <em>"lắp F10 Turbo xe Camry 63A-123.45 giá 5.1tr"</em> (Tự vào báo cáo đèn)<br>
+            • <em>"tra cứu xe 63A-394.65"</em> (Xem lịch sử & hạn bảo hành)<br>
+            • <em>"giá bi led v20"</em> (Tra cứu kho & giá bán)<br>
+            • <em>"tổng kết quỹ"</em> (Xem số dư tiền mặt hiện tại)
+        </div>
+    </div>
+
+    <!-- Gợi ý lệnh nhanh 1-click -->
+    <div class="ai-quick-prompts">
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('tổng kết quỹ')">📊 Tổng kết quỹ</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('chi 150k tiền xăng xe')">💸 Chi 150k xăng</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('thu 2tr khách cọc')">💰 Thu 2tr cọc</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('giá bi gầm f10')">💡 Giá F10</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('tra cứu xe 63A-394.65')">🔍 Tra cứu 63A</span>
+    </div>
+
+    <div class="ai-chat-footer">
+        <input type="text" class="ai-chat-input" id="aiInput" placeholder="Nhập lệnh (vd: chi 100k mua đồ, lắp f10...)" onkeydown="if(event.key==='Enter') sendAIMessage()">
+        <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">
+            <i class="bi bi-send-fill"></i>
+        </button>
+    </div>
+</div>
+
+<script>
+    function toggleAIChat() {
+        const win = document.getElementById('aiChatWindow');
+        if (!win) return;
+        if (win.style.display === 'flex') {
+            win.style.display = 'none';
+        } else {
+            win.style.display = 'flex';
+            setTimeout(() => {
+                const inp = document.getElementById('aiInput');
+                if (inp) inp.focus();
+            }, 150);
+        }
+    }
+
+    function sendQuickPrompt(text) {
+        const inp = document.getElementById('aiInput');
+        if (inp) {
+            inp.value = text;
+            sendAIMessage();
+        }
+    }
+
+    function formatAIMessage(text) {
+        if (!text) return '';
+        // Đổi markdown cơ bản sang HTML
+        let html = text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>');
+        return html;
+    }
+
+    async function sendAIMessage() {
+        const input = document.getElementById('aiInput');
+        const sendBtn = document.getElementById('aiSendBtn');
+        const msgContainer = document.getElementById('aiMessages');
+        const query = (input.value || '').trim();
+
+        if (!query) return;
+
+        // 1. Thêm tin nhắn của User
+        const userDiv = document.createElement('div');
+        userDiv.className = 'ai-msg ai-msg-user';
+        userDiv.textContent = query;
+        msgContainer.appendChild(userDiv);
+
+        input.value = '';
+        input.disabled = true;
+        sendBtn.disabled = true;
+
+        // 2. Thêm bong bóng đang suy nghĩ
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'ai-msg ai-msg-bot';
+        typingDiv.id = 'aiTypingIndicator';
+        typingDiv.innerHTML = '<div class="ai-typing"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+        msgContainer.appendChild(typingDiv);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+
+        try {
+            const res = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: query })
+            });
+            const data = await res.json();
+
+            // Xóa typing
+            const typingEl = document.getElementById('aiTypingIndicator');
+            if (typingEl) typingEl.remove();
+
+            // Thêm phản hồi của AI Bot
+            const botDiv = document.createElement('div');
+            botDiv.className = 'ai-msg ai-msg-bot';
+            botDiv.innerHTML = formatAIMessage(data.message || 'Đã thực hiện yêu cầu!');
+            msgContainer.appendChild(botDiv);
+
+        } catch (err) {
+            const typingEl = document.getElementById('aiTypingIndicator');
+            if (typingEl) typingEl.remove();
+
+            const errDiv = document.createElement('div');
+            errDiv.className = 'ai-msg ai-msg-bot';
+            errDiv.style.borderColor = '#ef4444';
+            errDiv.innerHTML = '❌ Lỗi kết nối trợ lý AI: ' + err;
+            msgContainer.appendChild(errDiv);
+        } finally {
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+    }
+</script>
+
 </body>
 </html>
