@@ -591,22 +591,46 @@ def backup_db():
 @banhang_bp.route("/api/import", methods=["POST"])
 def import_excel():
     if 'file' not in request.files:
-        return jsonify({"msg": "Chưa chọn file"}), 400
+        return jsonify({"status": "error", "msg": "Vui lòng chọn file Excel hoặc CSV!"}), 400
     file = request.files['file']
+    filename = (file.filename or '').lower()
+    
+    # 1. HỖ TRỢ FILE XUẤT TỪ MEPOS (.csv)
+    if filename.endswith(".csv"):
+        try:
+            content = file.read().decode("utf-8-sig", errors="ignore")
+            from .import_mepos import import_mepos_invoices
+            res = import_mepos_invoices(content)
+            return jsonify(res)
+        except Exception as e:
+            return jsonify({"status": "error", "msg": f"Lỗi đọc file CSV: {str(e)}"}), 500
+
+    # 2. HỖ TRỢ FILE EXCEL (.xlsx / .xls)
     try:
-        import openpyxl
-        wb = openpyxl.load_workbook(file, data_only=True)
-        ws = wb.active
+        import pandas as pd
+        xls_df = pd.read_excel(file)
+        cols = [str(c).strip() for c in xls_df.columns]
+        
+        # Nếu là file xuất hóa đơn của MePOS dạng Excel
+        if any("Mã hóa đơn" in c for c in cols) and any("Tên khách hàng" in c for c in cols):
+            csv_buf = xls_df.to_csv(index=False)
+            from .import_mepos import import_mepos_invoices
+            res = import_mepos_invoices(csv_buf)
+            return jsonify(res)
+
+        # Định dạng Excel truyền thống
         orders_dict = {}
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if not row[0] or not row[4]: continue
-            plate = str(row[0]).strip().upper()
-            name = str(row[1] or "").strip()
-            phone = str(row[2] or "").strip()
-            date_str = str(row[3] or datetime.now().strftime("%Y-%m-%d")).strip()
-            item_name = str(row[4]).strip()
-            price = float(row[5]) if row[5] else 0.0
-            war = int(row[6]) if row[6] else 0
+        for _, row in xls_df.iterrows():
+            r = list(row)
+            if len(r) < 5 or pd.isna(r[0]) or pd.isna(r[4]):
+                continue
+            plate = str(r[0]).strip().upper()
+            name = str(r[1] or "").strip()
+            phone = str(r[2] or "").strip()
+            date_str = str(r[3] or datetime.now().strftime("%Y-%m-%d")).strip()
+            item_name = str(r[4]).strip()
+            price = float(r[5]) if len(r) > 5 and pd.notna(r[5]) else 0.0
+            war = int(r[6]) if len(r) > 6 and pd.notna(r[6]) else 0
             
             key = (plate, date_str)
             if key not in orders_dict: 
@@ -615,19 +639,21 @@ def import_excel():
 
         with sqlite3.connect(DB_NAME) as conn:
             c = conn.cursor()
+            inserted = 0
             for (plate, date_str), data in orders_dict.items():
                 total = sum(i[1] for i in data["items"])
                 c.execute("""INSERT INTO orders (customer_name, phone, license_plate, install_date, total_price) 
                              VALUES (?, ?, ?, ?, ?)""", 
                           (data["name"], data["phone"], plate, date_str, total))
                 oid = c.lastrowid
+                inserted += 1
                 for it in data["items"]:
-                    c.execute("""INSERT INTO order_items (order_id, item_name, price, warranty_months) 
-                                 VALUES (?, ?, ?, ?)""", (oid, it[0], it[1], it[2]))
+                    c.execute("""INSERT INTO order_items (order_id, item_name, price, warranty_months, orig_price, unit_price, qty) 
+                                 VALUES (?, ?, ?, ?, ?, ?, ?)""", (oid, it[0], it[1], it[2], it[1], it[1], 1))
             conn.commit()
-        return jsonify({"msg": "Nhập dữ liệu thành công!"})
+        return jsonify({"status": "success", "msg": f"Đã nhập thành công {inserted} đơn hàng từ file Excel!"})
     except Exception as e:
-        return jsonify({"msg": f"Lỗi: {str(e)}"}), 500
+        return jsonify({"status": "error", "msg": f"Lỗi xử lý file Excel: {str(e)}"}), 500
 
 # ==========================================
 # API 5: TÊN MIỀN TRUY CẬP MẠNG NỘI BỘ (KHÔNG CẦN NHỚ IP)

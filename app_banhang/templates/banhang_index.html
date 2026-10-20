@@ -803,9 +803,12 @@
                                 <button class="btn btn-mac-ghost px-2" onclick="document.getElementById('search_date').value=''; loadOrders();" title="Xóa lọc ngày">✕</button>
                             </div>
                         </div>
-                        <div class="col-4 col-md-2">
-                            <button class="btn btn-mac-primary w-100 px-2" onclick="loadOrders()">
+                        <div class="col-4 col-md-2 d-flex gap-2">
+                            <button class="btn btn-mac-primary flex-fill px-2" onclick="loadOrders()">
                                 <i class="bi bi-search me-1"></i> Tra Cứu
+                            </button>
+                            <button class="btn btn-mac-success px-3" onclick="triggerImportExcel()" title="Nhập danh sách đơn hàng từ file Excel hoặc file xuất từ phần mềm MePOS (.xlsx, .csv)">
+                                <i class="bi bi-file-earmark-arrow-up-fill me-1"></i> Nhập Excel/MePOS
                             </button>
                         </div>
                     </div>
@@ -2071,6 +2074,47 @@
             }
         }).catch(() => showMacToast("Lỗi kết nối máy chủ!", "error"));
     }
+
+    // ==========================================
+    // TÍNH NĂNG NHẬP EXCEL / FILE XUẤT TỪ MEPOS
+    // ==========================================
+    function triggerImportExcel() {
+        const fileInput = document.getElementById('excel_file_input');
+        if (fileInput) {
+            fileInput.value = '';
+            fileInput.click();
+        }
+    }
+
+    function handleExcelFileSelected(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        showMacToast(`Đang nhập dữ liệu từ "${file.name}" vào hệ thống...`, 'info');
+
+        fetch('/banhang/api/import', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success' || (data.msg && data.msg.includes('thành công'))) {
+                showMacToast(data.msg || 'Đã nhập đơn hàng thành công!', 'success');
+                loadOrders(); // Tải lại danh sách đơn hàng
+                loadPrices(currentStockPage); // Cập nhật lại tồn kho nếu có
+            } else {
+                showMacToast(data.msg || 'Lỗi khi nhập file!', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showMacToast('Lỗi kết nối khi tải file lên!', 'error');
+        });
+    }
+
 </script>
 
 <!-- Modal Thêm Món Mới Vào Kho (Phong cách Apple macOS) -->
@@ -2259,6 +2303,9 @@
         </div>
     </div>
 </div>
+
+<!-- ẨN INPUT ĐỂ CHỌN FILE EXCEL/CSV -->
+<input type="file" id="excel_file_input" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleExcelFileSelected(event)">
 
 </body>
 </html>
