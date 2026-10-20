@@ -93,22 +93,23 @@ def extract_date(text):
 
     return now.strftime('%Y-%m-%d'), clean
 
-def parse_vietnamese_money(text):
+def parse_vietnamese_money(text, default_thousands=True):
     """
-    Phân tích số tiền tiếng Việt cực kỳ linh hoạt:
-    500k -> 500000
-    1.5tr / 1,5tr / 1.5trieu / 1tr5 -> 1500000
-    2tr -> 2000000
-    500 nghin / 500 ngàn -> 500000
-    350000 -> 350000
+    Phân tích số tiền tiếng Việt cực kỳ linh hoạt và chuẩn xác:
+    - Nhập có chữ 'k' ở sau (350k, 3900k, 50k, 2.5k, 500 nghin): AI tự hiểu và nhân thêm 1000
+    - Nhập triệu (1.5tr, 1tr5, 2trieu, 2m): nhân 1.000.000
+    - Nhập dấu chấm phân cách hàng nghìn: 350.000 -> 350,000
+    - Nhập số >= 10000: 350000 -> 350,000
+    - Nhập số trần < 10000 trong ngữ cảnh tiền (350, 3900, 50): tự hiểu là nghìn (nhân 1000)
     """
     if not text:
         return 0
 
-    t = re.sub(r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b', ' ', text)
+    t = re.sub(r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b', ' ', str(text))
     t = re.sub(r'\b20[2-3]\d\b', ' ', t)
-    clean = remove_accents(t).replace(',', '.')
+    clean = remove_accents(t).lower().replace(',', '.')
 
+    # 1. Định dạng x tr y (VD: 1tr5, 2tr350)
     m_tr_split = re.search(r'(\d+)\s*tr\s*(\d+)\b', clean)
     if m_tr_split:
         main_tr = int(m_tr_split.group(1))
@@ -116,27 +117,39 @@ def parse_vietnamese_money(text):
         dec_val = int(dec) * (10 ** (6 - len(dec))) if len(dec) <= 6 else 0
         return main_tr * 1000000 + dec_val
 
+    # 2. Định dạng triệu (VD: 1.5tr, 2trieu, 2m)
     m_tr = re.search(r'(\d+(?:\.\d+)?)\s*(?:tr|trieu|triệu|m)\b', clean)
     if m_tr:
-        return int(float(m_tr.group(1)) * 1000000)
+        return int(round(float(m_tr.group(1)) * 1000000))
 
+    # 3. ĐỊNH DẠNG CHỮ K Ở SAU (350k, 3900k, 50k, 2.5k, nghìn, ngàn) -> TỰ HIỂU VÀ NHÂN THÊM 1000
     m_k = re.search(r'(\d+(?:\.\d+)?)\s*(?:k|nghin|ngan|nghìn|ngàn)\b', clean)
     if m_k:
-        return int(float(m_k.group(1)) * 1000)
+        return int(round(float(m_k.group(1)) * 1000))
 
+    # 4. Định dạng dấu chấm phân cách hàng nghìn (VD: 350.000, 3.900.000)
     m_dot = re.search(r'\b(\d{1,3}(?:\.\d{3})+)\b', t)
     if m_dot:
         return int(m_dot.group(1).replace('.', ''))
 
-    m_num = re.search(r'\b(\d{4,10})\b', clean)
+    # 5. Định dạng số lớn >= 10000 (VD: 350000, 1500000)
+    m_num_long = re.search(r'\b(\d{5,10})\b', clean)
+    if m_num_long:
+        return int(m_num_long.group(1))
+
+    # 6. Có từ khóa tiền phía trước (VD: chi 350, thu 500, giá 3900)
+    m_kw = re.search(r'(?:thu|chi|gia|giá|tiền|tien|giam|giảm|bot|bớt)\s+(\d{1,4})\b', clean)
+    if m_kw:
+        val = int(m_kw.group(1))
+        return val * 1000 if val < 10000 else val
+
+    # 7. Số thuần túy (VD: '350', '3900', '50')
+    m_num = re.search(r'\b(\d{1,4})\b', clean)
     if m_num:
         val = int(m_num.group(1))
+        if default_thousands and val < 10000:
+            return val * 1000
         return val
-
-    m_small = re.search(r'(?:thu|chi|gia|giá|tiền|tien)\s+(\d{1,3})\b', clean)
-    if m_small:
-        val = int(m_small.group(1))
-        return val * 1000
 
     return 0
 
@@ -226,7 +239,7 @@ def get_cycle_dates(year, month):
 WIZARD_SESSIONS = {}
 
 def handle_wizard_step(user_text, session_id):
-    """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI"""
+    """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
     session = WIZARD_SESSIONS.get(session_id)
     if not session:
         return None
@@ -238,7 +251,7 @@ def handle_wizard_step(user_text, session_id):
         del WIZARD_SESSIONS[session_id]
         return {
             "type": "info",
-            "message": "🛑 **ĐÃ HỦY PHIÊN NHẬP LIỆU TỪNG BƯỚC!**\nBạn có thể bắt đầu lại bất cứ lúc nào."
+            "message": "🛑 **ĐÃ HỦY PHIÊN NHẬP LIỆU TỪNG BƯỚC!**\nKhông có dữ liệu nào được lưu. Bạn có thể bắt đầu lại bất cứ lúc nào."
         }
 
     flow = session['flow']
@@ -249,25 +262,21 @@ def handle_wizard_step(user_text, session_id):
     # FLOW 1: WIZARD CHI (SỔ THU CHI)
     # ══════════════════════════════════════════
     if flow == 'chi':
-        # Bước 1: Số tiền chi
+        # Bước 1: Số tiền chi (Nhận chữ k tự hiểu nhân thêm 1000)
         if step == 1:
-            amount = parse_vietnamese_money(user_text)
-            if amount <= 0:
-                m_num = re.search(r'\b\d+\b', clean)
-                if m_num:
-                    val = int(m_num.group(0))
-                    amount = val * 1000 if val < 1000 else val
+            amount = parse_vietnamese_money(user_text, default_thousands=True)
             if amount <= 0:
                 return {
                     "type": "clarify",
-                    "message": "⚠️ Chưa nhận diện được số tiền. Bạn vui lòng nhập lại số tiền chi (Ví dụ: `350k`, `1.5tr`, `150`... hoặc gõ `hủy` để thoát):"
+                    "message": "⚠️ Chưa nhận diện được số tiền. Bạn vui lòng nhập lại số tiền chi (Ví dụ: `350k`, `1.5tr`, `150.000`... hoặc gõ `hủy` để thoát):"
                 }
             data['amount'] = amount
             session['step'] = 2
+            amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
             return {
                 "type": "clarify",
                 "message": (
-                    f"💸 Số tiền: **{amount:,.0f} đ**\n\n"
+                    f"💸 Số tiền chi: **{amount:,.0f} đ** ({amount_k_str})\n\n"
                     f"📅 **BƯỚC 2/3: THỜI GIAN / NGÀY CHI**\n"
                     f"Khoản chi này vào ngày nào?\n"
                     f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại, hoặc nhập VD: `20/10/2026`, `hôm qua`...)*"
@@ -292,59 +301,105 @@ def handle_wizard_step(user_text, session_id):
                 )
             }
 
-        # Bước 3: Lý do / Nội dung chi ➔ LƯU DATABASE
+        # Bước 3: Lý do / Nội dung chi ➔ CHUYỂN SANG BƯỚC XÁC NHẬN (CONFIRM)
         elif step == 3:
             note = user_text.strip()
             if not note or note == '0':
                 note = "Chi nhanh qua Trợ lý AI"
             data['note'] = note
+            session['step'] = 'confirm'
 
             amount = data['amount']
-            date_str = data['date']
-            del WIZARD_SESSIONS[session_id]
+            amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
+            return {
+                "type": "clarify",
+                "message": (
+                    f"📋 **XÁC NHẬN KHOẢN CHI**\n"
+                    f"───────────────────────────\n"
+                    f"• 💸 **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
+                    f"• 📅 **Thời gian:** **{data['date']}**\n"
+                    f"• 📝 **Nội dung / Lý do:** **{note}**\n"
+                    f"───────────────────────────\n"
+                    f"❓ **Bạn có xác nhận lưu khoản chi này vào Sổ Thu Chi không?**\n\n"
+                    f"👉 Gõ **'ok'**, **'lưu'**, **'có'** hoặc **'xác nhận'** để thêm vào sổ.\n"
+                    f"👉 Gõ **'hủy'** hoặc **'không'** để hủy bỏ."
+                )
+            }
 
-            if not os.path.exists(DB_THUCHI):
-                return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
+        # Bước Xác Nhận Khoản Chi ➔ LƯU DATABASE HOẶC HỦY
+        elif step == 'confirm':
+            # Người dùng xác nhận lưu
+            is_confirm = clean in [
+                'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
+                'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1'
+            ] or clean.startswith('ok')
 
-            try:
-                conn = sqlite3.connect(DB_THUCHI, timeout=10)
-                c = conn.cursor()
-                c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
-                p = c.fetchone()
-                if not p:
-                    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    c.execute("INSERT INTO periods (name, start_date, status) VALUES ('Kỳ tự động AI', ?, 'active')", (now_str,))
-                    period_id = c.lastrowid
-                    period_name = "Kỳ tự động AI"
-                else:
-                    period_id = p[0]
-                    period_name = p[1]
+            if is_confirm:
+                amount = data['amount']
+                date_str = data['date']
+                note = data['note']
+                del WIZARD_SESSIONS[session_id]
 
-                created_at = f"{date_str} {datetime.now().strftime('%H:%M:%S')}"
-                c.execute("INSERT INTO transactions (period_id, type, amount, note, created_at) VALUES (?, 'chi', ?, ?, ?)",
-                          (period_id, amount, note.capitalize(), created_at))
-                conn.commit()
+                if not os.path.exists(DB_THUCHI):
+                    return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
 
-                c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
-                balance = c.fetchone()[0] or 0
-                conn.close()
+                try:
+                    conn = sqlite3.connect(DB_THUCHI, timeout=10)
+                    c = conn.cursor()
+                    c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+                    p = c.fetchone()
+                    if not p:
+                        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        c.execute("INSERT INTO periods (name, start_date, status) VALUES ('Kỳ tự động AI', ?, 'active')", (now_str,))
+                        period_id = c.lastrowid
+                        period_name = "Kỳ tự động AI"
+                    else:
+                        period_id = p[0]
+                        period_name = p[1]
 
+                    created_at = f"{date_str} {datetime.now().strftime('%H:%M:%S')}"
+                    c.execute("INSERT INTO transactions (period_id, type, amount, note, created_at) VALUES (?, 'chi', ?, ?, ?)",
+                              (period_id, amount, note.capitalize(), created_at))
+                    conn.commit()
+
+                    c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
+                    balance = c.fetchone()[0] or 0
+                    conn.close()
+
+                    amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
+                    return {
+                        "type": "success",
+                        "module": "thuchi",
+                        "message": (
+                            f"✅ **ĐÃ XÁC NHẬN & GHI KHOẢN CHI THÀNH CÔNG!**\n\n"
+                            f"• **Phân loại:** CHI\n"
+                            f"• **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
+                            f"• **Nội dung:** {note.capitalize()}\n"
+                            f"• **Ngày ghi nhận:** {date_str}\n"
+                            f"• **Kỳ ghi nhận:** {period_name}\n"
+                            f"• 💰 **Số dư quỹ kỳ này:** **{balance:,.0f} đ**\n\n"
+                            f"👉 [Bấm vào đây để mở Sổ Thu Chi](/thuchi/)"
+                        )
+                    }
+                except Exception as e:
+                    return {"type": "error", "message": f"Lỗi lưu sổ chi: {str(e)}"}
+
+            elif clean in ['khong', 'không', 'no', 'k']:
+                del WIZARD_SESSIONS[session_id]
                 return {
-                    "type": "success",
-                    "module": "thuchi",
+                    "type": "info",
+                    "message": "🛑 **ĐÃ HỦY KHOẢN CHI!**\nKhông có dữ liệu nào được lưu vào Sổ Thu Chi."
+                }
+            else:
+                amount = data['amount']
+                return {
+                    "type": "clarify",
                     "message": (
-                        f"💸 **ĐÃ GHI KHOẢN CHI THÀNH CÔNG!**\n\n"
-                        f"• **Phân loại:** CHI\n"
-                        f"• **Số tiền:** **{amount:,.0f} đ**\n"
-                        f"• **Nội dung:** {note.capitalize()}\n"
-                        f"• **Ngày ghi nhận:** {date_str}\n"
-                        f"• **Kỳ ghi nhận:** {period_name}\n"
-                        f"• **Số dư quỹ kỳ này hiện tại:** **{balance:,.0f} đ**\n\n"
-                        f"👉 [Bấm vào đây để mở Sổ Thu Chi](/thuchi/)"
+                        f"⚠️ Vui lòng xác nhận:\n"
+                        f"• Gõ **'ok'** hoặc **'lưu'** để ghi khoản chi **{amount:,.0f} đ** vào sổ.\n"
+                        f"• Gõ **'hủy'** để hủy bỏ phiên nhập này."
                     )
                 }
-            except Exception as e:
-                return {"type": "error", "message": f"Lỗi lưu sổ chi: {str(e)}"}
 
     # ══════════════════════════════════════════
     # FLOW 2: WIZARD DOANH THU ĐÈN
@@ -414,56 +469,48 @@ def handle_wizard_step(user_text, session_id):
                     f"📦 Số lượng: **{qty} bộ**\n\n"
                     f"💰 **BƯỚC 4/7: GIÁ BÁN / GIÁ GỐC**\n"
                     f"Giá bán là bao nhiêu?\n"
-                    f"*(Giá niêm yết gợi ý: **{sug_price_k*1000:,.0f} đ ({sug_price_k:,}k)**. Gõ **'0'** để dùng giá niêm yết, hoặc nhập số tiền VD: `5100`, `6.5tr`...)*"
+                    f"*(Giá niêm yết gợi ý: **{sug_price_k*1000:,.0f} đ ({sug_price_k:,}k)**. Gõ **'0'** để dùng giá niêm yết, hoặc nhập số tiền có chữ k như `3900k`, `6.5tr`...)*"
                 )
             }
 
-        # Bước 4: Giá bán / Giá gốc
+        # Bước 4: Giá bán / Giá gốc (Có chữ k tự hiểu nhân thêm 1000)
         elif step == 4:
             sug_price_k = data['default_price_k'] * data['quantity']
             if clean in ['0', '', 'niem yet', 'niêm yết']:
                 base_price_k = sug_price_k
             else:
-                p_val = parse_vietnamese_money(user_text)
-                if p_val >= 100000:
-                    base_price_k = int(p_val / 1000)
-                elif p_val > 0:
-                    base_price_k = p_val
+                p_val = parse_vietnamese_money(user_text, default_thousands=True)
+                if p_val > 0:
+                    base_price_k = int(round(p_val / 1000))
                 else:
-                    m_num = re.search(r'\b\d+\b', clean)
-                    if m_num:
-                        val = int(m_num.group(0))
-                        base_price_k = val if val >= 100 else val * 1000
-                    else:
-                        base_price_k = sug_price_k
+                    base_price_k = sug_price_k
+
             data['base_price_k'] = base_price_k
             session['step'] = 5
             return {
                 "type": "clarify",
                 "message": (
-                    f"💰 Giá bán: **{base_price_k*1000:,.0f} đ ({base_price_k:,}k)**\n\n"
+                    f"💰 Giá gốc: **{base_price_k*1000:,.0f} đ ({base_price_k:,}k)**\n\n"
                     f"🏷️ **BƯỚC 5/7: GIẢM GIÁ / CHIẾT KHẤU**\n"
                     f"Có giảm giá hoặc bớt cho khách không?\n"
-                    f"*(Nếu **không giảm**, gõ **'0'** hoặc **'không'**. Nếu có giảm, nhập VD: `200`, `500k`, `1tr2`...)*"
+                    f"*(Nếu **không giảm**, gõ **'0'** hoặc **'không'**. Nếu có giảm, nhập VD: `200k`, `500k`, `50k`, `1tr`...)*"
                 )
             }
 
-        # Bước 5: Giảm giá / Chiết khấu
+        # Bước 5: Giảm giá / Chiết khấu (Có chữ k tự hiểu nhân thêm 1000)
         elif step == 5:
-            if clean in ['0', 'không', 'khong', 'k', 'ko', '']:
+            if clean in ['0', 'không', 'khong', 'k', 'ko', '', 'ko giam', 'khong giam']:
                 discount_k = 0
             else:
-                p_val = parse_vietnamese_money(user_text)
-                if p_val >= 100000:
-                    discount_k = int(p_val / 1000)
-                elif p_val > 0:
-                    discount_k = p_val
+                p_val = parse_vietnamese_money(user_text, default_thousands=True)
+                if p_val > 0:
+                    discount_k = int(round(p_val / 1000))
                 else:
-                    m_num = re.search(r'\b\d+\b', clean)
-                    discount_k = int(m_num.group(0)) if m_num else 0
+                    discount_k = 0
+
             data['discount_k'] = discount_k
             session['step'] = 6
-            disc_label = f"-{discount_k*1000:,.0f} đ" if discount_k > 0 else "0 đ (Không giảm)"
+            disc_label = f"-{discount_k*1000:,.0f} đ (-{discount_k:,}k)" if discount_k > 0 else "0 đ (Không giảm)"
             return {
                 "type": "clarify",
                 "message": (
@@ -499,7 +546,7 @@ def handle_wizard_step(user_text, session_id):
                 )
             }
 
-        # Bước 7: Dòng xe ➔ LƯU DATABASE
+        # Bước 7: Dòng xe ➔ CHUYỂN SANG BƯỚC XÁC NHẬN (CONFIRM)
         elif step == 7:
             if clean in ['0', '']:
                 car_model = 'XE Ô TÔ'
@@ -512,51 +559,101 @@ def handle_wizard_step(user_text, session_id):
                 car_model = matched_car if matched_car else user_text.strip().upper()
 
             data['car_model'] = car_model
-
             final_price_k = max(0, data['base_price_k'] - data['discount_k'])
             data['final_price_k'] = final_price_k
+            session['step'] = 'confirm'
 
-            del WIZARD_SESSIONS[session_id]
+            qty_label = f"{data['quantity']} bộ " if data['quantity'] > 1 else ""
+            base_str = f"{data['base_price_k']*1000:,.0f} đ ({data['base_price_k']:,}k)"
+            final_str = f"{final_price_k*1000:,.0f} đ ({final_price_k:,}k)"
+            disc_text = f"\n• 🏷️ **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k)" if data['discount_k'] > 0 else "\n• 🏷️ **Giảm giá:** 0 đ (Không giảm)"
+            plate_text = f" (Biển số: {data['plate']})" if data['plate'] else ""
 
-            if not os.path.exists(DB_DEN):
-                return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+            return {
+                "type": "clarify",
+                "message": (
+                    f"📋 **XÁC NHẬN ĐƠN BÁO CÁO DOANH THU ĐÈN**\n"
+                    f"───────────────────────────\n"
+                    f"• 💡 **Sản phẩm:** **{qty_label}{data['product_name']}**\n"
+                    f"• 👤 **Khách hàng:** **{data['customer_name']}**{plate_text}\n"
+                    f"• 🚗 **Dòng xe:** **{data['car_model']}**\n"
+                    f"• 📅 **Ngày lắp:** **{data['date']}**\n"
+                    f"• 💵 **Giá gốc:** {base_str}{disc_text}\n"
+                    f"• 💰 **DOANH THU THỰC THU:** **{final_str}**\n"
+                    f"───────────────────────────\n"
+                    f"❓ **Bạn có xác nhận thêm đơn này vào Báo Cáo Doanh Thu Đèn không?**\n\n"
+                    f"👉 Gõ **'ok'**, **'lưu'**, **'có'** hoặc **'xác nhận'** để thêm vào báo cáo.\n"
+                    f"👉 Gõ **'hủy'** hoặc **'không'** để hủy bỏ."
+                )
+            }
 
-            try:
-                conn = sqlite3.connect(DB_DEN, timeout=10)
-                c = conn.cursor()
-                c.execute("""
-                    INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
-                    VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
-                """, (data['date'], data['product_name'], data['customer_name'], data['car_model'], data['quantity'], final_price_k))
-                order_id = c.lastrowid
-                conn.commit()
-                conn.close()
+        # Bước Xác Nhận Đơn Đèn ➔ LƯU DATABASE HOẶC HỦY
+        elif step == 'confirm':
+            is_confirm = clean in [
+                'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
+                'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1'
+            ] or clean.startswith('ok')
 
-                qty_label = f"{data['quantity']} bộ " if data['quantity'] > 1 else ""
-                base_str = f"{data['base_price_k']*1000:,.0f} đ ({data['base_price_k']:,}k)"
-                final_str = f"{final_price_k*1000:,.0f} đ ({final_price_k:,}k)"
-                disc_text = f"\n• **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k)" if data['discount_k'] > 0 else ""
+            if is_confirm:
+                final_price_k = data['final_price_k']
+                del WIZARD_SESSIONS[session_id]
 
+                if not os.path.exists(DB_DEN):
+                    return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+
+                try:
+                    conn = sqlite3.connect(DB_DEN, timeout=10)
+                    c = conn.cursor()
+                    c.execute("""
+                        INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
+                        VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
+                    """, (data['date'], data['product_name'], data['customer_name'], data['car_model'], data['quantity'], final_price_k))
+                    order_id = c.lastrowid
+                    conn.commit()
+                    conn.close()
+
+                    qty_label = f"{data['quantity']} bộ " if data['quantity'] > 1 else ""
+                    base_str = f"{data['base_price_k']*1000:,.0f} đ ({data['base_price_k']:,}k)"
+                    final_str = f"{final_price_k*1000:,.0f} đ ({final_price_k:,}k)"
+                    disc_text = f"\n• **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k)" if data['discount_k'] > 0 else ""
+
+                    return {
+                        "type": "success",
+                        "module": "den",
+                        "message": (
+                            f"✅ **ĐÃ XÁC NHẬN & GHI NHẬN ĐƠN ĐÈN THÀNH CÔNG!**\n\n"
+                            f"• **Mã đơn:** #{order_id}\n"
+                            f"• **Sản phẩm:** **{qty_label}{data['product_name']}**\n"
+                            f"• **Khách hàng:** **{data['customer_name']}**\n"
+                            f"• **Dòng xe:** {data['car_model']}\n"
+                            + (f"• **Biển số:** {data['plate']}\n" if data['plate'] else "")
+                            + f"• **Ngày ghi nhận:** {data['date']}\n"
+                            + f"• **Giá gốc:** {base_str}\n"
+                            + disc_text
+                            + f"\n• 💰 **DOANH THU THỰC THU:** **{final_str}**\n\n"
+                            f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
+                            f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
+                        )
+                    }
+                except Exception as e:
+                    return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
+
+            elif clean in ['khong', 'không', 'no']:
+                del WIZARD_SESSIONS[session_id]
                 return {
-                    "type": "success",
-                    "module": "den",
+                    "type": "info",
+                    "message": "🛑 **ĐÃ HỦY ĐƠN ĐÈN!**\nKhông có dữ liệu nào được lưu vào hệ thống."
+                }
+            else:
+                final_str = f"{data['final_price_k']*1000:,.0f} đ ({data['final_price_k']:,}k)"
+                return {
+                    "type": "clarify",
                     "message": (
-                        f"💡 **ĐÃ GHI NHẬN ĐƠN BÁO CÁO ĐÈN THÀNH CÔNG!**\n\n"
-                        f"• **Mã đơn:** #{order_id}\n"
-                        f"• **Sản phẩm:** **{qty_label}{data['product_name']}**\n"
-                        f"• **Khách hàng:** **{data['customer_name']}**\n"
-                        f"• **Dòng xe:** {data['car_model']}\n"
-                        + (f"• **Biển số:** {data['plate']}\n" if data['plate'] else "")
-                        + f"• **Ngày ghi nhận:** {data['date']}\n"
-                        + f"• **Giá gốc:** {base_str}\n"
-                        + disc_text
-                        + f"\n• 💰 **DOANH THU THỰC THU:** **{final_str}**\n\n"
-                        f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
-                        f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
+                        f"⚠️ Vui lòng xác nhận:\n"
+                        f"• Gõ **'ok'** hoặc **'lưu'** để thêm đơn đèn **{data['product_name']}** ({final_str}) vào hệ thống.\n"
+                        f"• Gõ **'hủy'** để hủy bỏ phiên nhập này."
                     )
                 }
-            except Exception as e:
-                return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
 
     return None
 
