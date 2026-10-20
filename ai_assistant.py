@@ -117,16 +117,20 @@ def parse_vietnamese_money(text):
 
 def extract_license_plate(text):
     """
-    Nhận diện biển số xe ô tô / xe máy:
-    63A-123.45, 63A12345, 51H-999.88, 66A-526.04, 71A 22726
+    Nhận diện biển số xe ô tô / xe máy cực nhạy:
+    50f143.14, 50f14314, 63A-123.45, 63A12345, 51H-999.88, 66A-526.04, 71A 22726
     """
     clean = text.upper()
-    # Mẫu biển số chuẩn: 2 số + 1 chữ cái + [dấu cách/gạch] + 4-5 số
-    m = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{2})?)\b', clean)
+    m = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{1,2})?)\b', clean)
     if m:
-        plate = m.group(1).replace(' ', '-')
-        return plate
+        return m.group(1).strip()
     return ""
+
+def clean_plate_raw(plate_str):
+    """Bỏ hết dấu gạch ngang, dấu chấm, dấu cách để so sánh tuyệt đối"""
+    if not plate_str:
+        return ""
+    return re.sub(r'[^A-Z0-9]', '', plate_str.upper())
 
 def extract_phone(text):
     """
@@ -345,12 +349,16 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
             c = conn.cursor()
             
             # Tìm trong orders
+            clean_q = clean_plate_raw(search_query)
             c.execute("""
                 SELECT id, customer_name, phone, license_plate, install_date, total_price 
                 FROM orders 
-                WHERE license_plate LIKE ? OR phone LIKE ? OR customer_name LIKE ?
+                WHERE replace(replace(replace(UPPER(license_plate), '-', ''), '.', ''), ' ', '') LIKE ?
+                   OR license_plate LIKE ? 
+                   OR phone LIKE ? 
+                   OR customer_name LIKE ?
                 ORDER BY install_date DESC LIMIT 5
-            """, (f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"))
+            """, (f"%{clean_q}%", f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"))
             orders = c.fetchall()
 
             for o in orders:
