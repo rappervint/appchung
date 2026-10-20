@@ -195,9 +195,11 @@
         border-radius: 12px;
         color: #ffffff;
         padding: 10px 14px;
-        font-size: 0.88rem;
+        font-size: 16px !important; /* Cực kỳ quan trọng: 16px chống iOS Safari tự động phóng to (auto-zoom) */
         outline: none;
         transition: all 0.2s;
+        -webkit-appearance: none;
+        appearance: none;
     }
     .ai-chat-input:focus {
         border-color: #38bdf8;
@@ -245,6 +247,54 @@
     @keyframes typingDot {
         0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
         40% { transform: scale(1); opacity: 1; }
+    }
+    /* Tối ưu hóa toàn diện cho Điện Thoại & Bàn Phím Ảo (Mobile First) */
+    @media (max-width: 768px) {
+        .ai-chat-bubble-btn {
+            bottom: 18px;
+            right: 18px;
+            width: 54px;
+            height: 54px;
+            font-size: 24px;
+        }
+        .ai-chat-window {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            max-width: 100vw;
+            height: 100%;
+            height: 100dvh;
+            max-height: 100dvh;
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+            background: #0d111d;
+            z-index: 999999;
+        }
+        .ai-chat-header {
+            padding: 12px 16px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            background: rgba(18, 24, 40, 0.98);
+        }
+        .ai-chat-messages {
+            padding: 14px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .ai-chat-footer {
+            padding: 10px 12px;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            background: rgba(13, 17, 29, 0.98);
+        }
+        .ai-chat-input {
+            font-size: 16px !important; /* Tuyệt đối ngăn Safari/Chrome tự zoom */
+            padding: 10px 14px;
+        }
+        .ai-quick-prompts {
+            padding: 6px 10px;
+        }
     }
 </style>
 
@@ -309,16 +359,61 @@
         return sid;
     }
 
+    function updateMobileViewport() {
+        const win = document.getElementById('aiChatWindow');
+        if (!win || win.style.display !== 'flex') return;
+
+        if (window.innerWidth <= 768) {
+            if (window.visualViewport) {
+                const vv = window.visualViewport;
+                win.style.position = 'fixed';
+                win.style.top = vv.offsetTop + 'px';
+                win.style.left = vv.offsetLeft + 'px';
+                win.style.width = vv.width + 'px';
+                win.style.height = vv.height + 'px';
+            } else {
+                win.style.position = 'fixed';
+                win.style.top = '0px';
+                win.style.left = '0px';
+                win.style.width = '100vw';
+                win.style.height = '100dvh';
+            }
+            const msgContainer = document.getElementById('aiMessages');
+            if (msgContainer) {
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            }
+        } else {
+            win.style.position = '';
+            win.style.top = '';
+            win.style.left = '';
+            win.style.width = '';
+            win.style.height = '';
+        }
+    }
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateMobileViewport);
+        window.visualViewport.addEventListener('scroll', updateMobileViewport);
+    }
+    window.addEventListener('resize', updateMobileViewport);
+
     function toggleAIChat() {
         const win = document.getElementById('aiChatWindow');
         if (!win) return;
         if (win.style.display === 'flex') {
             win.style.display = 'none';
+            document.body.style.overflow = '';
         } else {
             win.style.display = 'flex';
+            if (window.innerWidth <= 768) {
+                document.body.style.overflow = 'hidden';
+            }
+            updateMobileViewport();
             setTimeout(() => {
                 const inp = document.getElementById('aiInput');
                 if (inp) inp.focus();
+                const msgContainer = document.getElementById('aiMessages');
+                if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
             }, 150);
         }
     }
@@ -401,5 +496,24 @@
             msgContainer.scrollTop = msgContainer.scrollHeight;
         }
     }
+
+    // Lắng nghe sự kiện bàn phím ảo hiển thị / ẩn khi chạm vào ô nhập liệu
+    document.addEventListener('DOMContentLoaded', () => {
+        const inp = document.getElementById('aiInput');
+        if (inp) {
+            inp.addEventListener('focus', () => {
+                setTimeout(() => {
+                    updateMobileViewport();
+                    const msgContainer = document.getElementById('aiMessages');
+                    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+                }, 300);
+            });
+            inp.addEventListener('blur', () => {
+                setTimeout(() => {
+                    updateMobileViewport();
+                }, 150);
+            });
+        }
+    });
 </script>
 
