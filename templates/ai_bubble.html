@@ -282,12 +282,12 @@
 
     <!-- Gợi ý lệnh nhanh 1-click chuyên sâu cho Gara & Báo Cáo Đèn -->
     <div class="ai-quick-prompts">
-        <span class="ai-prompt-chip" onclick="sendQuickPrompt('đơn đèn hôm nay')">💡 Đơn đèn hôm nay</span>
-        <span class="ai-prompt-chip" onclick="sendQuickPrompt('doanh thu đèn tháng này')">📊 Doanh số đèn</span>
-        <span class="ai-prompt-chip" onclick="sendQuickPrompt('top đèn bán chạy')">🔥 Top đèn chạy</span>
-        <span class="ai-prompt-chip" onclick="sendQuickPrompt('hủy đơn đèn vừa nhập')">↩️ Hủy đơn vừa nhập</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('chi')" style="color:#f87171; border-color: rgba(248,113,113,0.4);">💸 Chi (Hỏi từng bước)</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('doanh thu đèn')" style="color:#38bdf8; border-color: rgba(56,189,248,0.4);">💡 Nhập đèn (Hỏi từng bước)</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('doanh thu đèn tháng này')">📊 Xem doanh số đèn</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('đơn đèn hôm nay')">🕒 Đơn hôm nay</span>
         <span class="ai-prompt-chip" onclick="sendQuickPrompt('tổng kết quỹ')">💰 Sổ quỹ</span>
-        <span class="ai-prompt-chip" onclick="sendQuickPrompt('chi 150k tiền xăng xe')">💸 Chi 150k xăng</span>
+        <span class="ai-prompt-chip" onclick="sendQuickPrompt('hủy đơn đèn vừa nhập')">↩️ Hủy đơn vừa nhập</span>
     </div>
 
     <div class="ai-chat-footer">
@@ -299,6 +299,15 @@
 </div>
 
 <script>
+    function getAISessionId() {
+        let sid = localStorage.getItem('ai_session_id');
+        if (!sid) {
+            sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+            localStorage.setItem('ai_session_id', sid);
+        }
+        return sid;
+    }
+
     function toggleAIChat() {
         const win = document.getElementById('aiChatWindow');
         if (!win) return;
@@ -361,7 +370,7 @@
             const res = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: query })
+                body: JSON.stringify({ message: query, session_id: getAISessionId() })
             });
             const data = await res.json();
 
