@@ -1611,23 +1611,57 @@ def handle_gara_consultation(raw_text, clean_text):
             )
         }
 
-    # 3.2. Kính lái 3M Crystalline CR50BLK (HỎI RIÊNG KÍNH LÁI 3M)
+    # 3.2. Kính lái 3M (HỎI RIÊNG KÍNH LÁI 3M: CÓ 2 LOẠI 2.6TR VÀ 5.7TR)
     is_single_3m_windshield = (
         bool(re.search(r'\b(cr50|cr50blk|cr 50)\b', clean_text)) or
-        (bool(re.search(r'\b(kinh lai 3m|lai 3m|gia le kinh lai 3m)\b', clean_text)) and not any(k in clean_text for k in ['ket hop', 'suon', 'ntech', 'con lai', 'ceramax']))
+        (bool(re.search(r'\b(kinh lai 3m|lai 3m|gia le kinh lai 3m|kinh 3m truoc|3m kinh lai)\b', clean_text)) and not any(k in clean_text for k in ['ket hop', 'suon', 'ntech', 'con lai', 'ceramax'])) or
+        ('3m' in clean_text and any(k in clean_text for k in ['lai', 'kinh truoc']) and any(k in clean_text for k in ['2.6', '2tr6', '2600', 're', 'gia re']))
     )
     if is_single_3m_windshield:
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "☀️ **KÍNH LÁI 3M CRYSTALLINE CR50BLK (MỸ):**\n"
-                "• **Giá dán lẻ:** **5.700.000 đ**\n"
-                "• **Thông số:** Xuyên sáng `50%` (chuẩn kiểm định mới) | Cắt IR `98%` | Cắt UV `99.9%` | Giảm lóa `34%`\n"
-                "• **Bảo hành:** **10 năm điện tử chính hãng 3M USA**\n"
-                "• **Đăng kiểm:** Dùng mã CR50BLK đạt chuẩn >50% VLT, gara không nhập mã CR40BLK."
-            )
-        }
+        is_asking_cheap = any(k in clean_text for k in ['re', '2.6', '2tr6', '2600', 'ceramic', 'tiet kiem'])
+        is_asking_cr50 = any(k in clean_text for k in ['cr50', 'cr50blk', 'crystalline', 'cao cap', 'dinh cao', '5.7', '5tr7'])
+
+        if is_asking_cheap and not is_asking_cr50:
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **KÍNH LÁI 3M CERAMIC (BẢN TIẾT KIỆM / GIÁ RẺ):**\n"
+                    "• **Giá dán lẻ:** **2.600.000 đ**\n"
+                    "• **Công nghệ:** Men gốm Nano Ceramic chính hãng 3M USA\n"
+                    "• **Thông số:** Xuyên sáng `50% - 60%` (chuẩn kiểm định mới) | Cắt IR `80% - 85%` | Cắt UV `99%` | Không cản sóng ETC/GPS\n"
+                    "• **Bảo hành:** **10 năm điện tử chính hãng 3M USA**\n"
+                    "👉 Phù hợp cho khách thích thương hiệu 3M Mỹ nhưng muốn chi phí tiết kiệm, kinh tế!"
+                )
+            }
+        elif is_asking_cr50 and not is_asking_cheap:
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **KÍNH LÁI 3M CRYSTALLINE CR50BLK (MỸ - CAO CẤP NHẤT):**\n"
+                    "• **Giá dán lẻ:** **5.700.000 đ**\n"
+                    "• **Thông số:** Xuyên sáng `50%` (chuẩn kiểm định mới) | Cắt IR `98%` | Cắt UV `99.9%` | Giảm lóa `34%`\n"
+                    "• **Bảo hành:** **10 năm điện tử chính hãng 3M USA**\n"
+                    "• **Đăng kiểm:** Dùng mã CR50BLK đạt chuẩn >50% VLT, gara không nhập mã CR40BLK.\n"
+                    "💡 *Mẹo:* Nếu khách cần loại 3M kính lái giá rẻ hơn, gara có thêm mã **3M Ceramic kính lái: 2.600.000 đ**."
+                )
+            }
+        else:
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **BÁO GIÁ KÍNH LÁI 3M CHÍNH HÃNG MỸ (2 LỰA CHỌN):**\n"
+                    "1️⃣ **3M Ceramic Kính Lái (Bản Tiết Kiệm):** **2.600.000 đ**\n"
+                    "  • Công nghệ men gốm Nano Ceramic, xuyên sáng >50% đạt chuẩn đăng kiểm, cắt UV 99%, không cản sóng ETC/GPS.\n"
+                    "  • Bảo hành 10 năm điện tử 3M.\n"
+                    "2️⃣ **3M Crystalline CR50BLK (Bản Đỉnh Cao Nhất):** **5.700.000 đ**\n"
+                    "  • Công nghệ quang học 200 lớp độc quyền 3M USA, cắt tia hồng ngoại IR `98%`, cản nhiệt tuyệt đối, giảm chói 34%.\n"
+                    "  • Mã CR50BLK xuyên sáng 50% bao đăng kiểm toàn quốc (gara không nhập CR40BLK).\n"
+                    "🎁 Tặng 100% công lột keo cũ và vệ sinh sạch sẽ (trị giá 500k)."
+                )
+            }
 
     # 3.3. Hỏi riêng Kính Sườn / Kính Hậu Ceramax
     if bool(re.search(r'\b(suon ceramax|kinh suon ceramax|hau ceramax|kinh hau ceramax)\b', clean_text)) and not any(k in clean_text for k in ['3m', 'ntech']):
@@ -1713,6 +1747,18 @@ def handle_gara_consultation(raw_text, clean_text):
 
         # Kính lái 3M + Sườn Ntech
         if '3m' in clean_text and ('ntech' in clean_text or 'con lai' in clean_text):
+            is_cheap_3m = any(k in clean_text for k in ['re', '2.6', '2tr6', '2600', 'ceramic', 'tiet kiem'])
+            if is_cheap_3m:
+                return {
+                    "type": "success",
+                    "module": "dichvu",
+                    "message": (
+                        "☀️ **GÓI KẾT HỢP: KÍNH LÁI 3M CERAMIC (2.6TR) + SƯỜN & HẬU NTECH:**\n"
+                        "• **+ Sườn & Hậu Ntech Tiêu Chuẩn:** Sedan **4.900.000 đ** | SUV **5.400.000 đ**\n"
+                        "• **+ Sườn & Hậu Ntech Cao Cấp:** Sedan **5.800.000 đ** | SUV **6.700.000 đ**\n"
+                        "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch (500k). Kính lái 3M BH 10 năm, sườn Ntech BH 10 năm."
+                    )
+                }
             if is_ntech_cc:
                 return {
                     "type": "success",
@@ -1723,6 +1769,7 @@ def handle_gara_consultation(raw_text, clean_text):
                         "  *(Lái 3M CR50BLK 5.7tr + Sườn trước Ntech CC 1tr + Sườn sau 1tr + Hậu 1.2tr)*\n"
                         "• **SUV (7 chỗ):** **9.300.000 đ** *(Niêm yết: 9.8tr - Giảm 500k)*\n"
                         "  *(Lái 3M 5.7tr + Sườn hậu Ntech CC 3.2tr + Ô chết 900k)*\n"
+                        "💡 *Tùy chọn tiết kiệm:* Nếu đổi sang **kính lái 3M Ceramic (2.6tr)** thì trọn gói chỉ còn: Sedan **5.8tr** | SUV **6.7tr**.\n"
                         "🎁 *Ưu đãi:* Tặng 100% công lột keo cũ (500k). Kính lái 3M BH 10 năm Mỹ, sườn Ntech BH 10 năm."
                     )
                 }
@@ -1734,6 +1781,7 @@ def handle_gara_consultation(raw_text, clean_text):
                         "☀️ **GÓI KẾT HỢP: KÍNH LÁI 3M CR50BLK + SƯỜN & HẬU NTECH TIÊU CHUẨN**\n"
                         "• **Sedan (4 - 5 chỗ):** **7.600.000 đ** *(Niêm yết: 8.0tr)*\n"
                         "• **SUV (7 chỗ):** **8.000.000 đ** *(Niêm yết: 8.5tr)*\n"
+                        "💡 *Tùy chọn tiết kiệm:* Nếu đổi sang **kính lái 3M Ceramic (2.6tr)** thì trọn gói chỉ còn: Sedan **4.9tr** | SUV **5.4tr**.\n"
                         "🎁 Tặng 100% công lột keo cũ 500k. Kính lái 3M BH 10 năm, sườn Ntech BH 10 năm."
                     )
                 }
@@ -1742,9 +1790,13 @@ def handle_gara_consultation(raw_text, clean_text):
                     "type": "success",
                     "module": "dichvu",
                     "message": (
-                        "☀️ **GÓI KẾT HỢP: KÍNH LÁI 3M CR50BLK + SƯỜN & HẬU NTECH:**\n"
-                        "• **Bản Ntech Cao Cấp (Khuyên dùng):** Sedan **8.5tr** | SUV **9.3tr**\n"
-                        "• **Bản Ntech Tiêu Chuẩn (Tiết kiệm):** Sedan **7.6tr** | SUV **8.0tr**\n"
+                        "☀️ **GÓI KẾT HỢP: KÍNH LÁI 3M + SƯỜN & HẬU NTECH:**\n"
+                        "1️⃣ **Kính lái 3M Crystalline CR50BLK (Đỉnh cao):**\n"
+                        "  • + Sườn Ntech Cao Cấp: Sedan **8.5tr** | SUV **9.3tr**\n"
+                        "  • + Sườn Ntech Tiêu Chuẩn: Sedan **7.6tr** | SUV **8.0tr**\n"
+                        "2️⃣ **Kính lái 3M Ceramic (Bản tiết kiệm 2.6tr):**\n"
+                        "  • + Sườn Ntech Cao Cấp: Sedan **5.8tr** | SUV **6.7tr**\n"
+                        "  • + Sườn Ntech Tiêu Chuẩn: Sedan **4.9tr** | SUV **5.4tr**\n"
                         "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k)."
                     )
                 }
@@ -2073,11 +2125,12 @@ def handle_gara_consultation(raw_text, clean_text):
                 "module": "dichvu",
                 "message": (
                     "☀️ **BÁO GIÁ PHIM CÁCH NHIỆT 3M CHÍNH HÃNG MỸ (BH 10 NĂM):**\n"
+                    "• **Dán lẻ kính lái 3M Ceramic (Tiết kiệm):** **2.600.000 đ** *(Bao đăng kiểm >50%)*\n"
+                    "• **Dán lẻ kính lái 3M Crystalline CR50BLK (Đỉnh cao):** **5.700.000 đ** *(Cắt IR 98%)*\n"
                     "• **3M Ceramic Hybrid:** Sedan **7.900.000 đ** | SUV **9.500.000 đ**\n"
                     "• **3M Ceramic IR:** Sedan **9.000.000 đ** | SUV **10.500.000 đ**\n"
                     "• **3M Crystalline Hybrid (Lái CR50 + Sườn NR):** Sedan **10.800.000 đ** | SUV **12.500.000 đ**\n"
                     "• **3M Crystalline CR BLK (Lái CR50 + Sườn CR15/35):** Sedan **14.800.000 đ** | SUV **17.600.000 đ**\n"
-                    "• **Dán lẻ kính lái CR50BLK:** **5.700.000 đ** *(Xuyên sáng 50% bao đăng kiểm)*\n"
                     "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (500k)."
                 )
             }
