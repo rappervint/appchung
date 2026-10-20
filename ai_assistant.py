@@ -1406,6 +1406,209 @@ def handle_summary_stats(raw_text, clean_text):
     return {"type": "success", "message": msg}
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 7. CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN PPF (AX FILM, 3M, TECKWRAP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+PPF_DATA = {
+    "AX_FILM": {
+        "brand": "AX Film",
+        "warranty_note": "Bảo hành 2.5 - 10 năm chống rạn nứt, phồng rộp, ố vàng. Bảo hiểm vật liệu 01 năm cho dòng PPF X Series chính hãng.",
+        "packages": [
+            {"name": "AX Film G Series", "thick": "7.5 Mil", "war": "2.5 năm", "sedan": 20000000, "suv": 22000000, "mpv": 25000000, "desc": "Gói tiêu chuẩn tiết kiệm, bảo vệ sơn chống trầy xước nhẹ và đá dăm văng."},
+            {"name": "AX Film K Series (NEW)", "thick": "8.0 Mil", "war": "05 năm", "sedan": 26900000, "suv": 29600000, "mpv": 33000000, "desc": "Dòng mới ra mắt độ dày 8.0 Mil tăng cường chịu lực, tự phục hồi xước xoáy, độ bóng cao."},
+            {"name": "AX Film X Series (NEW)", "thick": "9.0 Mil", "war": "08 năm", "sedan": 45000000, "suv": 49500000, "mpv": 54500000, "desc": "Dòng cao cấp 9.0 Mil cực kỳ bền bỉ, chống ố vàng vượt trội, tặng kèm gói bảo hiểm vật liệu 01 năm chính hãng."},
+            {"name": "AX Film M Series (Nhám Mờ)", "thick": "7.5 Mil", "war": "05 năm", "sedan": 60000000, "suv": 66000000, "mpv": 75000000, "desc": "Dòng phim mờ (Matte) cao cấp, tạo hiệu ứng sơn nhám mờ như siêu xe, chống bám bẩn tuyệt đối."},
+            {"name": "AX Film S Series (Đỉnh Cao)", "thick": "9.5 Mil", "war": "10 năm", "sedan": 90000000, "suv": 99000000, "mpv": 119000000, "desc": "Dòng đỉnh cao siêu cấp độ dày khủng 9.5 Mil, bảo hành 10 năm, độ trong suốt quang học và bảo vệ tối đa."}
+        ]
+    },
+    "3M": {
+        "brand": "3M Scotchgard Paint Protection Film (USA)",
+        "warranty_note": "Bảo hành điện tử chính hãng 3M từ 5 - 10 năm. Thương hiệu bảo vệ sơn số 1 toàn cầu.",
+        "packages": [
+            {"name": "3M 50 Gloss Series", "thick": "7.3 Mil", "war": "5 năm", "sedan": 38000000, "suv": 44000000, "mpv": 51000000, "desc": "Phim bóng tiêu chuẩn 3M, tự phục hồi vết xước nhẹ dưới ánh nắng hoặc nhiệt độ."},
+            {"name": "3M 100 Gloss Series", "thick": "7.5 Mil", "war": "7 năm", "sedan": 69000000, "suv": 76000000, "mpv": 84000000, "desc": "Dòng bán chạy nhất của 3M, độ bóng sâu, kháng ố vàng, kháng hóa chất tẩy rửa cực tốt."},
+            {"name": "3M 150 Gloss Series", "thick": "7.5 Mil", "war": "10 năm", "sedan": 85000000, "suv": 92000000, "mpv": 102000000, "desc": "Dòng cao cấp bảo hành 10 năm, bề mặt siêu mịn chống bám nước lá sen, duy trì độ mới trọn đời xe."},
+            {"name": "3M 200 Gloss Series", "thick": "7.9 Mil", "war": "10 năm", "sedan": 102000000, "suv": 110000000, "mpv": 122000000, "desc": "Dòng siêu cao cấp nhất của 3M độ dày 7.9 Mil, chống chịu va đập mạnh, độ bóng gương hoàn hảo."}
+        ],
+        "parts": [
+            ("Nắp capo", 11000000, "Vùng đầu xe dễ bị đá dăm văng"),
+            ("Cản trước", 12000000, "Bộ phận va quẹt nhiều nhất khi đi phố"),
+            ("Cản sau", 15000000, "Bảo vệ đuôi xe khi lùi hoặc xe sau quẹt"),
+            ("4 Cửa xe", 12000000, "Chống trầy xước mép cửa và bề mặt hông xe"),
+            ("Đèn trước (Pha)", 3000000, "Chống ố vàng, rạn chân chim và đá bắn vỡ mặt đèn"),
+            ("Đèn sau (Hậu)", 3000000, "Bảo vệ bề mặt mica đèn luôn trong bóng"),
+            ("Gương chiếu hậu", 2000000, "Vị trí nhô ra ngoài dễ va quẹt xe máy"),
+            ("4 Hõm / Tay nắm cửa", 12000000, "Bảo vệ hõm và tay nắm chống xước móng tay/nhẫn"),
+            ("Cốp xe", 2500000, "Chống trầy xước khi bốc dỡ vali đồ đạc"),
+            ("Bệ bước chân", 3500000, "Chống trầy xước giày dép khi lên xuống xe"),
+            ("Cột B (Trụ bóng)", 2500000, "Chống xước dăm bề mặt bóng piano"),
+            ("Nóc xe", 8000000, "Bảo vệ nóc chống phân chim, nhựa cây, axit mưa")
+        ]
+    },
+    "TECKWRAP": {
+        "brand": "TeckWrap PPF Professional (USA)",
+        "warranty_note": "Bảo hành chính hãng 4 - 7 năm. Độ bền bỉ và độ bóng gương hàng đầu từ Mỹ.",
+        "packages": [
+            {"name": "TeckWrap V75 ACCESS", "thick": "7.4 Mil", "war": "4 năm", "sedan": 25000000, "suv": 27000000, "mpv": 29000000, "desc": "Bảo vệ sơn chi phí tiết kiệm, truyền sáng ≥88%, hiệu ứng lá sen, độ bóng tiêu chuẩn, chống xước và phục hồi tốt."},
+            {"name": "TeckWrap X75 CORE", "thick": "7.5 Mil", "war": "4 năm", "sedan": 28000000, "suv": 30000000, "mpv": 33000000, "desc": "Bảo vệ tiêu chuẩn độ bóng tốt, ngăn UV ≥95%, hiệu ứng lá sen tốt, chống xước & phục hồi xước tốt."},
+            {"name": "TeckWrap G75 TITAN", "thick": "7.5 Mil", "war": "6 năm", "sedan": 37000000, "suv": 40000000, "mpv": 44000000, "desc": "Bảo vệ hoàn hảo, siêu bóng vượt trội, ngăn UV ≥95%, lá sen rất tốt, chống xước & phục hồi rất tốt."},
+            {"name": "TeckWrap S75+ ELITE", "thick": "7.5 Mil", "war": "7 năm", "sedan": 45000000, "suv": 50000000, "mpv": 55000000, "desc": "Bảo vệ hoàn hảo bền bỉ, ngăn UV ≥95%, độ bóng tuyệt đối, chống xước và tự phục hồi cực tốt."}
+        ]
+    }
+}
+
+def handle_ppf_consultation(raw_text, clean_text):
+    """
+    Chuyên gia tư vấn dán Phim bảo vệ sơn PPF (AX Film, 3M, TeckWrap):
+    - Báo giá theo hãng (AX Film, 3M, TeckWrap)
+    - Báo giá theo kiểu xe (Sedan, SUV, MPV)
+    - Báo giá dán chi tiết từng phần (Capo, Cản trước, Đèn, Cửa...)
+    - Tư vấn phân khúc theo túi tiền và thông số kỹ thuật (độ dày mil, UV, lá sen, tự phục hồi)
+    """
+    is_ppf = bool(re.search(r'\b(ppf|ppfilm|ax\s*film|teckwrap|teck\s*wrap|3m\s*ppf|scotchgard|bao\s*ve\s*son|phim\s*bao\s*ve|dan\s*phim\s*son|dan\s*ppf)\b', clean_text)) or \
+             (any(k in clean_text for k in ['dan capo', 'dan den', 'dan can truoc', 'dan 4 cua', 'dan guong', 'dan noc']) and not any(k in clean_text for k in ['do den', 'bi led', 'bi gam']))
+
+    if not is_ppf:
+        return None
+
+    # 1. Khách hỏi giá DÁN LẺ TỪNG PHẦN (Chi tiết)
+    is_part_query = any(k in clean_text for k in [
+        'tung phan', 'chi tiet', 'le', 'capo', 'can truoc', 'can sau', 'cua', 'den', 
+        'guong', 'hom cua', 'tay nam', 'cop', 'be buoc', 'cot b', 'noc'
+    ]) and not any(k in clean_text for k in ['full', 'nguyen xe', 'toan bo xe'])
+
+    if is_part_query and any(k in clean_text for k in ['gia', 'bao nhieu', 'nhieu tien', 'bang gia', 'dan', 'het']):
+        specific_part = None
+        for p_name, p_price, p_note in PPF_DATA["3M"]["parts"]:
+            p_clean = remove_accents(p_name).lower()
+            if any(tok in clean_text for tok in p_clean.split() if len(tok) >= 3):
+                specific_part = (p_name, p_price, p_note)
+                break
+
+        res = "🛡️ **BẢNG GIÁ DÁN PPF TỪNG PHẦN (DÒNG 3M 100 GLOSS SERIES CAO CẤP)**\n"
+        res += "*(Bảo hành chính hãng 3M 7 năm - Độ bóng gương sâu, chống ố vàng & đá dăm)*\n"
+        res += "───────────────────────────\n"
+        if specific_part:
+            res += f"🎯 **VỊ TRÍ BẠN ĐANG HỎI:**\n"
+            res += f"👉 **{specific_part[0]}:** **{specific_part[1]:,.0f} đ** *({specific_part[2]})*\n\n"
+            res += "📋 **BẢNG GIÁ CÁC VỊ TRÍ KHÁC TRÊN XE:**\n"
+
+        for p_name, p_price, p_note in PPF_DATA["3M"]["parts"]:
+            res += f"• **{p_name}:** **{p_price:,.0f} đ** *({p_note})*\n"
+        res += "───────────────────────────\n"
+        res += "💡 *Lời khuyên: Nếu chưa đủ ngân sách dán full xe, bạn nên ưu tiên gói **Bảo Vệ Đầu Xe (Nắp Capo + Cản Trước + Cặp Đèn Pha = 26 triệu)** vì đây là nơi chịu 85% nguy cơ va quẹt và đá dăm văng khi chạy trên đường!*\n"
+        return {"type": "success", "module": "ppf", "message": res}
+
+    # 2. Khách hỏi riêng HÃNG AX FILM
+    if any(k in clean_text for k in ['ax film', 'ax', 'g series', 'k series', 'x series', 'm series', 's series']):
+        res = "🛡️ **BẢNG GIÁ DÁN PPF CHÍNH HÃNG AX FILM (Áp dụng từ 15/06/2025)**\n"
+        res += f"*(Chính sách: {PPF_DATA['AX_FILM']['warranty_note']})*\n"
+        res += "───────────────────────────\n"
+        for pkg in PPF_DATA["AX_FILM"]["packages"]:
+            res += f"🔹 **{pkg['name']}** (Độ dày: **{pkg['thick']}** | BH: **{pkg['war']}**)\n"
+            res += f"  - 🚗 Sedan: **{pkg['sedan']:,.0f} đ** | SUV: **{pkg['suv']:,.0f} đ** | MPV: **{pkg['mpv']:,.0f} đ**\n"
+            res += f"  - *Đặc tính:* {pkg['desc']}\n\n"
+        res += "───────────────────────────\n"
+        res += "💡 **Ưu đãi đặc biệt:** Dòng **PPF X Series (9.0 Mil)** được tặng kèm **gói Bảo Hiểm Vật Liệu Phim 01 năm chính hãng AX Film** (thay thế phim mới khi có sự cố va chạm)!"
+        return {"type": "success", "module": "ppf", "message": res}
+
+    # 3. Khách hỏi riêng HÃNG 3M SCOTCHGARD
+    if any(k in clean_text for k in ['3m', 'scotchgard', '50 gloss', '100 gloss', '150 gloss', '200 gloss']):
+        res = "🛡️ **BẢNG GIÁ DÁN PPF CHÍNH HÃNG 3M SCOTCHGARD (USA)**\n"
+        res += f"*(Chính sách: {PPF_DATA['3M']['warranty_note']})*\n"
+        res += "───────────────────────────\n"
+        res += "📋 **1. BẢNG GIÁ DÁN FULL XE:**\n"
+        for pkg in PPF_DATA["3M"]["packages"]:
+            res += f"🔹 **{pkg['name']}** (Độ dày: **{pkg['thick']}** | BH: **{pkg['war']}**)\n"
+            res += f"  - 🚗 Sedan: **{pkg['sedan']:,.0f} đ** | SUV: **{pkg['suv']:,.0f} đ** | MPV: **{pkg['mpv']:,.0f} đ**\n"
+            res += f"  - *Đặc tính:* {pkg['desc']}\n\n"
+        res += "───────────────────────────\n"
+        res += "📋 **2. BẢNG GIÁ BÁN LẺ TỪNG PHẦN (DÒNG 100 GLOSS SERIES):**\n"
+        for p_name, p_price, _ in PPF_DATA["3M"]["parts"][:6]:
+            res += f"• {p_name}: **{p_price:,.0f} đ**  |  "
+        res += f"\n👉 Gõ *'giá ppf từng phần'* để xem bảng giá lẻ chi tiết tất cả các vị trí."
+        return {"type": "success", "module": "ppf", "message": res}
+
+    # 4. Khách hỏi riêng HÃNG TECKWRAP USA
+    if any(k in clean_text for k in ['teckwrap', 'teck wrap', 'v75', 'x75', 'g75', 's75']):
+        res = "🛡️ **BẢNG GIÁ VÀ THÔNG SỐ KỸ THUẬT PPF TECKWRAP (USA)**\n"
+        res += f"*(Chính sách: {PPF_DATA['TECKWRAP']['warranty_note']})*\n"
+        res += "───────────────────────────\n"
+        for pkg in PPF_DATA["TECKWRAP"]["packages"]:
+            res += f"🔹 **{pkg['name']}** (Độ dày: **{pkg['thick']}** | BH: **{pkg['war']}**)\n"
+            res += f"  - 🚗 Sedan: **{pkg['sedan']:,.0f} đ** | SUV: **{pkg['suv']:,.0f} đ** | MPV: **{pkg['mpv']:,.0f} đ**\n"
+            res += f"  - *Thông số & Tính năng:* {pkg['desc']}\n\n"
+        res += "───────────────────────────\n"
+        res += "💡 **Ưu điểm TeckWrap:** Độ bóng sâu gương như tráng gốm Ceramic, tự lành vết xước khi tiếp xúc nhiệt ấm và ngăn tia UV tuyệt đối ≥95% chống bạc màu sơn zin."
+        return {"type": "success", "module": "ppf", "message": res}
+
+    # 5. Khách hỏi theo DÒNG XE CỤ THỂ (Sedan, SUV, MPV)
+    is_sedan = bool(re.search(r'\b(sedan|vios|accent|city|camry|mazda 3|mazda 6|civic|k3|cerato|altis|c200|c300|e200|e300|bmw 3|bmw 5)\b', clean_text))
+    is_suv = bool(re.search(r'\b(suv|cuv|cx5|cx-5|cx8|crv|cr-v|tucson|santafe|santa fe|everest|fortuner|seltos|creta|territory|cross|corolla cross)\b', clean_text))
+    is_mpv = bool(re.search(r'\b(mpv|carnival|custin|innova|xpander|stargazer|veloz|avanza|carens|sedona)\b', clean_text))
+
+    if is_sedan or is_suv or is_mpv:
+        car_type = "sedan" if is_sedan else ("suv" if is_suv else "mpv")
+        car_title = "SEDAN (Xe 4-5 chỗ)" if car_type == "sedan" else ("SUV / CUV (Xe gầm cao)" if car_type == "suv" else "MPV / 7 CHỖ CỠ LỚN")
+
+        res = f"🛡️ **BẢNG SO SÁNH GIÁ DÁN PPF FULL XE CHO DÒNG {car_title}**\n"
+        res += "───────────────────────────\n"
+        res += "🟢 **1. PHÂN KHÚC TIẾT KIỆM (DƯỚI 30 TRIỆU):**\n"
+        res += f"• **AX Film G Series (7.5 Mil - BH 2.5 năm):** **{PPF_DATA['AX_FILM']['packages'][0][car_type]:,.0f} đ**\n"
+        res += f"• **TeckWrap V75 Access (7.4 Mil - BH 4 năm):** **{PPF_DATA['TECKWRAP']['packages'][0][car_type]:,.0f} đ**\n"
+        res += f"• **AX Film K Series (8.0 Mil - BH 5 năm):** **{PPF_DATA['AX_FILM']['packages'][1][car_type]:,.0f} đ**\n"
+        res += f"• **TeckWrap X75 Core (7.5 Mil - BH 4 năm):** **{PPF_DATA['TECKWRAP']['packages'][1][car_type]:,.0f} đ**\n\n"
+
+        res += "🟡 **2. PHÂN KHÚC TẦM TRUNG - BÁN CHẠY NHẤT (35 - 55 TRIỆU):**\n"
+        res += f"• **TeckWrap G75 Titan (Siêu bóng - BH 6 năm):** **{PPF_DATA['TECKWRAP']['packages'][2][car_type]:,.0f} đ**\n"
+        res += f"• **3M 50 Gloss Series (Chính hãng 3M - BH 5 năm):** **{PPF_DATA['3M']['packages'][0][car_type]:,.0f} đ**\n"
+        res += f"• **TeckWrap S75+ Elite (Bóng tuyệt đối - BH 7 năm):** **{PPF_DATA['TECKWRAP']['packages'][3][car_type]:,.0f} đ**\n"
+        res += f"• **AX Film X Series (9.0 Mil Siêu Bền - BH 8 năm + Bảo hiểm 1 năm):** **{PPF_DATA['AX_FILM']['packages'][2][car_type]:,.0f} đ**\n\n"
+
+        res += "🟣 **3. PHÂN KHÚC CAO CẤP & ĐỈNH CAO (TRÊN 60 TRIỆU):**\n"
+        res += f"• **AX Film M Series (Nhám Mờ Matte sang trọng - BH 5 năm):** **{PPF_DATA['AX_FILM']['packages'][3][car_type]:,.0f} đ**\n"
+        res += f"• **3M 100 Gloss Series (Dòng bán chạy nhất của 3M - BH 7 năm):** **{PPF_DATA['3M']['packages'][1][car_type]:,.0f} đ**\n"
+        res += f"• **3M 150 Gloss Series (Cao cấp - BH 10 năm):** **{PPF_DATA['3M']['packages'][2][car_type]:,.0f} đ**\n"
+        res += f"• **AX Film S Series (9.5 Mil Đỉnh Cao - BH 10 năm):** **{PPF_DATA['AX_FILM']['packages'][4][car_type]:,.0f} đ**\n"
+        res += f"• **3M 200 Gloss Series (Đỉnh cao nhất 3M - BH 10 năm):** **{PPF_DATA['3M']['packages'][3][car_type]:,.0f} đ**\n\n"
+        res += "👉 Bạn muốn tư vấn kỹ hơn về thương hiệu nào (AX Film, 3M hay TeckWrap)?"
+        return {"type": "success", "module": "ppf", "message": res}
+
+    # 6. KHÁCH HỎI TƯ VẤN CHUNG VỀ PPF
+    res = "🛡️ **CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN Ô TÔ (PPF) - TRẦN BÌNH AUTO**\n\n"
+    res += "Gara hiện phân phối & thi công chính hãng **3 thương hiệu PPF hàng đầu thế giới**:\n\n"
+    
+    res += "🌟 **1. AX FILM (Công nghệ tiên tiến - Bền bỉ vượt trội):**\n"
+    res += "• **G Series (7.5 Mil - BH 2.5 năm):** từ **20.000.000 đ**\n"
+    res += "• **K Series (8.0 Mil - BH 5 năm):** từ **26.900.000 đ** *(Khuyên dùng phân khúc phổ thông)*\n"
+    res += "• **X Series (9.0 Mil - BH 8 năm):** từ **45.000.000 đ** *(Tặng kèm Bảo hiểm vật liệu 01 năm)*\n"
+    res += "• **M Series Phim Mờ (7.5 Mil - BH 5 năm):** từ **60.000.000 đ**\n"
+    res += "• **S Series Siêu Cấp (9.5 Mil - BH 10 năm):** từ **90.000.000 đ**\n\n"
+
+    res += "🌟 **2. TECKWRAP USA (Chuyên gia Wrap & PPF Mỹ):**\n"
+    res += "• **V75 Access (7.4 Mil - BH 4 năm):** từ **25.000.000 đ**\n"
+    res += "• **X75 Core (7.5 Mil - BH 4 năm):** từ **28.000.000 đ**\n"
+    res += "• **G75 Titan Siêu Bóng (7.5 Mil - BH 6 năm):** từ **37.000.000 đ** *(Rất được ưa chuộng)*\n"
+    res += "• **S75+ Elite Bền Bỉ (7.5 Mil - BH 7 năm):** từ **45.000.000 đ**\n\n"
+
+    res += "🌟 **3. 3M SCOTCHGARD (Thương hiệu số 1 toàn cầu - USA):**\n"
+    res += "• **3M 50 Gloss (BH 5 năm):** từ **38.000.000 đ**\n"
+    res += "• **3M 100 Gloss (BH 7 năm):** từ **69.000.000 đ**\n"
+    res += "• **3M 150 Gloss (BH 10 năm):** từ **85.000.000 đ**\n"
+    res += "• **3M 200 Gloss (BH 10 năm):** từ **102.000.000 đ**\n"
+    res += "• *Có gói dán lẻ từng bộ phận:* Capo (11tr), Cản trước (12tr), Cặp đèn pha (3tr), 4 Cửa (12tr)...\n\n"
+
+    res += "───────────────────────────\n"
+    res += "🎯 **LỜI KHUYÊN TƯ VẤN NHANH:**\n"
+    res += "• **Tài chính vừa phải (25 - 30tr):** Chọn **AX Film K Series (26.9tr)** hoặc **TeckWrap X75 Core (28tr)**.\n"
+    res += "• **Cần độ bóng siêu sâu & kháng ố vàng (37 - 50tr):** Chọn **TeckWrap G75 Titan (37tr)** hoặc **AX Film X Series 9.0 Mil (45tr)**.\n"
+    res += "• **Yêu cầu thương hiệu đỉnh cao & bảo hành 7-10 năm:** Chọn **3M 100 Gloss** hoặc **AX Film S Series**.\n"
+    res += "• **Chỉ muốn bảo vệ điểm va quẹt:** Chọn dán gói đầu xe gồm **Nắp Capo + Cản Trước + Cặp Đèn**.\n\n"
+    res += "👉 Bạn đang chạy dòng xe gì (Sedan, SUV hay MPV) để tôi báo giá chính xác nhất?"
+
+    return {"type": "success", "module": "ppf", "message": res}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ĐIỀU PHỐI VIÊN CHÍNH (MAIN DISPATCHER)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1464,6 +1667,14 @@ def process_ai_command(user_text, session_id="default_user"):
                 "*(Ví dụ: `F10 Turbo`, `S3`, `S6`, `V20 Base`, `M40 Ultra`, `Titan Gold`... hoặc gõ `hủy` để thoát)*"
             )
         }
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.5. CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN PPF (AX FILM, 3M, TECKWRAP)
+    # ═════════════════════════════════════════════════════════════════════
+    if any(k in clean for k in ['ppf', 'ax film', 'teckwrap', 'teck wrap', 'bao ve son', 'dan film', 'dan phim', 'dan keo xe', 'dan capo', 'dan can truoc', 'dan den pha']):
+        res = handle_ppf_consultation(raw, clean)
+        if res:
+            return res
 
     # 3. Hủy / Xóa đơn đèn vừa nhập nhầm
     if any(k in clean for k in ['xoa don', 'huy don', 'undo']):
