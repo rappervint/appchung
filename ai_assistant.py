@@ -1521,7 +1521,7 @@ def handle_gara_consultation(raw_text, clean_text):
             )
         }
 
-    if any(k in clean_text for k in ['dang kiem', 'kiem dinh', 'do xuyen sang', 'co bi phat khong', 'bi bat khong']):
+    if any(k in clean_text for k in ['dang kiem', 'kiem dinh', 'co bi phat khong', 'bi bat khong']) or ('do xuyen sang' in clean_text and not any(m in clean_text for m in ['nr', 'nr5', 'nr15', 'nr25', 'nr35', 'cr50', 'ceramax'])):
         return {
             "type": "success",
             "module": "dichvu",
@@ -1590,6 +1590,25 @@ def handle_gara_consultation(raw_text, clean_text):
                 "⚖️ **SO SÁNH: 3M CRYSTALLINE VS CERAMAX DIAMOND:**\n"
                 "• **3M Crystalline Mỹ (10.8tr - 17.6tr):** 200 lớp quang học, thương hiệu số 1 toàn cầu, chống chói ban đêm tốt nhất, BH 10 năm.\n"
                 "• **CeraMAX Diamond (9.5tr - 11.3tr):** Men gốm sinh học cản hồng ngoại IR 99.1%, giá tiết kiệm hơn 30-40%, BH 15 năm dài nhất thị trường."
+            )
+        }
+
+    # So sánh các dòng 3M (Ceramic NR vs Ceramic IR vs Crystalline)
+    if is_compare and ('3m' in clean_text or 'nr' in clean_text) and any(k in clean_text for k in ['nr', 'hybrid', 'ir', 'crystalline']):
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "⚖️ **SO SÁNH 3 DÒNG PHIM 3M CHÍNH HÃNG MỸ:**\n"
+                "1️⃣ **3M Ceramic NR (Ceramic Hybrid - Giá tốt nhất):**\n"
+                "  • Trọn gói: MiniCar **5.9tr** | Sedan **7.9tr** | SUV **9.5tr** (Kính lái dán lẻ: **2.6tr**)\n"
+                "  • Công nghệ men gốm lai phản xạ nhiệt (Nano Ceramic + Nano Reflective), cản nhiệt TSER đến 69%, giảm chói tới 93%.\n"
+                "  • Tông màu tối tăng độ riêng tư cabin, bảo hành điện tử chính hãng 10 năm.\n"
+                "2️⃣ **3M Ceramic IR (Men gốm cao cấp):**\n"
+                "  • Trọn gói: Sedan **9.0tr** | SUV **10.5tr**. Độ trong suốt cao hơn, cản hồng ngoại IR vượt trội.\n"
+                "3️⃣ **3M Crystalline (Đỉnh cao quang học 200 lớp):**\n"
+                "  • Trọn gói: Sedan **10.8tr - 14.8tr** | SUV **12.5tr - 17.6tr** (Kính lái CR50BLK: **5.7tr**)\n"
+                "  • Chống chói ban đêm và đi mưa rõ nhất thế giới, cản IR 98% tuyệt đối."
             )
         }
 
@@ -1662,6 +1681,129 @@ def handle_gara_consultation(raw_text, clean_text):
                     "🎁 Tặng 100% công lột keo cũ và vệ sinh sạch sẽ (trị giá 500k)."
                 )
             }
+
+    # 3.2.b. TRA CỨU CHI TIẾT DÒNG 3M CERAMIC NR / CERAMIC HYBRID (NR5, NR15, NR25, NR35)
+    is_3m_nr_query = bool(re.search(r'\b(nr5|nr15|nr25|nr35|nr 5|nr 15|nr 25|nr 35|ceramic nr|ceramic hybrid|3m nr|3m hybrid)\b', clean_text))
+    if is_3m_nr_query:
+        # Nếu hỏi riêng mã NR35
+        if 'nr35' in clean_text or ('nr 35' in clean_text):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **MÃ PHIM 3M CERAMIC NR35 (CHUYÊN KÍNH LÁI):**\n"
+                    "• **Giá dán lẻ kính lái:** **2.600.000 đ** (BH 10 năm điện tử 3M)\n"
+                    "• **Độ truyền sáng (VLT):** `43%` (trong vừa, quan sát rõ ngày và đêm)\n"
+                    "• **Tổng cản nhiệt (TSER):** `51%` | **Cản hồng ngoại (IRR):** `79%` (IRER 58%)\n"
+                    "• **Cản tia cực tím (UVR):** `99%` | **Giảm độ chói:** `52%`\n"
+                    "• **Ưu điểm:** Công nghệ lai Nano Ceramic + Nano Reflective không cản sóng GPS, VETC, Bluetooth, Android Box."
+                )
+            }
+        # Nếu hỏi riêng mã NR5
+        if 'nr5' in clean_text or ('nr 5' in clean_text):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **MÃ PHIM 3M CERAMIC NR5 (SIÊU TỐI - RIÊNG TƯ - CHỐNG NÓNG ĐỈNH):**\n"
+                    "• **Vị trí khuyên dùng:** Kính sườn sau, kính hậu, cửa sổ trời (KHÔNG dán kính lái)\n"
+                    "• **Giá dán lẻ:** Kính sườn **1.700.000 đ/cặp** | Kính hậu **1.900.000 đ** | Cửa sổ trời **850.000 đ**\n"
+                    "• **Độ truyền sáng (VLT):** `7%` (rất tối từ ngoài nhìn vào, bên trong nhìn ra rõ)\n"
+                    "• **Tổng cản nhiệt (TSER):** `69%` (cao nhất dòng NR) | **Cản hồng ngoại (IRR):** `91%` (IRER 68%)\n"
+                    "• **Giảm chói lóa:** `93%` | **Cắt tia UV:** `99%` | **Bảo hành:** 10 năm chính hãng."
+                )
+            }
+        # Nếu hỏi riêng mã NR15
+        if 'nr15' in clean_text or ('nr 15' in clean_text):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **MÃ PHIM 3M CERAMIC NR15 (KÍNH SƯỜN & KÍNH HẬU TIÊU CHUẨN):**\n"
+                    "• **Vị trí khuyên dùng:** Kính sườn trước/sau, kính hậu (cân bằng cách nhiệt & riêng tư)\n"
+                    "• **Giá dán lẻ:** Kính sườn **1.700.000 đ/cặp** | Kính hậu **1.900.000 đ**\n"
+                    "• **Độ truyền sáng (VLT):** `14%` | **Tổng cản nhiệt (TSER):** `65%`\n"
+                    "• **Cản hồng ngoại (IRR):** `86%` (IRER 66%) | **Giảm chói:** `84%` | **Cắt UV:** `99%`\n"
+                    "• **Bảo hành:** 10 năm điện tử chính hãng 3M."
+                )
+            }
+        # Nếu hỏi riêng mã NR25
+        if 'nr25' in clean_text or ('nr 25' in clean_text):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **MÃ PHIM 3M CERAMIC NR25 (KÍNH SƯỜN CHO NGƯỜI THÍCH SÁNG):**\n"
+                    "• **Vị trí khuyên dùng:** Kính sườn trước (giúp nhìn gương chiếu hậu ban đêm rõ ràng), sườn sau\n"
+                    "• **Giá dán lẻ:** Kính sườn **1.700.000 đ/cặp**\n"
+                    "• **Độ truyền sáng (VLT):** `29%` | **Tổng cản nhiệt (TSER):** `59%`\n"
+                    "• **Cản hồng ngoại (IRR):** `86%` (IRER 63%) | **Giảm chói:** `68%` | **Cắt UV:** `99%`\n"
+                    "• **Bảo hành:** 10 năm điện tử chính hãng 3M."
+                )
+            }
+        # Hỏi riêng kính sườn 3M NR
+        if any(k in clean_text for k in ['suon', 'kinh suon']) and not any(k in clean_text for k in ['hau', 'lai', 'tron xe']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **KÍNH SƯỜN 3M CERAMIC NR (CHÍNH HÃNG 3M USA):**\n"
+                    "• **Giá dán lẻ:** **1.700.000 đ / cặp** (Sedan 4 cánh = 2 cặp = 3.4tr)\n"
+                    "• **Tùy chọn phối mã khuyên dùng:**\n"
+                    "  - Sườn trước: Đi mã `NR25` (xuyên sáng 29%) để quan sát gương chiếu hậu ban đêm rõ ràng.\n"
+                    "  - Sườn sau: Đi mã `NR15` (xuyên sáng 14%) hoặc `NR5` (xuyên sáng 7%) để chống nóng tối đa và riêng tư tuyệt đối.\n"
+                    "• **Bảo hành:** 10 năm điện tử 3M chính hãng."
+                )
+            }
+
+        # Hỏi riêng kính hậu / kính sau 3M NR
+        if any(k in clean_text for k in ['hau', 'kinh hau', 'kinh sau', 'lung']) and not any(k in clean_text for k in ['lai', 'suon', 'tron xe']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **KÍNH HẬU / KÍNH SAU 3M CERAMIC NR:**\n"
+                    "• **Giá dán lẻ:** **1.900.000 đ**\n"
+                    "• **Mã phim khuyên dùng:** `NR15` (cản nhiệt 65%) hoặc `NR5` (cản nhiệt 69%, giảm chói 93% khi xe sau chiếu pha).\n"
+                    "• **Bảo hành:** 10 năm điện tử chính hãng 3M."
+                )
+            }
+
+        # Hỏi riêng cửa sổ trời 3M NR
+        if any(k in clean_text for k in ['cua so troi', 'sunroof', 'panorama']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **CỬA SỔ TRỜI 3M CERAMIC NR:**\n"
+                    "• **Giá dán lẻ:** **850.000 đ**\n"
+                    "• **Mã phim khuyên dùng:** `NR5` (chống nóng đỉnh cao TSER 69%, giảm chói 93% ngăn tia nắng gắt trên nóc xe rọi xuống cabin).\n"
+                    "• **Bảo hành:** 10 năm điện tử chính hãng 3M."
+                )
+            }
+
+        # Hỏi tổng quan dòng 3M Ceramic NR / Ceramic Hybrid
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "☀️ **PHIM CÁCH NHIỆT 3M CERAMIC NR (CERAMIC HYBRID THẾ HỆ MỚI):**\n"
+                "• **Công nghệ:** Lai giữa men gốm Nano Ceramic + Nano Reflective phản xạ nhiệt, tản nhiệt cực nhanh.\n"
+                "• **Bảng giá trọn xe:**\n"
+                "  - **MiniCar (VF3, Morning, i10):** **5.900.000 đ**\n"
+                "  - **Sedan (4 - 5 chỗ):** **7.900.000 đ**\n"
+                "  - **SUV (7 chỗ):** **9.500.000 đ**\n"
+                "• **Giá dán lẻ từng vị trí:**\n"
+                "  - Kính lái (NR35): **2.600.000 đ** (VLT 43%, TSER 51%, cản UV 99%)\n"
+                "  - Kính sườn (NR25/15/5): **1.700.000 đ/cặp** | Kính hậu: **1.900.000 đ** | Cửa sổ trời: **850.000 đ**\n"
+                "• **4 Mã phim phối xe:**\n"
+                "  - `NR35` (Lái): Xuyên sáng 43%, cản nhiệt 51%\n"
+                "  - `NR25` (Sườn trước sáng): Xuyên sáng 29%, cản nhiệt 59%\n"
+                "  - `NR15` (Sườn tối vừa): Xuyên sáng 14%, cản nhiệt 65%\n"
+                "  - `NR5` (Sườn sau/hậu siêu tối riêng tư): Xuyên sáng 7%, cản nhiệt 69%, giảm chói 93%\n"
+                "🎁 Miễn phí 100% công lột keo cũ 500k. Kích hoạt bảo hành điện tử 3M e-Warranty 10 năm toàn quốc."
+            )
+        }
 
     # 3.3. Hỏi riêng Kính Sườn / Kính Hậu Ceramax
     if bool(re.search(r'\b(suon ceramax|kinh suon ceramax|hau ceramax|kinh hau ceramax)\b', clean_text)) and not any(k in clean_text for k in ['3m', 'ntech']):
