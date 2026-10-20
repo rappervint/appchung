@@ -2066,6 +2066,37 @@ def handle_gara_consultation(raw_text, clean_text):
     # 8.2. PHIM CÁCH NHIỆT Ô TÔ (TỔNG QUÁT)
     is_film = bool(re.search(r'\b(film|phim|cach\s*nhiet|dan\s*kinh|ceramax|ntech|3m\s*cr|crystalline|cr50|cr50blk|cr40|nano\s*ceramic)\b', clean_text)) and not bool(re.search(r'\bppf\b', clean_text))
     if is_film:
+        # Nếu hỏi riêng dòng 3M
+        if any(k in clean_text for k in ['3m', 'crystalline']) and not any(k in clean_text for k in ['ntech', 'ceramax', 'ket hop', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **BÁO GIÁ PHIM CÁCH NHIỆT 3M CHÍNH HÃNG MỸ (BH 10 NĂM):**\n"
+                    "• **3M Ceramic Hybrid:** Sedan **7.900.000 đ** | SUV **9.500.000 đ**\n"
+                    "• **3M Ceramic IR:** Sedan **9.000.000 đ** | SUV **10.500.000 đ**\n"
+                    "• **3M Crystalline Hybrid (Lái CR50 + Sườn NR):** Sedan **10.800.000 đ** | SUV **12.500.000 đ**\n"
+                    "• **3M Crystalline CR BLK (Lái CR50 + Sườn CR15/35):** Sedan **14.800.000 đ** | SUV **17.600.000 đ**\n"
+                    "• **Dán lẻ kính lái CR50BLK:** **5.700.000 đ** *(Xuyên sáng 50% bao đăng kiểm)*\n"
+                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (500k)."
+                )
+            }
+
+        # Nếu hỏi riêng dòng Ceramax
+        if any(k in clean_text for k in ['ceramax']) and not any(k in clean_text for k in ['3m', 'ket hop', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "💎 **BÁO GIÁ PHIM MEN GỐM CERAMAX (BH 15 NĂM CHÍNH HÃNG):**\n"
+                    "• **Kính Lái CeraMAX 50 (dán lẻ):** **3.300.000 đ** *(Cắt IR 99.1%, xuyên sáng 59.7%)*\n"
+                    "• **Ceramax + Ntech Tiêu Chuẩn (Bán chạy):** Sedan **5.600.000 đ** | SUV **6.100.000 đ**\n"
+                    "• **Ceramax + Ntech Cao Cấp:** Sedan **6.500.000 đ** | SUV **7.400.000 đ**\n"
+                    "• **Ceramax Diamond Full Xe (Men gốm 100%):** Sedan **9.500.000 đ** | SUV **11.300.000 đ**\n"
+                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (500k)."
+                )
+            }
+
         res = "☀️ **BẢNG GIÁ PHIM CÁCH NHIỆT Ô TÔ (TRẦN BÌNH AUTO):**\n"
         res += "1️⃣ **Ntech Tiêu Chuẩn + Kính lái Ceramax (Bán chạy):** Sedan **5.6tr** | SUV **6.1tr** (BH 10 năm)\n"
         res += "2️⃣ **Ntech Cao Cấp + Kính lái Ceramax:** Sedan **6.5tr** | SUV **7.4tr** (BH 10 năm)\n"
@@ -2079,6 +2110,34 @@ def handle_gara_consultation(raw_text, clean_text):
     # 8.3. MÀN HÌNH ANDROID & MÀN HÌNH LIỀN CAM 360
     is_manhinh = bool(re.search(r'\b(man\s*hinh|dvd|android\s*auto|gotech|winca|bravo|gt2k|gt11|b10lite|s150|s170|gtp4|gc360|g360)\b', clean_text))
     if is_manhinh:
+        # Nếu hỏi riêng dòng Winca
+        if any(k in clean_text for k in ['winca']) and not any(k in clean_text for k in ['gotech', 'bravo', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📺 **BÁO GIÁ MÀN HÌNH ANDROID WINCA:**\n"
+                    "• **Winca S150+ (Màn đơn):** **6.500.000 đ** *(Tặng mặt dưỡng + Vietmap Live 2 năm + Sim 4G + Cam lùi)*\n"
+                    "• **Winca S170+ Pro 360 (Liền Cam 360 toàn cảnh):** **11.800.000 đ** *(Tặng Sim 4G + USB 64GB + Vietmap Live)*\n"
+                    "🔧 Cắm giắc zin 100% theo xe, bảo hành 2 năm chính hãng."
+                )
+            }
+
+        # Nếu hỏi riêng dòng Gotech
+        if any(k in clean_text for k in ['gotech']) and not any(k in clean_text for k in ['winca', 'bravo', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📺 **BÁO GIÁ MÀN HÌNH GOTECH (MÀN 2K CHỐNG LÓA - BH 2 NĂM):**\n"
+                    "📱 **Dòng Màn Đơn:**\n"
+                    "• GT2K New: **9.6tr** | GT2K Pro: **11.9tr** | GT11.5i: **12.8tr** | GT2K Max: **14.5tr**\n"
+                    "🔄 **Dòng Liền Cam 360:**\n"
+                    "• G360: **10.4tr** | GC360: **12.9tr** | GT2K 360: **14.9tr** | GT2K 360 Pro: **17.9tr**\n"
+                    "🎁 Tặng mặt dưỡng, Vietmap Live, Sim 4G."
+                )
+            }
+
         res = "📺 **BÁO GIÁ MÀN HÌNH ANDROID CHÍNH HÃNG:**\n"
         res += "• **Bravo B10 Lite:** **5.500.000 đ** (Tặng mặt dưỡng + Vietmap Live 2 năm)\n"
         res += "• **Winca S150+:** **6.500.000 đ** (Tặng Vietmap Live 2 năm + Sim 4G + Cam lùi)\n"
@@ -2113,6 +2172,41 @@ def handle_gara_consultation(raw_text, clean_text):
                     "• Thẻ nhớ 64GB: **400.000 đ**\n"
                     "• USB 32GB: **350.000 đ**\n"
                     "• Cam hành trình Android rời cắm màn hình: **800.000 đ**."
+                )
+            }
+
+        # Nếu hỏi riêng dòng 70mai
+        if any(k in clean_text for k in ['70mai', 'xiaomi']) and not any(k in clean_text for k in ['vietmap', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📹 **BÁO GIÁ CAMERA HÀNH TRÌNH 70MAI (XIAOMI):**\n"
+                    "• **70mai 310 Plus (Trước - Thẻ 32GB):** **1.500.000 đ**\n"
+                    "• **70mai A200 2K (Trước + Sau - Thẻ 32GB):** **2.500.000 đ** *(Ngon bổ rẻ)*\n"
+                    "• **70mai M500 (Trước - Bộ nhớ 32GB):** **2.800.000 đ**\n"
+                    "• **70mai A510 3K (Trước + Sau - Thẻ 64GB):** **3.400.000 đ** *(Sony Starvis 2 - Bán chạy)*\n"
+                    "• **70mai A800SE 4K (Trước + Sau - Thẻ 64GB):** Bản thường **3.6tr** | Bản SpeedEye **4.8tr**\n"
+                    "• **Cam gương S410 (Tích hợp lùi - Thẻ 32GB):** **4.150.000 đ**\n"
+                    "• **70mai Omni 360 xoay tròn:** 32GB **3.9tr** | 64GB **4.2tr**\n"
+                    "• **70mai T400:** 32GB **4.2tr** | 64GB **4.5tr**\n"
+                    "🎁 Miễn phí công lắp đặt đi dây âm kín tại gara."
+                )
+            }
+
+        # Nếu hỏi riêng dòng Vietmap
+        if any(k in clean_text for k in ['vietmap']) and not any(k in clean_text for k in ['70mai', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📹 **BÁO GIÁ CAMERA HÀNH TRÌNH VIETMAP (CẢNH BÁO GIAO THÔNG):**\n"
+                    "• **Vietmap M1 2K (Trước + Sau):** **6.190.000 đ** *(Luôn báo tốc độ giới hạn + Phạt nguội - Bán chạy nhất)*\n"
+                    "• **Vietmap M2 4K (Trước + Sau):** **8.980.000 đ** *(Tặng SIM 12 tháng xem từ xa qua 4G)*\n"
+                    "• **Vietmap S720 (Trước + Sau):** **3.900.000 đ**\n"
+                    "• **Vietmap R440 Cam Gương (Trước + Sau):** **3.990.000 đ**\n"
+                    "• **Vietmap S860 (Trước + Sau):** **4.590.000 đ**\n"
+                    "🎁 Tặng thẻ nhớ chính hãng, miễn phí đi dây âm kín tại gara."
                 )
             }
 
