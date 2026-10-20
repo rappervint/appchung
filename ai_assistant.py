@@ -672,6 +672,43 @@ def handle_wizard_step(user_text, session_id):
                     )
                 }
 
+    # ══════════════════════════════════════════
+    # FLOW 3: WIZARD LÀM RÕ Ý ĐỊNH (CLARIFICATION DIALOGUE)
+    # ══════════════════════════════════════════
+    elif flow == 'clarify':
+        del WIZARD_SESSIONS[session_id]
+        candidates = data.get('candidates', {})
+
+        # Nếu chọn số 1-9
+        if clean in ['1', 'so 1', 'goi 1']:
+            return process_ai_command(candidates.get('1', 'tu van film'), session_id)
+        elif clean in ['2', 'so 2', 'goi 2']:
+            return process_ai_command(candidates.get('2', 'boc ghe da'), session_id)
+        elif clean in ['3', 'so 3', 'goi 3']:
+            return process_ai_command(candidates.get('3', 'boc tran oto'), session_id)
+        elif clean in ['4', 'so 4', 'goi 4']:
+            return process_ai_command(candidates.get('4', 'man hinh android'), session_id)
+        elif clean in ['5', 'so 5', 'goi 5']:
+            return process_ai_command(candidates.get('5', 'cam hanh trinh'), session_id)
+        elif clean in ['6', 'so 6', 'goi 6']:
+            return process_ai_command(candidates.get('6', 'android box'), session_id)
+        elif clean in ['7', 'so 7', 'goi 7']:
+            return process_ai_command(candidates.get('7', 'tu van ppf'), session_id)
+        elif clean in ['8', 'so 8', 'goi 8']:
+            return process_ai_command('doanh thu den', session_id)
+        elif clean in ['9', 'so 9', 'goi 9']:
+            return process_ai_command('chi', session_id)
+
+        # Nếu đồng ý gợi ý ("đúng rồi", "ừ", "phải", "ok", "yes")
+        elif clean in ['dung', 'dung roi', 'u', 'uh', 'phai', 'chuan', 'ok', 'yes', 'y', 'chinh xac']:
+            hint_action = data.get('hint_action')
+            if hint_action:
+                return process_ai_command(hint_action, session_id)
+            return process_ai_command('tu van film', session_id)
+
+        # Nếu người dùng trả lời bằng câu hỏi / thông tin mới
+        else:
+            return process_ai_command(user_text, session_id)
     return None
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1260,6 +1297,11 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
     if not tokens:
         return None
 
+    # Nếu từ khóa chỉ là 1 từ thông dụng chung chung (không phải tên sản phẩm) -> Tránh tìm bừa
+    common_general_words = {'da', 'xe', 'dung', 'cho', 'lam', 'oto', 'goi', 'gia', 'ban', 'toi', 'minh', 'em', 'anh', 'muon', 'can', 'hoi'}
+    if len(tokens) == 1 and tokens[0] in common_general_words:
+        return None
+
     try:
         conn = sqlite3.connect(DB_BANHANG, timeout=10)
         conn.row_factory = sqlite3.Row
@@ -1317,7 +1359,8 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
                 results.append((score, dict(p)))
 
         results.sort(key=lambda x: x[0], reverse=True)
-        top_matches = [r[1] for r in results[:6] if r[0] >= 30]
+        min_thresh = 50 if require_explicit_intent else 100
+        top_matches = [r[1] for r in results[:6] if r[0] >= min_thresh]
 
         if not top_matches:
             if require_explicit_intent:
@@ -2333,6 +2376,79 @@ def handle_ppf_consultation(raw_text, clean_text):
 # ĐIỀU PHỐI VIÊN CHÍNH (MAIN DISPATCHER)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def ask_clarification(raw_text, clean_text, session_id):
+    """
+    Chủ động hỏi lại người dùng khi AI chưa hiểu rõ ý định,
+    phân tích manh mối ngữ cảnh và đưa ra các lựa chọn để người dùng chọn nhanh.
+    """
+    hint_action = None
+    hint_name = None
+
+    if any(k in clean_text for k in ['da', 'ghe', 'nem', 'boc da', 'lot ghe']):
+        hint_action = 'boc ghe da'
+        hint_name = 'Bọc Ghế Da Ô Tô'
+    elif any(k in clean_text for k in ['tran', 'la phong', 'nilon', 'nilong', 'kim cuong']):
+        hint_action = 'boc tran'
+        hint_name = 'Bọc Trần Ô Tô'
+    elif any(k in clean_text for k in ['film', 'phim', 'kinh', 'cach nhiet', 'chong nong']):
+        hint_action = 'tu van film'
+        hint_name = 'Dán Phim Cách Nhiệt Ô Tô'
+    elif any(k in clean_text for k in ['man', 'dvd', 'android', 'winca', 'gotech', 'bravo']):
+        hint_action = 'man hinh'
+        hint_name = 'Màn Hình Android & Cam 360'
+    elif any(k in clean_text for k in ['cam', 'camera', 'hanh trinh', 'toc do', 'phat nguoi']):
+        hint_action = 'cam hanh trinh'
+        hint_name = 'Camera Hành Trình'
+    elif any(k in clean_text for k in ['box', 'man zin']):
+        hint_action = 'android box'
+        hint_name = 'Android Box Ô Tô'
+    elif any(k in clean_text for k in ['ppf', 'son', 'tray', 'keo']):
+        hint_action = 'tu van ppf'
+        hint_name = 'Dán Phim PPF Bảo Vệ Sơn'
+
+    candidates = {
+        '1': 'tu van film',
+        '2': 'boc ghe da',
+        '3': 'boc tran',
+        '4': 'man hinh',
+        '5': 'cam hanh trinh',
+        '6': 'android box',
+        '7': 'tu van ppf',
+        '8': 'doanh thu den',
+        '9': 'chi'
+    }
+
+    WIZARD_SESSIONS[session_id] = {
+        'flow': 'clarify',
+        'step': 1,
+        'data': {
+            'hint_action': hint_action,
+            'hint_name': hint_name,
+            'candidates': candidates,
+            'raw_q': raw_text
+        }
+    }
+
+    if hint_name:
+        msg = f"🤔 **Tôi chưa hiểu rõ ý bạn về: '{raw_text}'.**\n"
+        msg += f"Có phải bạn đang muốn hỏi về **{hint_name}** không ạ?\n\n"
+        msg += f"👉 Gõ **'đúng rồi'** hoặc **'ừ'** để tôi tư vấn ngay.\n"
+        msg += f"👉 Hoặc chọn số dịch vụ bên dưới:\n"
+    else:
+        msg = f"🤔 **Dạ, bạn muốn Trần Bình Auto tư vấn về dịch vụ nào ạ?**\n\n"
+
+    msg += "1️⃣ **Dán Phim Cách Nhiệt** *(3M, Ceramax, Ntech)*\n"
+    msg += "2️⃣ **Bọc Ghế Da Ô Tô** *(Simili, Da Công Nghiệp, Nappa)*\n"
+    msg += "3️⃣ **Bọc Trần Ô Tô** *(Kim Cương 5D/6D, Nilong)*\n"
+    msg += "4️⃣ **Màn Hình Android & Cam 360** *(Winca, Gotech, Bravo)*\n"
+    msg += "5️⃣ **Camera Hành Trình** *(Vietmap M1, 70mai A510/A200)*\n"
+    msg += "6️⃣ **Android Box** *(Vietmap BS10, iCar D4)*\n"
+    msg += "7️⃣ **Dán Phim PPF Bảo Vệ Sơn Xe**\n"
+    msg += "8️⃣ **Nhập Đơn Báo Cáo Đèn** | 9️⃣ **Ghi Sổ Chi**\n\n"
+    msg += "*(Bạn có thể gõ số `1`, `2`... hoặc gõ chi tiết câu hỏi để tôi trả lời chính xác nhất nhé!)*"
+
+    return {"type": "clarify", "message": msg}
+
 def process_ai_command(user_text, session_id="default_user"):
     """Hàm xử lý mọi câu lệnh từ người dùng gửi qua bong bóng chat AI"""
     if not user_text or not user_text.strip():
@@ -2349,6 +2465,10 @@ def process_ai_command(user_text, session_id="default_user"):
 
     raw = user_text.strip()
     clean = remove_accents(raw).lower()
+
+    # Nếu câu hỏi quá ngắn hoặc mơ hồ chung chung -> Chủ động hỏi lại làm rõ
+    if clean in ['tu van', 'bao gia', 'cho hoi', 'cho toi hoi', 'bang gia', 'dich vu', 'gara co lam gi', 'do xe', 'nang cap xe', 'hoi gia', 'tu van xe', 'xe']:
+        return ask_clarification(raw, clean, session_id)
 
     # ═════════════════════════════════════════════════════════════════════
     # 0. NẾU ĐANG TRONG PHIÊN HỎI ĐÁP TỪNG BƯỚC (WIZARD ACTIVE)
@@ -2458,12 +2578,5 @@ def process_ai_command(user_text, session_id="default_user"):
     if res:
         return res
 
-    # 12. Fallback thông minh
-    return {
-        "type": "help",
-        "message": f"🤖 Tôi chưa hiểu rõ câu lệnh: *'{raw}'*.\n\n"
-                   f"**Bạn có thể thử:**\n"
-                   f"• Gõ *'chi'* để AI hỏi từng bước số tiền, ngày, lý do.\n"
-                   f"• Gõ *'doanh thu đèn'* để AI hỏi từng bước lên đơn đèn.\n"
-                   f"• Hoặc gõ nhanh: *'anh Cường accent f10 new 3900'*, *'chi 350k tiền cơm'*."
-    }
+    # 12. Chủ động hỏi lại người dùng để làm rõ ý và phục vụ chính xác
+    return ask_clarification(raw, clean, session_id)
