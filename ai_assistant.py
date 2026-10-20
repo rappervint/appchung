@@ -1406,6 +1406,205 @@ def handle_summary_stats(raw_text, clean_text):
     return {"type": "success", "message": msg}
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 6.5. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_gara_consultation(raw_text, clean_text):
+    """
+    Chuyên gia tư vấn tổng hợp các dịch vụ Gara Trần Bình Auto:
+    1. Phim cách nhiệt (Ceramax, Ntech, 3M, Nano, Film VF3, Kính lái CR50BLK)
+    2. Bọc trần ô tô (Kim cương, Nilong, lưu ý VF5)
+    3. Màn hình Android & Màn hình liền Cam 360 (Bravo, Winca, Gotech, GTP4 Plus)
+    4. Android Box (HTD, iCar D4, Vietmap BS10, Gotech)
+    5. Camera hành trình (70mai, Vietmap, Thẻ nhớ, lưu ý quà tặng)
+    6. Bọc ghế da ô tô (Simili, Da công nghiệp, Da Nappa đục lỗ)
+    """
+
+    # 1. BỌC TRẦN Ô TÔ
+    is_tran = bool(re.search(r'\b(boc\s*tran|tran\s*da|tran\s*nilong|tran\s*nilon|lam\s*tran|dan\s*tran|tran\s*5d|tran\s*6d|tran\s*kim\s*cuong|gia\s*tran|tran\s*oto|tran\s*xe)\b', clean_text))
+    if is_tran:
+        if 'vf5' in clean_text or 'vf 5' in clean_text:
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "⚠️ **LƯU Ý RIÊNG CHO XE VINFAST VF5:**\n"
+                    "• **Trần Da Kim Cương:** 4 chỗ giá **1.300.000 đ** (Thi công đẹp, ôm khít trần).\n"
+                    "• 🛑 **Trần Nilong:** **GARA KHÔNG NHẬN BỌC NILONG CHO XE VF5** (Do chất liệu trần nỉ zin của VF5 đặc thù, dán nilong rất dễ bong tróc và không đảm bảo độ thẩm mỹ)!"
+                )
+            }
+
+        res = "✨ **BẢNG BÁO GIÁ BỌC TRẦN Ô TÔ - TRẦN BÌNH AUTO**\n"
+        res += "───────────────────────────\n"
+        res += "💎 **1. Trần Da Kim Cương (5D/6D Cao Cấp):**\n"
+        res += "  • Xe 4 - 5 chỗ: **1.300.000 đ**\n"
+        res += "  • Xe 7 chỗ: **1.800.000 đ**\n"
+        res += "  *(Ưu điểm: Cách âm trần, cách nhiệt, dễ lau chùi bụi bẩn, sang trọng như xe sang)*\n\n"
+        res += "🛡️ **2. Trần Nilong (Giữ Trần Nỉ Zin):**\n"
+        res += "  • Xe 4 - 5 chỗ: **500.000 đ**\n"
+        res += "  • Xe 7 chỗ: **800.000 đ**\n"
+        res += "  *(Ưu điểm: Bọc nilong dày dặn căng đét, giữ trần nỉ không bám bụi và không bị ẩm mốc)*\n\n"
+        res += "⚠️ *Lưu ý: Gara **không nhận bọc trần nilong cho dòng xe VinFast VF5** do nỉ trần xe này không ăn keo nilong.*"
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    # 2. PHIM CÁCH NHIỆT Ô TÔ (CERAMAX, 3M, NTECH, NANO, FILM VF3)
+    is_film = bool(re.search(r'\b(film|phim|cach\s*nhiet|dan\s*kinh|kinh\s*lai|kinh\s*suon|kinh\s*hau|ceramax|ntech|3m\s*cr|crystalline|cr50|cr50blk|cr40|cr20|ir15|nano\s*ceramic)\b', clean_text)) and not bool(re.search(r'\bppf\b', clean_text))
+    if is_film:
+        # Báo giá riêng cho VinFast VF3
+        if any(k in clean_text for k in ['vf3', 'vf 3', 'vinfast vf3']):
+            res = "⚡ **BẢNG GIÁ DÁN PHIM CÁCH NHIỆT CHUYÊN BIỆT CHO VINFAST VF3**\n"
+            res += "───────────────────────────\n"
+            res += "• **1. Nano Ceramic (Đài Loan):** **1.800.000 đ** *(BH 1 năm - Chống nắng cơ bản)*\n"
+            res += "• **2. Ceramax + Ntech Tiêu Chuẩn:** **4.500.000 đ** *(BH 10 năm - Bán chạy)*\n"
+            res += "• **3. Ceramax + Ntech Cao Cấp:** **5.000.000 đ** *(BH 10 năm - Cách nhiệt tốt)*\n"
+            res += "• **4. 3M Ceramic Hybrid:** **6.000.000 đ** *(Thương hiệu Mỹ)*\n"
+            res += "• **5. CeraMAX Diamond Full xe:** **7.000.000 đ** *(BH 15 năm - Men gốm siêu cách nhiệt)*\n"
+            res += "• **6. 3M Crystalline Cr60/50BLK + Sườn Ir15 (Mỹ):** **9.300.000 đ** *(BH 10 năm)*\n"
+            res += "• **7. 3M Crystalline Cr60/50BLK + Sườn Cr20 (Mỹ):** **11.900.000 đ** *(BH 10 năm - Đỉnh cao nhất)*\n\n"
+            res += "🎁 **Ưu đãi tại Gara:** Xe có phim cũ được **TẶNG MIỄN PHÍ lột phim và vệ sinh keo sạch sẽ** (trị giá 500k)!"
+            return {"type": "success", "module": "dichvu", "message": res}
+
+        # Hỏi riêng kính lái 3M hoặc đăng kiểm
+        if any(k in clean_text for k in ['cr50', 'cr50blk', 'cr40', 'dang kiem', 'do xuyen sang']):
+            res = "☀️ **TƯ VẤN KÍNH LÁI 3M CRYSTALLINE & CHUẨN ĐĂNG KIỂM MỚI:**\n"
+            res += "───────────────────────────\n"
+            res += "• **Mã kính lái gara nhập:** **3M Crystalline CR50BLK** (Giá lẻ kính lái: **5.700.000 đ**).\n"
+            res += "• **Thông số kỹ thuật:** Độ xuyên sáng `48% - 50%`, Cắt tia hồng ngoại IR `98%`, Cắt tia cực tím UV `99.9%`, Giảm lóa `34%`.\n"
+            res += "• 🚫 **Gara KHÔNG NHẬP mã CR40BLK** (Mã 40BLK là độc quyền hệ thống chuỗi 365).\n"
+            res += "• 📋 **Lưu ý tư vấn khách:** Khuyên khách dán **CR50BLK** vì sắp tới quy định đăng kiểm sẽ siết chặt đo độ xuyên sáng kính lái, **phải đạt độ truyền sáng từ 50% trở lên** mới đạt chuẩn lưu hành!"
+            return {"type": "success", "module": "dichvu", "message": res}
+
+        # Bảng giá tổng hợp & Kết hợp các gói phim
+        res = "☀️ **BẢNG BÁO GIÁ & THÔNG SỐ KỸ THUẬT PHIM CÁCH NHIỆT Ô TÔ (TRẦN BÌNH AUTO)**\n\n"
+        res += "🔹 **1. GÓI NTECH TIÊU CHUẨN + KÍNH LÁI CERAMAX (BÁN CHẠY NHẤT):**\n"
+        res += "  • **Sedan:** **5.600.000 đ**  |  **SUV:** **6.100.000 đ**\n"
+        res += "  • *Chi tiết:* Kính lái CeraMAX 50 (3.3tr) + Sườn trước Ntech (700k) + Sườn sau Ntech (700k) + Hậu (900k) + Khoang sau SUV (500k).\n"
+        res += "  • *Bảo hành:* 10 năm. Kính lái gốm Ceramax lọc quang phổ, sườn Ntech tối màu riêng tư mát mẻ.\n\n"
+
+        res += "🔹 **2. GÓI NTECH CAO CẤP + KÍNH LÁI CERAMAX:**\n"
+        res += "  • **Sedan:** **6.500.000 đ**  |  **SUV:** **7.400.000 đ**\n"
+        res += "  • *Chi tiết:* Kính lái CeraMAX 50 (3.3tr) + Sườn trước Ntech CC (1tr) + Sườn sau Ntech CC (1tr) + Hậu (1.2tr) + Khoang sau SUV (900k).\n"
+        res += "  • *Bảo hành:* 10 năm. Tăng cường khả năng cản nhiệt sườn và giảm lóa.\n\n"
+
+        res += "🔹 **3. GÓI SIÊU CÁCH NHIỆT CERAMAX DIAMOND FULL XE (MEN GỐM LỌC HỒNG NGOẠI):**\n"
+        res += "  • **Sedan (4 chỗ):** **9.500.000 đ**  |  **SUV (7 chỗ):** **11.300.000 đ**\n"
+        res += "  • *Bảo hành:* **15 NĂM CHÍNH HÃNG** (Bong tróc, rạn nứt, loang màu).\n"
+        res += "  • *Thông số kỹ thuật:* \n"
+        res += "    - Kính lái CeraMAX 50 (3.3tr): Xuyên sáng `59.7%` | Cắt tia hồng ngoại IR `99.1%` | Cắt UV `99.9%` | Phản gương `8.6%`.\n"
+        res += "    - Sườn CeraMAX 20/10/05 (2tr/cặp): Xuyên sáng `24.4%` - `7.4%` | Cắt tia IR `98.6%` - `99.1%` | Cắt UV `99.9%`.\n"
+        res += "    - Kính hậu CeraMAX (2.2tr): Cắt IR `99.1%`.\n\n"
+
+        res += "🔹 **4. GÓI PHIM 3M CHÍNH HÃNG MỸ (BẢO HÀNH ĐIỆN TỬ 10 NĂM):**\n"
+        res += "  • **3M Ceramic Hybrid:** Sedan **7.900.000 đ** | SUV **9.500.000 đ**\n"
+        res += "  • **3M Ceramic IR:** Sedan **9.000.000 đ** | SUV **10.500.000 đ**\n"
+        res += "  • **3M Crystalline Hybrid (Lái CR60/50 + Sườn NR):** Sedan **10.800.000 đ** | SUV **12.500.000 đ**\n"
+        res += "  • **3M Crystalline CR BLK (Lái CR50 + Sườn CR15/35):** Sedan **14.800.000 đ** | SUV **17.600.000 đ**\n"
+        res += "  • **3M Crystalline CR BLK PRO (Đỉnh cao):** Sedan **15.500.000 đ** | SUV **18.300.000 đ**\n"
+        res += "  • *Thông số 3M Crystalline:* 200 lớp quang học, cản nhiệt hồng ngoại `98%`, cản tia UV `99.9%`, cản nhiệt tổng TSER đến `64%`.\n\n"
+
+        res += "🔹 **5. GÓI NANO CERAMIC (TIẾT KIỆM):**\n"
+        res += "  • **Sedan:** **2.000.000 đ**  |  **SUV:** **2.200.000 đ** (Lái 1.2tr, sườn 300k, hậu 600k).\n\n"
+
+        res += "───────────────────────────\n"
+        res += "🎁 **CHÍNH SÁCH ĐẶC BIỆT DÀNH CHO KHÁCH:**\n"
+        res += "• Xe có phim cũ: Công lột phim và vệ sinh keo sạch sẽ niêm yết **500.000 đ**, nhưng Gara **TẶNG MIỄN PHÍ** 100% khi dán gói mới!\n"
+        res += "• Kính lái 3M dùng mã **CR50BLK** đảm bảo độ xuyên sáng > 50% hoàn toàn yên tâm khi đi đăng kiểm!"
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    # 3. MÀN HÌNH ANDROID & MÀN HÌNH LIỀN CAMERA 360
+    is_manhinh = bool(re.search(r'\b(man\s*hinh|dvd|android\s*auto|gotech|winca|bravo|gt2k|gt11|b10lite|s150|s170|gtp4|gc360|g360)\b', clean_text))
+    if is_manhinh:
+        res = "📺 **BẢNG BÁO GIÁ MÀN HÌNH ANDROID & MÀN HÌNH LIỀN CAM 360 (TRẦN BÌNH AUTO)**\n\n"
+        res += "📱 **1. MÀN HÌNH ANDROID ĐƠN (KHÔNG LIỀN 360):**\n"
+        res += "• **Bravo B10 Lite:** **5.500.000 đ** *(Tặng mặt dưỡng ko canbus + Vietmap Live 2 năm)*\n"
+        res += "• **Winca S150+:** **6.500.000 đ** *(Tặng mặt dưỡng ko canbus + Vietmap Live 2 năm + Sim 4G 1 tháng + Tùy chọn Cam Hành Trình hoặc Cam Lùi)*\n"
+        res += "• **GTP4 Plus:** **7.900.000 đ** *(Quà tặng như trên)*\n"
+        res += "• **Gotech GT2K New:** **9.600.000 đ** *(Độ nét 2K, quà tặng như trên)*\n"
+        res += "• **Gotech GT2K Pro:** **11.900.000 đ** *(Cấu hình mạnh mẽ, quà tặng như trên)*\n"
+        res += "• **Gotech GT11.5i (Màn Lớn 11.5 inch):** **12.800.000 đ** *(Màn siêu to sang trọng, quà tặng như trên)*\n"
+        res += "• **Gotech GT2K Max:** **14.500.000 đ** *(Đỉnh cao cấu hình, quà tặng như trên)*\n\n"
+
+        res += "🔄 **2. MÀN HÌNH LIỀN CAMERA 360 QUAN SÁT TOÀN CẢNH:**\n"
+        res += "• **Gotech G360:** **10.400.000 đ**\n"
+        res += "• **Winca S170+ Pro 360:** **11.800.000 đ**\n"
+        res += "• **Gotech GC360:** **12.900.000 đ**\n"
+        res += "• **Gotech GT2K 360:** **14.900.000 đ**\n"
+        res += "• **Gotech GT11.5i 360 (Màn Lớn 11.5 inch):** **15.900.000 đ**\n"
+        res += "• **Gotech GT2K 360 Pro:** **17.900.000 đ**\n"
+        res += "• **Gotech GT2K 360 Max:** **19.600.000 đ**\n"
+        res += "🎁 *Quà tặng trọn gói Cam 360:* Tặng Sim 4G (1 tháng) + USB 64GB ghi hình hành trình 4 mắt + Bản quyền Vietmap Live!\n\n"
+
+        res += "───────────────────────────\n"
+        res += "⚠️ **GHI CHÚ QUAN TRỌNG KHI TƯ VẤN KHÁCH:**\n"
+        res += "• Vì giá thẻ nhớ thị trường tăng cao, bên màn hình **KHÔNG CÒN TẶNG KÈM THẺ NHỚ**.\n"
+        res += "• Khi bán màn hình có quà tặng Cam Hành Trình: Báo khách mua thêm thẻ nhớ (32GB: 300k, 64GB: 400k), hoặc **linh hoạt đổi qua tặng Cam Lùi**, hoặc **giảm trực tiếp 300.000 đ** vào giá!"
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    # 4. ANDROID BOX CHO Ô TÔ (GIỮ NGUYÊN MÀN ZIN XE)
+    is_box = bool(re.search(r'\b(android\s*box|box\s*oto|box\s*xe|icar\s*d4|vietmap\s*bs10|bs10|gb4|gb7|gb9|htd\s*d12se)\b', clean_text))
+    if is_box:
+        res = "📦 **BẢNG BÁO GIÁ ANDROID BOX CHÍNH HÃNG (GIỮ NGUYÊN MÀN ZIN XE)**\n"
+        res += "*(Cắm giắc USB/Type-C biến màn zin thành màn Android, dùng Vietmap cảnh báo tốc độ, phạt nguội, Youtube không quảng cáo)*\n"
+        res += "───────────────────────────\n"
+        res += "• **Box HTD D12SE:** **5.000.000 đ**\n"
+        res += "• **Box Gotech GB4:** **5.400.000 đ**\n"
+        res += "• **Box iCar D4:** **7.500.000 đ**  ➔ 🔥 *Đang khuyến mãi giảm còn: **6.000.000 đ***\n"
+        res += "• **Box Gotech GB7:** **6.800.000 đ**\n"
+        res += "• **Box Vietmap BS10 (Ram 4GB / Bộ nhớ 64GB):** **7.000.000 đ**\n"
+        res += "• **Box Vietmap BS10 (Ram 6GB / Bộ nhớ 128GB):** **8.400.000 đ**\n"
+        res += "• **Box Vietmap BS10 (Ram 8GB / Bộ nhớ 128GB - Khủng nhất):** **9.500.000 đ**\n"
+        res += "• **Box Gotech GB9:** **9.800.000 đ**\n\n"
+        res += "💡 *Khuyên dùng: Dòng **Vietmap BS10** chạy cực mượt, tản nhiệt tốt và định vị xe từ xa qua điện thoại rất tiện lợi.*"
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    # 5. CAMERA HÀNH TRÌNH & PHỤ KIỆN
+    is_cam = bool(re.search(r'\b(cam\s*hanh\s*trinh|camera\s*hanh\s*trinh|70mai|vietmap\s*m1|vietmap\s*m2|a510|a800se|s720|r440|s860|the\s*nho)\b', clean_text))
+    if is_cam:
+        res = "📹 **BẢNG BÁO GIÁ CAMERA HÀNH TRÌNH CHÍNH HÃNG (70MAI & VIETMAP)**\n\n"
+        res += "🌟 **1. THƯƠNG HIỆU 70MAI (XIAOMI) - ĐỘ NÉT ĐỈNH CAO:**\n"
+        res += "• **70mai 310 Plus (Trước - Thẻ 32GB):** **1.500.000 đ**\n"
+        res += "• **70mai A200 2K (Trước + Sau - Tặng thẻ 32GB):** **2.500.000 đ**\n"
+        res += "• **70mai M500 (Trước - Bộ nhớ 32GB tích hợp):** **2.800.000 đ**\n"
+        res += "• **70mai A510 3K (Trước + Sau - Cảm biến Sony Starvis 2 - Tặng thẻ 64GB):** **3.400.000 đ**\n"
+        res += "• **70mai A800SE 4K (Trước + Sau - Tặng thẻ 64GB):** **3.600.000 đ**\n"
+        res += "• **70mai A800SE SpeedEye 4K (Trước + Sau - Có cảnh báo giao thông - Tặng thẻ 64GB):** **4.800.000 đ**\n"
+        res += "• **70mai S410 Cam Gương (Gương chiếu hậu tích hợp cam lùi - Tặng thẻ 32GB):** **4.150.000 đ**\n"
+        res += "• **70mai Omni 360 (Xoay 360 độ):** Bản 32GB: **3.900.000 đ** | Bản 64GB: **4.200.000 đ**\n"
+        res += "• **70mai T400:** Bản 32GB: **4.200.000 đ** | Bản 64GB: **4.500.000 đ**\n\n"
+
+        res += "🌟 **2. THƯƠNG HIỆU VIETMAP - CẢNH BÁO TỐC ĐỘ & PHẠT NGUỘI:**\n"
+        res += "• **Vietmap S720 (Trước + Sau - Có cảnh báo giao thông):** **3.900.000 đ**\n"
+        res += "• **Vietmap R440 (Cam gương Trước + Sau - Có cảnh báo giao thông):** **3.990.000 đ**\n"
+        res += "• **Vietmap S860 (Trước + Sau - Cảnh báo giao thông):** **4.590.000 đ**\n"
+        res += "• **Vietmap M1 2K (Trước + Sau - BÁN CHẠY NHẤT - Màn hình luôn báo tốc độ giới hạn):** **6.190.000 đ**\n"
+        res += "• **Vietmap M2 4K (Trước + Sau - 4K - Tặng SIM 12 tháng xem từ xa):** **8.980.000 đ**\n\n"
+
+        res += "💾 **3. PHỤ KIỆN BÁN LẺ:**\n"
+        res += "• Thẻ nhớ 32GB: **300.000 đ**  |  Thẻ nhớ 64GB: **400.000 đ**  |  USB 32GB: **350.000 đ**\n"
+        res += "• Cam hành trình Android cắm màn hình: tăng từ 600k lên **800.000 đ**."
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    # 6. BỌC GHẾ DA Ô TÔ
+    is_gheda = bool(re.search(r'\b(boc\s*ghe|ghe\s*da|may\s*ghe|da\s*nappa|da\s*simili|da\s*cong\s*nghiep|gia\s*boc\s*ghe)\b', clean_text))
+    if is_gheda:
+        res = "💺 **BẢNG BÁO GIÁ MAY & BỌC GHẾ DA Ô TÔ - TRẦN BÌNH AUTO**\n"
+        res += "───────────────────────────\n"
+        res += "🚗 **1. BỌC GHẾ DA CHO XE 4 - 5 CHỖ:**\n"
+        res += "• **Da Simili:** **3.500.000 đ** *(Tiết kiệm, chống thấm nước, nhiều màu)*\n"
+        res += "• **Da Công Nghiệp cao cấp:** **6.000.000 đ** *(Mềm mịn, bền bỉ, không mùi, độ bền 4-5 năm)*\n"
+        res += "• **Da Nappa Cao Cấp:** **9.500.000 đ** *(Chất da cực mềm êm ái, thoáng mát, đẳng cấp xe sang)*\n\n"
+        res += "🚐 **2. BỌC GHẾ DA CHO XE 7 CHỖ:**\n"
+        res += "• **Da Simili:** **6.000.000 đ**\n"
+        res += "• **Da Công Nghiệp cao cấp:** **7.500.000 đ**\n"
+        res += "• **Da Nappa Cao Cấp:** **12.000.000 đ**\n\n"
+        res += "───────────────────────────\n"
+        res += "⚠️ **GHI CHÚ ĐẶC BIỆT:**\n"
+        res += "• Riêng **Da Nappa có dập đục lỗ công nghệ cao (lỗ thoát khí thông thoáng lưng ghế)**: **CỘNG THÊM +1.000.000 Đ** vào giá sản phẩm."
+        return {"type": "success", "module": "dichvu", "message": res}
+
+    return None
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 7. CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN PPF (AX FILM, 3M, TECKWRAP)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1667,6 +1866,13 @@ def process_ai_command(user_text, session_id="default_user"):
                 "*(Ví dụ: `F10 Turbo`, `S3`, `S6`, `V20 Base`, `M40 Ultra`, `Titan Gold`... hoặc gõ `hủy` để thoát)*"
             )
         }
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.4. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
+    # ═════════════════════════════════════════════════════════════════════
+    res_gara = handle_gara_consultation(raw, clean)
+    if res_gara:
+        return res_gara
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.5. CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN PPF (AX FILM, 3M, TECKWRAP)
