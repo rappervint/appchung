@@ -626,7 +626,11 @@ def import_excel():
                 continue
             plate = str(r[0]).strip().upper()
             name = str(r[1] or "").strip()
-            phone = str(r[2] or "").strip()
+            phone_raw = str(r[2] or "").strip()
+            if phone_raw.endswith('.0'): phone_raw = phone_raw[:-2]
+            if phone_raw and not phone_raw.startswith('0') and len(phone_raw) in (9, 10) and phone_raw.isdigit():
+                phone_raw = '0' + phone_raw
+            phone = phone_raw
             date_str = str(r[3] or datetime.now().strftime("%Y-%m-%d")).strip()
             item_name = str(r[4]).strip()
             price = float(r[5]) if len(r) > 5 and pd.notna(r[5]) else 0.0

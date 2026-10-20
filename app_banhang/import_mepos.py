@@ -1,3 +1,17 @@
+def clean_phone_number(val):
+    if not val:
+        return ""
+    s = str(val).strip()
+    if s.endswith('.0'):
+        s = s[:-2]
+    # Bỏ dấu chấm, dấu phẩy thừa nếu có
+    if s.endswith('.'):
+        s = s[:-1]
+    # Nếu là số điện thoại 9 chữ số (bị Excel cắt mất số 0 ở đầu)
+    if s and not s.startswith('0') and len(s) in (9, 10) and s.isdigit():
+        s = '0' + s
+    return s
+
 import os
 import io
 import csv
@@ -68,7 +82,7 @@ def import_mepos_invoices(csv_content_or_filepath):
 
         cust_code = (r.get('Mã khách hàng') or '').strip()
         cust_name = (r.get('Tên khách hàng') or '').strip()
-        phone = (r.get('Điện thoại') or '').strip()
+        phone = clean_phone_number(r.get('Điện thoại') or '')
         note = (r.get('Ghi chú') or '').strip()
         
         # Tiền hàng
