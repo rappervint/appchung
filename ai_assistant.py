@@ -1324,12 +1324,9 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
                 return {"type": "info", "message": f"📦 Không tìm thấy mặt hàng nào khớp với từ khóa: **'{raw_q}'** trong kho."}
             return None
 
-        reply = f"📦 **KẾT QUẢ TÌM KIẾM MẶT HÀNG TRONG KHO: '{raw_q.upper()}'**\n"
-        reply += f"*(Tìm thấy {len(results)} mặt hàng tương tự, hiển thị {len(top_matches)} kết quả phù hợp nhất)*\n\n"
+        reply = f"🏷️ **BÁO GIÁ SẢN PHẨM: '{raw_q.upper()}'**\n\n"
 
         for p in top_matches:
-            stock_qty = p['stock'] or 0
-            stock_badge = f"🟢 Còn {stock_qty} cái" if stock_qty > 0 else "🔴 HẾT HÀNG (0)"
             war_m = p['warranty_months'] or 0
             war_badge = f"{war_m} tháng" if war_m > 0 else (p['warranty_raw'] or 'Theo nhà sản xuất')
             cat_label = f"📁 *{p['category']}*\n" if p['category'] else ""
@@ -1337,10 +1334,9 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
             reply += f"• **{p['name']}** `({p['code'] or 'SP'})`\n"
             if cat_label:
                 reply += f"  {cat_label}"
-            reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | Giá vốn: {p['cost_price']:,.0f} đ\n"
-            reply += f"  - 📦 Tồn kho: **{stock_badge}** | 🛡️ Bảo hành: **{war_badge}**\n\n"
+            reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | 🛡️ Bảo hành: **{war_badge}**\n\n"
 
-        reply += "👉 [Bấm vào đây để mở Kho Hàng & Bán Hàng](/banhang/)"
+        reply += "👉 [Xem danh sách kho hàng](/banhang/)"
         return {
             "type": "success",
             "module": "banhang",
