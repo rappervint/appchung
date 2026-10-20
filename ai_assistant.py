@@ -20,14 +20,16 @@ def extract_product_keyword(text):
 ╔══════════════════════════════════════════════════════════════════════╗
 ║        TRỢ LÝ AI ĐIỀU HÀNH GARA Ô TÔ TRẦN BÌNH AUTO (ai_assistant.py) ║
 ║                                                                      ║
-║  Tính năng:                                                          ║
-║  - Xử lý ngôn ngữ tự nhiên tiếng Việt, từ viết tắt, sai chính tả      ║
-║  - Ra lệnh ghi sổ thu chi (thu/chi, gõ tắt k, tr, số tiền)           ║
-║  - Ra lệnh nhập đơn báo cáo đèn (bi led, bi gầm, f10, s3, v20...)     ║
-║  - Hỗ trợ combo nhiều món đèn cùng lúc, phân bổ giảm giá tự động     ║
-║  - Tra cứu bảo hành, lịch sử đơn hàng theo biển số xe/SĐT/tên khách  ║
-║  - Tra cứu tồn kho & giá bán sản phẩm                                ║
-║  - Thống kê doanh số, số dư quỹ tiền mặt hiện tại                    ║
+║  Tính năng tối ưu chuyên sâu:                                        ║
+║  - Xử lý siêu tốc mọi cú pháp nhập Đơn Báo Cáo Doanh Thu Đèn:        ║
+║    + Gõ tắt cực ngắn: "anh cường accent f10 new 3900"                ║
+║    + Tự động điền giá niêm yết nếu quên gõ giá: "vf5 s3 anh hòa"     ║
+║    + Khách mua về / xe đi xét: "mua về raize m20 2500"               ║
+║    + Nhận diện số lượng: "2 bộ s3 vf3 anh hiếu 3000"                 ║
+║    + Nhập combo nhiều món cùng lúc & tự chia giảm giá                ║
+║  - Tra cứu thống kê doanh thu đèn chu kỳ 9-8 và đơn lắp hôm nay      ║
+║  - Hủy / xóa đơn đèn vừa nhập nhầm tức thì                           ║
+║  - Ghi sổ Thu / Chi, tra cứu bảo hành, tồn kho & giá bán sản phẩm    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 """
 
@@ -35,7 +37,7 @@ import os
 import re
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -99,17 +101,14 @@ def parse_vietnamese_money(text):
     2tr -> 2000000
     500 nghin / 500 ngàn -> 500000
     350000 -> 350000
-    Tự động loại bỏ ngày tháng để không nhầm năm 2026 thành 2026đ
     """
     if not text:
         return 0
 
-    # Bỏ ngày tháng trước khi parse tiền
     t = re.sub(r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b', ' ', text)
     t = re.sub(r'\b20[2-3]\d\b', ' ', t)
     clean = remove_accents(t).replace(',', '.')
 
-    # 1. Tách kiểu 1tr5 -> 1.500.000
     m_tr_split = re.search(r'(\d+)\s*tr\s*(\d+)\b', clean)
     if m_tr_split:
         main_tr = int(m_tr_split.group(1))
@@ -117,28 +116,23 @@ def parse_vietnamese_money(text):
         dec_val = int(dec) * (10 ** (6 - len(dec))) if len(dec) <= 6 else 0
         return main_tr * 1000000 + dec_val
 
-    # 2. Triệu: 1.5tr, 2tr, 3trieu
     m_tr = re.search(r'(\d+(?:\.\d+)?)\s*(?:tr|trieu|triệu|m)\b', clean)
     if m_tr:
         return int(float(m_tr.group(1)) * 1000000)
 
-    # 3. Nghìn: 500k, 50k, 120nghin, 120ngan
     m_k = re.search(r'(\d+(?:\.\d+)?)\s*(?:k|nghin|ngan|nghìn|ngàn)\b', clean)
     if m_k:
         return int(float(m_k.group(1)) * 1000)
 
-    # 4. Chuỗi số có dấu chấm ngăn cách: 1.500.000 hoặc 500.000
     m_dot = re.search(r'\b(\d{1,3}(?:\.\d{3})+)\b', t)
     if m_dot:
         return int(m_dot.group(1).replace('.', ''))
 
-    # 5. Số nguyên liên tục >= 1000
     m_num = re.search(r'\b(\d{4,10})\b', clean)
     if m_num:
         val = int(m_num.group(1))
         return val
 
-    # 6. Viết tắt sổ thu chi: chi 50 (nghĩa là 50k) nếu số nhỏ hơn 1000
     m_small = re.search(r'(?:thu|chi|gia|giá|tiền|tien)\s+(\d{1,3})\b', clean)
     if m_small:
         val = int(m_small.group(1))
@@ -162,10 +156,12 @@ def extract_phone(text):
     m = re.search(r'\b(0[35789]\d{8})\b', text)
     return m.group(1) if m else ""
 
-# Danh mục đèn thông dụng & bảng giá niêm yết mặc định (k = nghìn đồng)
+# ── DANH MỤC ĐÈN THỰC TẾ & BẢNG GIÁ NIÊM YẾT TẠI GARA (k = nghìn đồng) ──
 LAMP_CATALOG = [
+    # Dòng V20 Series
     (r'\bv20\s*base\b', 'V20 BASE', 6500),
     (r'\bv20\s*ultra\b|\bv20l\b|\bv20\b', 'BI LED V20', 5850),
+    # Dòng Naoevo / X-Light S Series
     (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'XLIGHT S3 PRO', 1500),
     (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'NAOEVO S3', 1500),
     (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'NAOEVO S6 PRO', 2000),
@@ -174,90 +170,104 @@ LAMP_CATALOG = [
     (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'NAOEVO S8', 2500),
     (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'NAOEVO S9 PRO', 3000),
     (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'NAOEVO S9', 2800),
+    # Dòng Bi Gầm F10 Series (Bán chạy nhất)
     (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 5500),
     (r'\bf10\s*turbo\b', 'F10 TURBO', 5100),
     (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 5500),
     (r'\bf10\s*new\s*2\.?0\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b', 'F10 NEW 2.0', 3900),
+    (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 4500),
+    # Dòng M Series
+    (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 2500),
+    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 3100),
     (r'\bm30\s*ultra\b|\bm30\b', 'M30 ULTRA', 5500),
     (r'\bm40\s*ultra\b|\bm40\b', 'M40 ULTRA', 6500),
-    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 3100),
+    # Dòng Titan & GTR
     (r'\btitan\s*gold\b', 'TITAN GOLD', 6750),
     (r'\btitan\s*black\b', 'TITAN BLACK', 5500),
     (r'\btitan\s*platinum\b', 'TITAN PLATINUM', 8500),
     (r'\bg1\s*turbo\b', 'G1 TURBO', 6200),
     (r'\bxlight\s*301\b|\b301\b', 'XLIGHT 301', 4500),
     (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 6000),
-    (r'\b(?:led\s*mi|mi\s*led|led\s*deo)\b', 'MÍ LED', 1800),
+    (r'\bcb150\b', 'CB150', 3800),
+    # Mí LED & Vòng BM
+    (r'\b(?:led\s*mi|mi\s*led|led\s*deo|mi\s*deo)\b', 'MÍ LED', 1800),
+    (r'\bvong\s*bm\b|\bvòng\s*bm\b', 'VÒNG BM', 1500),
+    (r'\bvong\s*angel\b|\bvòng\s*angel\b', 'VÒNG ANGEL', 1200),
 ]
 
+# Danh mục đầy đủ các dòng xe tại Việt Nam
 CAR_MODELS_LIST = [
-    'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'XPANDER', 'INNOVA', 'VIOS', 'ACCENT', 'CITY', 
-    'FORTUNER', 'CAMRY', 'RANGER', 'CARNIVAL', 'EVEREST', 'KONA', 'ELANTRA', 'MG5', 'TERRITORY', 
-    'BRV', 'CRV', 'MAZDA 3', 'MAZDA 2', 'CX5', 'CX8', 'HILUX', 'CROSS', 'MORNING', 'I10', 'SOLATI',
-    'SANTAFE', 'TUCSON', 'CERATO', 'K3', 'SORENTO', 'SEDONA', 'TRANSIT'
+    'DESTINATOR', 'FORTUNER', 'CARNIVAL', 'EVEREST', 'TERRITORY', 'STARGAZER', 'FORESTER', 'OUTLANDER',
+    'XPANDER', 'INNOVA', 'SOLATI', 'TRANSIT', 'SANTAFE', 'TUCSON', 'CERATO', 'SORENTO', 'SEDONA',
+    'ACCENT', 'ELANTRA', 'RANGER', 'CAMRY', 'MAZDA 3', 'MAZDA 2', 'MORNING', 'ERTIGA', 'CUSTIN',
+    'VIOS', 'CITY', 'KONA', 'CROSS', 'HILUX', 'RAIZE', 'CRETA', 'SELTOS', 'SONET', 'MPV7',
+    'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'CX5', 'CX8', 'BRV', 'CRV', 'MG5', 'I10', 'XL7', 'K3'
 ]
+
+def get_current_cycle():
+    """Chu kỳ báo cáo đèn 9 đến 8 hàng tháng"""
+    today = date.today()
+    if today.day <= 8:
+        if today.month == 1:
+            return today.year - 1, 12
+        return today.year, today.month - 1
+    return today.year, today.month
+
+def get_cycle_dates(year, month):
+    start_date = f"{year:04d}-{month:02d}-09"
+    if month == 12:
+        end_date = f"{year + 1:04d}-01-08"
+    else:
+        end_date = f"{year:04d}-{month + 1:02d}-08"
+    return start_date, end_date
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CÁC HÀM XỬ LÝ CHUYÊN BIỆT THEO Ý ĐỊNH (INTENTS)
+# 1. NHẬP BÁO CÁO DOANH THU ĐÈN TỐI ƯU SIÊU TỐC
 # ─────────────────────────────────────────────────────────────────────────────
 
 def handle_baocao_den(raw_text, clean_text):
     """
-    Xử lý lệnh ghi đơn báo cáo doanh thu đèn thông minh:
-    - Hỗ trợ đơn 1 món hoặc COMBO nhiều món đèn cùng lúc
-    - Tự động nhận diện khách hàng, dòng xe, biển số, ngày lắp
-    - Tự động nhận diện giảm giá (chiết khấu) và phân bổ công bằng vào các món
-    - Lưu trực tiếp vào database doanhthu_den.db (báo cáo chu kỳ 9-8)
+    Xử lý lệnh ghi đơn báo cáo doanh thu đèn tối ưu tuyệt đối:
+    - Bóc tách theo bất kỳ trật tự câu chữ nào: [Khách] [Xe] [Đèn] [Giá] hoặc [Đèn] [Xe] [Khách]
+    - Tự động tra cứu giá niêm yết nếu người dùng quên gõ giá
+    - Tự động nhận diện số lượng: '2 bộ s3', '2 cái f10'
+    - Hỗ trợ các khách hàng đặc biệt: 'mua về', 'xe đi xét', 'thầy đức', 'chú ba'
+    - Hỗ trợ combo nhiều món & tự động phân bổ chiết khấu / giảm giá
     """
-    # Nhận biết đơn đèn
-    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam)\b', clean_text))
-    has_action = bool(re.search(r'\b(lap|gan|ban|do|thay|nhap|ghi|don|len)\b', clean_text))
-    has_target = bool(re.search(r'\b(cho xe|xe|khach|anh|chi|chu|bac|em|co)\b', clean_text)) or bool(extract_license_plate(raw_text))
-    has_specific_price = bool(re.search(r'(?:giá|gia)\s+\d+', raw_text, re.IGNORECASE))
-
+    # Nhận diện xem câu có mã đèn hoặc từ khóa làm đèn không
+    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam|m10|m20|f150|cb150)\b', clean_text))
     if not is_den:
         return None
 
-    # Nếu câu chỉ hỏi giá / tồn kho mà không có hành động hoặc số tiền cụ thể -> không phải đơn đèn
-    if bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho)\b', clean_text)) and not has_action:
+    # Nếu chỉ đang hỏi giá hoặc hỏi tồn kho thuần túy
+    is_pure_query = bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho|het hang)\b', clean_text)) and \
+                    not bool(re.search(r'\b(lap|gan|do|thay|ban|don|nhap)\b', clean_text))
+    if is_pure_query:
         return None
 
-    if not (has_action or has_target or has_specific_price):
-        return None
+    text = raw_text.strip()
 
-    working_text = raw_text.strip()
-
-    # 1. Ngày ghi nhận
-    order_date, working_text = extract_date(working_text)
-
-    # 2. Biển số xe
-    plate = extract_license_plate(working_text)
+    # 1. Biển số xe
+    m_plate = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{1,2})?)\b', text.upper())
+    plate = m_plate.group(1).strip() if m_plate else ''
     if plate:
-        working_text = working_text.replace(plate, ' ')
+        text = text.replace(m_plate.group(0), ' ')
 
-    # 3. Khách hàng (bóc tách xưng hô + tên: Chị Cẩm Tuyền, Anh Hoàng, Chú Ba...)
-    cust_name = ""
-    m_cust = re.search(r'(?:(chị|chi|anh|chú|chu|bác|bac|em|cô|co|khách|khach)\s+([a-zA-ZÀ-ỹ\s]+?))(?=\s+(?:lắp|lap|gắn|gan|độ|do|mua|lấy|thay|xe|cho xe|giá|gia|\d|,|$))', working_text, re.IGNORECASE)
-    if m_cust:
-        honorific = m_cust.group(1).title()
-        cname_part = m_cust.group(2).strip().upper()
-        cust_name = f"{honorific} {cname_part}"
-        working_text = working_text[:m_cust.start()] + ' ' + working_text[m_cust.end():]
+    # 2. Ngày ghi nhận
+    order_date, text = extract_date(text)
 
-    # 4. Dòng xe
-    found_car = ""
+    # 3. Dòng xe (bóc tách và xóa khỏi text để không nhầm thành tên khách)
+    found_car = ''
     for c in CAR_MODELS_LIST:
-        if re.search(r'\b' + c + r'\b', working_text, re.IGNORECASE):
+        m_c = re.search(r'(?:cho\s+xe\s+|xe\s+)?\b' + c + r'\b', text, re.IGNORECASE)
+        if m_c:
             found_car = c
-            working_text = re.sub(r'(?:cho\s+xe\s+|xe\s+)?\b' + c + r'\b', ' ', working_text, flags=re.IGNORECASE)
+            text = text[:m_c.start()] + ' ' + text[m_c.end():]
             break
 
-    if not cust_name:
-        cust_name = plate if plate else (found_car if found_car else 'KHÁCH LẺ')
-
-    # 5. Giảm giá (chiết khấu / bớt tiền)
+    # 4. Giảm giá (chiết khấu / bớt tiền)
     discount_k = 0
-    m_disc = re.search(r'(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau)\s*([0-9.,]+(?:\s*(?:tr|trieu|triệu|k|%))?)', working_text, re.IGNORECASE)
+    m_disc = re.search(r'(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau)\s*([0-9.,]+(?:\s*(?:tr|trieu|triệu|k|%))?)', text, re.IGNORECASE)
     disc_is_pct = False
     disc_pct_val = 0
     if m_disc:
@@ -275,23 +285,45 @@ def handle_baocao_den(raw_text, clean_text):
                 discount_k = int(val / 1000)
             else:
                 discount_k = int(val)
-        working_text = working_text[:m_disc.start()] + ' ' + working_text[m_disc.end():]
+        text = text[:m_disc.start()] + ' ' + text[m_disc.end():]
+
+    # 5. Khách hàng đặc biệt (Mua về, Xe đi xét, Giao thợ...)
+    cust_special = ''
+    special_custs = [('MUA VỀ', r'\b(?:mua\s+ve|mua\s+về)\b'),
+                     ('XE ĐI XÉT', r'\b(?:xe\s+di\s+xet|xe\s+đi\s+xét)\b'),
+                     ('GIAO THỢ', r'\b(?:giao\s+tho|giao\s+thợ)\b'),
+                     ('XE BÃI', r'\b(?:xe\s+bai|xe\s+bãi)\b')]
+    for ctag, cpat in special_custs:
+        m_sc = re.search(cpat, text, re.IGNORECASE)
+        if m_sc:
+            cust_special = ctag
+            text = text[:m_sc.start()] + ' ' + text[m_sc.end():]
+            break
 
     # 6. Tách từng món đèn trong câu
-    # Chèn dấu phẩy ngăn cách nếu người dùng gõ liền không có dấu phẩy
-    working_text = re.sub(r'(?<=\d)\s+(?=(?:đèn|den|bi|bóng|bong|pha|gầm|gam|v20|f10|s3|s6|s8|s9|m30|m40|titan))', ', ', working_text, flags=re.IGNORECASE)
-    chunks = [c.strip() for c in re.split(r'[,;\n]|\b(?:và|cong|\+)\b', working_text) if c.strip()]
+    text = re.sub(r'(?<=\d)\s+(?=(?:đèn|den|bi|bóng|bong|pha|gầm|gam|v20|f10|s3|s6|s8|s9|m30|m40|titan))', ', ', text, flags=re.IGNORECASE)
+    chunks = [ch.strip() for ch in re.split(r'[,;\n]|\b(?:và|cong|\+)\b', text) if ch.strip()]
 
     items = []
+    cust_candidates = []
+
     for chunk in chunks:
-        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do)\s+', '', chunk, flags=re.IGNORECASE).strip()
+        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do|cho)\s+', '', chunk, flags=re.IGNORECASE).strip()
         if not c:
             continue
+
+        # Số lượng
+        qty = 1
+        m_qty = re.search(r'\b(\d+)\s*(?:bộ|bo|cặp|cap|cái|cai|hộp|hop)\b', c, re.IGNORECASE)
+        if m_qty:
+            qty = int(m_qty.group(1))
+            c = c[:m_qty.start()] + ' ' + c[m_qty.end():]
 
         # Bóc giá trong từng món
         m_p = re.search(r'(?:giá|gia)?\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|nghin|ngàn)?(?:\s*đ|\s*vnd)?$', c, re.IGNORECASE)
         price_k = 0
         raw_name = c
+        is_default_price = False
         if m_p:
             num_str = m_p.group(1).replace(',', '.')
             unit = (m_p.group(2) or '').lower()
@@ -311,33 +343,58 @@ def handle_baocao_den(raw_text, clean_text):
             raw_name = c[:m_p.start()].strip()
             raw_name = re.sub(r'\b(giá|gia)\b\s*$', '', raw_name, flags=re.IGNORECASE).strip()
 
-        # Chuẩn hóa tên sản phẩm theo Catalog
-        matched_name = raw_name.upper()
-        matched_default_price = 3500
+        # Nhận diện tên đèn theo Catalog
+        matched_name = ''
+        matched_default = 3500
         for pat, cname, dprice in LAMP_CATALOG:
-            if re.search(pat, raw_name, re.IGNORECASE):
+            m_l = re.search(pat, raw_name, re.IGNORECASE)
+            if m_l:
                 matched_name = cname
-                matched_default_price = dprice
+                matched_default = dprice
+                # Bất kỳ từ ngữ nào nằm trước hoặc sau tên đèn đều là tên khách hàng
+                leftover = raw_name[:m_l.start()] + ' ' + raw_name[m_l.end():]
+                clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe)\b', ' ', leftover, flags=re.IGNORECASE)
+                clean_left = ' '.join(clean_left.split()).strip()
+                if clean_left and len(clean_left) >= 2:
+                    cust_candidates.append(clean_left)
                 break
 
+        if not matched_name:
+            matched_name = raw_name.upper()
+
         if price_k == 0:
-            price_k = matched_default_price
+            price_k = matched_default * qty
+            is_default_price = True
 
         items.append({
-            'raw_name': raw_name.upper(),
             'product_name': matched_name,
-            'base_price_k': price_k
+            'quantity': qty,
+            'base_price_k': price_k,
+            'is_default': is_default_price
         })
 
     if not items:
         return None
 
-    # Tính chiết khấu phần trăm nếu có
+    # Xác định tên khách
+    cust_name = cust_special
+    if not cust_name and cust_candidates:
+        cust_name = cust_candidates[0].strip().title()
+    if not cust_name:
+        cust_name = plate if plate else (found_car if found_car else 'KHÁCH LẺ')
+
+    # Chuẩn hóa từ xưng hô khách
+    cust_name = re.sub(r'\bThay\b', 'Thầy', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bChi\b', 'Chị', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bChu\b', 'Chú', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bBac\b', 'Bác', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bEm\b', 'Em', cust_name, flags=re.IGNORECASE)
+
+    # Phân bổ giảm giá
     total_base_k = sum(it['base_price_k'] for it in items)
     if disc_is_pct:
         discount_k = int(round(total_base_k * (disc_pct_val / 100)))
 
-    # Phân bổ giảm giá vào từng món để sum(final_price_k) chính xác bằng thực thu
     allocated = 0
     for i, it in enumerate(items):
         if i == len(items) - 1:
@@ -350,7 +407,7 @@ def handle_baocao_den(raw_text, clean_text):
 
     total_final_k = sum(it['final_price_k'] for it in items)
 
-    # Ghi nhận vào DB doanhthu_den.db
+    # Lưu trực tiếp vào database doanhthu_den.db
     if not os.path.exists(DB_DEN):
         return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
 
@@ -361,21 +418,23 @@ def handle_baocao_den(raw_text, clean_text):
         for it in items:
             c.execute("""
                 INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
-                VALUES (?, ?, ?, ?, 1, ?, 'AI_ASSISTANT')
-            """, (order_date, it['product_name'], cust_name, found_car or 'XE Ô TÔ', it['final_price_k']))
+                VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
+            """, (order_date, it['product_name'], cust_name, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
             saved_ids.append(c.lastrowid)
         conn.commit()
         conn.close()
 
-        # Soạn phản hồi trực quan, chi tiết
+        # Soạn phản hồi chi tiết, trực quan
         item_lines = []
         for i, it in enumerate(items, 1):
-            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k)"
+            qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
+            default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
+            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
             if it['discount_k'] > 0:
                 final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
-                item_lines.append(f"  {i}. **{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
             else:
-                item_lines.append(f"  {i}. **{it['product_name']}**: **{base_str}**")
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
 
         items_text = "\n".join(item_lines)
         total_base_str = f"{total_base_k*1000:,.0f} đ ({total_base_k:,}k)"
@@ -399,19 +458,167 @@ def handle_baocao_den(raw_text, clean_text):
                 + (f"• **Tổng tiền gốc:** {total_base_str}\n" if discount_k > 0 else "")
                 + discount_text
                 + f"\n• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n\n"
-                f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)"
+                f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
+                f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
             )
         }
     except Exception as e:
         return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. XÓA / HOÀN NGUYÊN ĐƠN ĐÈN VỪA NHẬP NHẦM
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_undo_last_lamp_order(raw_text, clean_text):
+    """Hủy nhanh đơn đèn vừa nhập bởi AI nếu người dùng gõ nhầm"""
+    is_undo = bool(re.search(r'\b(xoa don|huy don|xoa don vua nhap|huy don vua nhap|xoa vua roi|huy vua roi|undo)\b', clean_text))
+    if not is_undo:
+        return None
+
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=10)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        # Tìm đơn gần nhất do AI_ASSISTANT tạo
+        c.execute("""
+            SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
+            FROM orders
+            WHERE sheet_origin = 'AI_ASSISTANT'
+            ORDER BY id DESC LIMIT 3
+        """)
+        recent_rows = c.fetchall()
+
+        if not recent_rows:
+            conn.close()
+            return {"type": "info", "message": "🔎 Hiện không tìm thấy đơn đèn nào do Trợ Lý AI vừa tạo để xóa."}
+
+        # Xóa đơn gần nhất
+        last_id = recent_rows[0]['id']
+        c.execute("DELETE FROM orders WHERE id = ?", (last_id,))
+        conn.commit()
+        conn.close()
+
+        r = recent_rows[0]
+        return {
+            "type": "success",
+            "module": "den",
+            "message": (
+                f"🗑️ **ĐÃ HỦY THÀNH CÔNG ĐƠN ĐÈN VỪA NHẬP!**\n\n"
+                f"• **Mã đơn đã xóa:** #{r['id']}\n"
+                f"• **Khách hàng:** {r['customer_name']}\n"
+                f"• **Dòng xe:** {r['car_model']}\n"
+                f"• **Sản phẩm:** {r['quantity']}x {r['product_name']}\n"
+                f"• **Doanh thu đã giảm:** -{r['price_k']*1000:,.0f} đ (-{r['price_k']:,}k)\n\n"
+                f"👉 [Kiểm tra lại Danh Sách Báo Cáo Đèn](/den/)"
+            )
+        }
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi xóa đơn đèn: {str(e)}"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. TRA CỨU THỐNG KÊ DOANH SỐ ĐÈN TỰ NHIÊN
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_baocao_den_stats(raw_text, clean_text):
+    """Báo cáo thống kê chuyên sâu về doanh thu đèn chu kỳ 9-8 và danh sách lắp hôm nay"""
+    is_stat = bool(re.search(r'\b(doanh thu den|doanh so den|bao cao den|ban duoc bao nhieu den|may xe den|don den hom nay|top den|den ban chay)\b', clean_text))
+    if not is_stat:
+        return None
+
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=10)
+        c = conn.cursor()
+
+        # Kỳ hiện tại (mùng 9 đến mùng 8)
+        cy, cm = get_current_cycle()
+        start_date, end_date = get_cycle_dates(cy, cm)
+
+        # 1. Thống kê kỳ này
+        c.execute("""
+            SELECT COUNT(*), COALESCE(SUM(quantity), 0), COALESCE(SUM(price_k), 0)
+            FROM orders
+            WHERE order_date >= ? AND order_date <= ?
+        """, (start_date, end_date))
+        row = c.fetchone()
+        order_count = row[0] or 0
+        total_qty = row[1] or 0
+        total_k = row[2] or 0
+
+        # Số lượt xe độc lập
+        c.execute("""
+            SELECT COUNT(DISTINCT customer_name || '_' || car_model)
+            FROM orders
+            WHERE order_date >= ? AND order_date <= ?
+        """, (start_date, end_date))
+        car_count = c.fetchone()[0] or 0
+
+        # 2. Đơn lắp hôm nay
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        c.execute("""
+            SELECT id, product_name, customer_name, car_model, quantity, price_k
+            FROM orders
+            WHERE order_date = ?
+            ORDER BY id DESC
+        """, (today_str,))
+        today_rows = c.fetchall()
+
+        # 3. Top đèn bán chạy trong kỳ
+        c.execute("""
+            SELECT product_name, SUM(quantity), SUM(price_k)
+            FROM orders
+            WHERE order_date >= ? AND order_date <= ?
+            GROUP BY product_name
+            ORDER BY SUM(quantity) DESC, SUM(price_k) DESC LIMIT 5
+        """, (start_date, end_date))
+        top_prods = c.fetchall()
+        conn.close()
+
+        # Soạn phản hồi
+        reply = (
+            f"💡 **BÁO CÁO DOANH THU ĐÈN — KỲ THÁNG {cm:02d}/{cy}**\n"
+            f"*(Tính từ ngày {start_date.split('-')[2]}/{start_date.split('-')[1]} đến {end_date.split('-')[2]}/{end_date.split('-')[1]})*\n\n"
+            f"• 💰 **Tổng doanh thu:** **{total_k*1000:,.0f} đ** ({total_k:,}k)\n"
+            f"• 📦 **Tổng số bộ đèn đã lắp:** **{total_qty} bộ** ({order_count} dòng đơn)\n"
+            f"• 🚗 **Số lượt xe phục vụ:** **{car_count} xe**\n\n"
+        )
+
+        # Danh sách hôm nay
+        if today_rows:
+            reply += f"🕒 **ĐƠN ĐÈN LẮP HÔM NAY ({datetime.now().strftime('%d/%m/%Y')} - {len(today_rows)} đơn):**\n"
+            for r in today_rows:
+                reply += f"  • #{r[0]}: **{r[4]}x {r[1]}** — Xe: {r[3]} ({r[2]}) ➔ **{r[5]*1000:,.0f} đ**\n"
+            reply += "\n"
+        else:
+            reply += f"🕒 **Hôm nay ({datetime.now().strftime('%d/%m/%Y')}):** Chưa có đơn đèn nào được ghi nhận.\n\n"
+
+        # Top đèn bán chạy
+        if top_prods:
+            reply += "🔥 **TOP ĐÈN BÁN CHẠY NHẤT KỲ NÀY:**\n"
+            for i, p in enumerate(top_prods, 1):
+                reply += f"  {i}. **{p[0]}**: {p[1]} bộ — Doanh số: {p[2]*1000:,.0f} đ\n"
+            reply += "\n"
+
+        reply += "👉 [Bấm vào đây để mở Báo Cáo Doanh Thu Đèn chi tiết](/den/)"
+        return {"type": "success", "module": "den", "message": reply}
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi tra cứu báo cáo đèn: {str(e)}"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. SỔ THU CHI
+# ─────────────────────────────────────────────────────────────────────────────
+
 def handle_thuchi(raw_text, clean_text):
     """Xử lý lệnh ghi sổ thu hoặc chi"""
-    # Tuyệt đối không xử lý nếu là câu lệnh làm đèn
     if any(k in clean_text for k in ['lap den', 'gan den', 'bi led', 'bi gam', 'v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'naoevo', 'titan']):
         return None
 
-    # Phân biệt xưng hô "chị Lan", "chị Cẩm Tuyền" với động từ "chi tiền":
     has_honorific_chi = bool(re.search(r'\b(chị|chi)\s+([a-zA-ZÀ-ỹ]+)', raw_text, re.IGNORECASE))
     is_explicit_chi = bool(re.search(r'\b(ghi\s*chi|phiếu\s*chi|phieu\s*chi|tiền\s*chi|tien\s*chi|chi\s*tiền|chi\s*tien|chi\s+\d+|chi\s+phi|tam\s*ung|ung\s*tien|tra\s+tien|nop\s+tien|tien\s+an|com|xang|mat\s+bang)\b', clean_text))
 
@@ -429,7 +636,6 @@ def handle_thuchi(raw_text, clean_text):
             "message": f"Tôi nhận ra bạn muốn ghi nhận khoản **{trans_type.upper()}**, nhưng chưa rõ số tiền. Ví dụ: *'chi 500k tiền cơm'* hoặc *'thu 1.5tr tiền cọc'*."
         }
 
-    # Trích xuất nội dung ghi chú (bỏ các từ khóa thu/chi/số tiền/ngày tháng)
     date_str, note_raw = extract_date(raw_text)
     note = note_raw
     note = re.sub(r'\b(ghi\s*)?(thu|chi|tra|nop|mua)\b', '', note, flags=re.IGNORECASE)
@@ -439,7 +645,6 @@ def handle_thuchi(raw_text, clean_text):
     if not note:
         note = "Ghi nhanh qua trợ lý AI"
 
-    # Ghi vào database finance.db
     if not os.path.exists(DB_THUCHI):
         return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
 
@@ -448,7 +653,6 @@ def handle_thuchi(raw_text, clean_text):
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 
-        # Lấy kỳ đang hoạt động
         c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
         p = c.fetchone()
         if not p:
@@ -465,7 +669,6 @@ def handle_thuchi(raw_text, clean_text):
                   (period_id, trans_type, amount, note.capitalize(), now_str))
         conn.commit()
 
-        # Tính lại số dư hiện tại của kỳ
         c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
         balance = c.fetchone()[0] or 0
         conn.close()
@@ -485,6 +688,10 @@ def handle_thuchi(raw_text, clean_text):
         }
     except Exception as e:
         return {"type": "error", "message": f"Lỗi ghi sổ thu chi: {str(e)}"}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. TRA CỨU BẢO HÀNH & ĐƠN HÀNG
+# ─────────────────────────────────────────────────────────────────────────────
 
 def handle_search_warranty_and_orders(raw_text, clean_text):
     """Tra cứu bảo hành và lịch sử đơn hàng theo biển số xe, SĐT, tên khách"""
@@ -508,7 +715,6 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
         }
 
     results = []
-    # 1. Tra cứu trong Phân hệ Bán Hàng (tiem_lap_do.db)
     if os.path.exists(DB_BANHANG):
         try:
             conn = sqlite3.connect(DB_BANHANG, timeout=10)
@@ -544,7 +750,6 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
         except Exception:
             pass
 
-    # 2. Tra cứu trong Phân hệ Báo Cáo Đèn (doanhthu_den.db)
     if os.path.exists(DB_DEN):
         try:
             conn = sqlite3.connect(DB_DEN, timeout=10)
@@ -590,6 +795,10 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
 
     res_text += f"\n👉 [Mở tab Tra cứu trên phần mềm Bán hàng](/banhang/)"
     return {"type": "success", "message": res_text}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. TRA CỨU TỒN KHO & GIÁ BÁN
+# ─────────────────────────────────────────────────────────────────────────────
 
 def handle_stock_and_price(raw_text, clean_text):
     """Tra cứu tồn kho & giá bán sản phẩm thông minh"""
@@ -725,18 +934,31 @@ def process_ai_command(user_text):
         return {
             "type": "clarify",
             "message": "Xin chào! Tôi là **Trợ Lý AI Trần Bình Auto** 🤖.\nTôi có thể giúp bạn:\n\n"
-                       "1. **Ghi sổ Thu / Chi:** *'chi 350k tiền cơm'*, *'thu 2tr tiền cọc'*...\n"
-                       "2. **Ghi Báo Cáo Đèn:** *'lắp F10 Turbo xe Camry 63A-123.45 giá 5.1tr'* hoặc combo *'chị Cẩm Tuyền lắp v20 base giá 6500, đèn s3 giá 1500, giảm giá 1200'*\n"
-                       "3. **Tra Cứu Bảo Hành & Đơn:** *'tra cứu biển số 63A-394.65'*, *'kiểm tra bảo hành anh Sang'*\n"
-                       "4. **Tra Cứu Giá & Tồn Kho:** *'giá bi led v20'*, *'tồn kho vietmap'*\n"
-                       "5. **Báo Cáo Nhanh:** *'tổng kết sổ quỹ'*, *'doanh thu hôm nay'*\n\n"
+                       "1. **Nhập Đơn Báo Cáo Đèn:** Gõ cực ngắn *'anh Cường accent f10 new 3900'*, *'vf3 s3 anh khoa'*, hoặc combo *'chị Lan v20 base 6500, s3 1500 giảm 500k'*\n"
+                       "2. **Thống Kê Doanh Số Đèn:** *'doanh thu đèn tháng này'*, *'đơn đèn hôm nay'*, *'top đèn bán chạy'*\n"
+                       "3. **Hủy Đơn Đèn Nhập Nhầm:** *'hủy đơn đèn vừa nhập'*, *'xóa đơn vừa tạo'*\n"
+                       "4. **Ghi sổ Thu / Chi:** *'chi 350k tiền cơm'*, *'thu 2tr tiền cọc'*...\n"
+                       "5. **Tra Cứu Bảo Hành:** *'tra cứu xe 63A-394.65'*, *'kiểm tra bảo hành anh Sang'*\n"
+                       "6. **Tra Cứu Giá & Tồn Kho:** *'giá bi led v20'*, *'tồn kho f10'*...\n\n"
                        "Hãy gõ câu lệnh bạn muốn thực hiện nhé!"
         }
 
     raw = user_text.strip()
     clean = remove_accents(raw)
 
-    # 1. Thử xử lý Tra cứu tồn kho & Giá bán trước NẾU người dùng hỏi giá hoặc tồn kho
+    # 1. Hủy / Xóa đơn đèn vừa nhập nhầm (Ưu tiên số 1 để thợ có thể sửa sai ngay)
+    if any(k in clean for k in ['xoa don', 'huy don', 'undo']):
+        res = handle_undo_last_lamp_order(raw, clean)
+        if res:
+            return res
+
+    # 2. Thống kê & Báo cáo doanh số đèn (kỳ tháng, hôm nay, top bán chạy)
+    if any(k in clean for k in ['doanh thu den', 'doanh so den', 'bao cao den', 'ban duoc bao nhieu den', 'may xe den', 'don den hom nay', 'top den', 'den ban chay']):
+        res = handle_baocao_den_stats(raw, clean)
+        if res:
+            return res
+
+    # 3. Tra cứu giá bán & tồn kho (nếu là câu hỏi giá thuần túy)
     is_asking_price = bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho|het hang)\b', clean)) or \
                       (bool(re.search(r'\b(gia|gia ban)\b', clean)) and not bool(re.search(r'\b(lap|gan|do|thay|nhap|don)\b', clean)) and not bool(re.search(r'\bgia\s+\d+', clean)))
     if is_asking_price:
@@ -744,57 +966,50 @@ def process_ai_command(user_text):
         if res:
             return res
 
-    # 2. Thử xử lý Tra cứu bảo hành / đơn hàng (nếu có biển số/SĐT hoặc từ khóa tra cứu bảo hành)
-    has_lamp_install = any(k in clean for k in ['lap', 'gan', 'do']) and any(k in clean for k in ['den', 'bi', 'f10', 'v20', 's3', 's6', 's8', 's9', 'turbo', 'hyper'])
-    if (extract_license_plate(raw) or extract_phone(raw) or any(k in clean for k in ['bao hanh', 'tra cuu', 'tim xe', 'check xe'])) and not has_lamp_install:
+    # 4. Tra cứu bảo hành / đơn hàng theo biển số hoặc SĐT
+    has_lamp_keyword = any(k in clean for k in ['v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'hyper', 'titan', 'naoevo', '301', 'f150', 'cb150'])
+    if (extract_license_plate(raw) or extract_phone(raw) or any(k in clean for k in ['bao hanh', 'tra cuu', 'tim xe', 'check xe'])) and not has_lamp_keyword:
         res = handle_search_warranty_and_orders(raw, clean)
         if res:
             return res
 
-    # 3. Thử xử lý Báo cáo đèn & Lắp đèn (ƯU TIÊN HÀNG ĐẦU khi có model đèn hoặc hành động lắp ráp đèn)
-    is_lamp_intent = any(k in clean for k in ['v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'hyper', 'titan', 'naoevo', 'bao cao den']) or \
-                     (any(k in clean for k in ['lap', 'gan', 'do', 'thay', 'ban']) and any(k in clean for k in ['den', 'bi', 'bong', 'pha', 'gam']))
-    if is_lamp_intent:
+    # 5. Nhập Đơn Báo Cáo Đèn (ƯU TIÊN CAO NHẤT khi có mã đèn)
+    if has_lamp_keyword or (any(k in clean for k in ['lap', 'gan', 'do', 'thay', 'ban']) and any(k in clean for k in ['den', 'bi', 'bong', 'pha', 'gam'])):
         res = handle_baocao_den(raw, clean)
         if res:
             return res
 
-    # 4. Thử xử lý Sổ thu chi (thu, chi, tiền ăn, tiền xăng...)
+    # 6. Sổ thu chi (thu, chi, tiền ăn, tiền xăng...)
     if any(k in clean for k in ['thu', 'chi', 'tra tien', 'mua', 'dong tien', 'nop', 'ung']):
         res = handle_thuchi(raw, clean)
         if res:
             return res
 
-    # 5. Fallback Báo cáo đèn nếu có từ đèn / bi
-    res = handle_baocao_den(raw, clean)
-    if res:
-        return res
-
-    # 6. Fallback Tra cứu bảo hành / đơn
+    # 7. Fallback Tra cứu bảo hành / đơn
     res = handle_search_warranty_and_orders(raw, clean)
     if res:
         return res
 
-    # 7. Fallback Tra cứu kho
+    # 8. Fallback Tra cứu kho
     res = handle_stock_and_price(raw, clean)
     if res:
         return res
 
-    # 8. Thử xử lý Thống kê tổng hợp
+    # 9. Thống kê tổng hợp hệ thống
     res = handle_summary_stats(raw, clean)
     if res:
         return res
 
-    # 9. Fallback thông minh: hướng dẫn người dùng
+    # 10. Fallback thông minh
     return {
         "type": "help",
         "message": f"🤖 Tôi chưa hiểu rõ câu lệnh: *'{raw}'*.\n\n"
-                   f"**Bạn có thể thử các mẫu câu tiện lợi sau:**\n"
-                   f"• *'chi 150k tiền xăng xe'* (Tự ghi sổ chi)\n"
-                   f"• *'thu 1tr2 khách cọc làm đèn'* (Tự ghi sổ thu)\n"
-                   f"• *'chị Cẩm Tuyền lắp v20 base giá 6500, đèn s3 giá 1500, giảm giá 1200'* (Tự ghi báo cáo đèn combo)\n"
-                   f"• *'lắp bi gầm F10 xe Innova 63A-123.45'* (Tự ghi báo cáo đèn)\n"
-                   f"• *'tra cứu xe 63A-394.65'* (Xem lịch sử & hạn bảo hành)\n"
-                   f"• *'giá bán bóng s3'* (Tra cứu kho & giá vốn)\n"
-                   f"• *'tổng kết quỹ'* (Xem số dư tiền mặt hiện tại)"
+                   f"**Bạn có thể thử các mẫu lệnh độ đèn tiện lợi sau:**\n"
+                   f"• *'anh Cường accent f10 new 3900'* (Nhập đơn cực nhanh)\n"
+                   f"• *'thầy Đức vios s6 2000'* (Tự nhận diện khách & xe)\n"
+                   f"• *'vf5 s3 anh Hòa'* (Tự động áp dụng giá niêm yết 1.5tr)\n"
+                   f"• *'2 bộ s3 vf3 anh Hiếu 3000'* (Nhận diện số lượng)\n"
+                   f"• *'doanh thu đèn tháng này'* (Xem doanh số kỳ đối soát)\n"
+                   f"• *'đơn đèn hôm nay'* (Xem danh sách các xe làm đèn)\n"
+                   f"• *'hủy đơn đèn vừa nhập'* (Xóa đơn nhập nhầm)"
     }
