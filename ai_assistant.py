@@ -1673,6 +1673,104 @@ def handle_gara_consultation(raw_text, clean_text):
         }
 
     # ═════════════════════════════════════════════════════════════════════════
+    # 3.5. TƯ VẤN CÁC GÓI KẾT HỢP PHIM CÁCH NHIỆT (CUSTOM COMBINED TINT PACKAGES)
+    # ═════════════════════════════════════════════════════════════════════════
+    is_combine_tint = (
+        bool(re.search(r'\b(ket hop|va con lai|con lai|di cung|ghep|mix|phoi)\b', clean_text)) and
+        any(k in clean_text for k in ['film', 'phim', 'kinh', 'cach nhiet']) and
+        any(k in clean_text for k in ['3m', 'ntech', 'ceramax', 'lai 3m'])
+    ) or (
+        bool(re.search(r'\b(kinh lai|lai)\s*(?:3m|ceramax)\b', clean_text)) and
+        bool(re.search(r'\b(?:suon|hau|con lai|than xe)?\s*(?:ntech|ceramax)\b', clean_text))
+    ) or (
+        '3m' in clean_text and 'ntech' in clean_text
+    )
+
+    if is_combine_tint:
+        is_ntech_cc = any(k in clean_text for k in ['cao cap', 'cc'])
+        is_ntech_tc = any(k in clean_text for k in ['tieu chuan', 'tc'])
+
+        # Gói Kính lái 3M + Sườn Ntech
+        if '3m' in clean_text and ('ntech' in clean_text or 'con lai' in clean_text):
+            if is_ntech_cc:
+                res = "☀️ **BÁO GIÁ GÓI KẾT HỢP: KÍNH LÁI 3M CRYSTALLINE + SƯỜN & HẬU NTECH CAO CẤP**\n"
+                res += "*(Sự kết hợp hoàn hảo giữa công nghệ quang học 200 lớp của Mỹ và phim phún xạ cản nhiệt cao cấp Hàn Quốc)*\n"
+                res += "───────────────────────────────────────\n"
+                res += "🚗 **1. DÀNH CHO XE SEDAN (4 - 5 CHỖ):**\n"
+                res += "• **Kính Lái 3M Crystalline (CR50BLK):** **5.700.000 đ** *(BH 10 năm Mỹ - Xuyên sáng 50% bao đăng kiểm)*\n"
+                res += "• **Kính Sườn trước Ntech Cao Cấp:** **1.000.000 đ** (cặp trước)\n"
+                res += "• **Kính Sườn sau Ntech Cao Cấp:** **1.000.000 đ** (cặp sau)\n"
+                res += "• **Kính Hậu Ntech Cao Cấp:** **1.200.000 đ**\n"
+                res += "• 💵 **Tổng giá niêm yết:** ~~8.900.000 đ~~\n"
+                res += "• 🔥 **GIÁ COMBO TRỌN GÓI SEDAN:** **8.500.000 đ** *(Tiết kiệm ngay 400.000 đ)*\n\n"
+                res += "🚙 **2. DÀNH CHO XE SUV (7 CHỖ / GẦM CAO):**\n"
+                res += "• **Kính Lái 3M Crystalline (CR50BLK):** **5.700.000 đ**\n"
+                res += "• **Sườn trước + Sườn sau + Hậu Ntech CC:** **3.200.000 đ**\n"
+                res += "• **Khoang sau (ô chết SUV) Ntech CC:** **900.000 đ**\n"
+                res += "• 💵 **Tổng giá niêm yết:** ~~9.800.000 đ~~\n"
+                res += "• 🔥 **GIÁ COMBO TRỌN GÓI SUV:** **9.300.000 đ** *(Tiết kiệm ngay 500.000 đ)*\n\n"
+                res += "───────────────────────────────────────\n"
+                res += "🎁 **CHÍNH SÁCH ĐẶC BIỆT KHI DÁN TẠI GARA:**\n"
+                res += "• Xe có phim cũ: Gara **TẶNG 100% CÔNG LỘT VÀ VỆ SINH PHIM CŨ** (trị giá **500.000 đ**).\n"
+                res += "• Kính lái dùng mã **CR50BLK** đảm bảo độ truyền sáng > 50% hoàn toàn yên tâm khi đi đăng kiểm mới!\n"
+                res += "• Bảo hành: Kính lái 3M bảo hành điện tử chính hãng 10 năm; Sườn hậu Ntech bảo hành 10 năm."
+                return {"type": "success", "module": "dichvu", "message": res}
+
+            elif is_ntech_tc:
+                res = "☀️ **BÁO GIÁ GÓI KẾT HỢP: KÍNH LÁI 3M CRYSTALLINE + SƯỜN & HẬU NTECH TIÊU CHUẨN**\n"
+                res += "*(Giải pháp tối ưu chi phí: Lái mát rượi với 3M Crystalline Mỹ, sườn tối màu riêng tư với Ntech)*\n"
+                res += "───────────────────────────────────────\n"
+                res += "🚗 **1. XE SEDAN (4 - 5 CHỖ):**\n"
+                res += "• Kính Lái 3M CR50BLK: **5.700.000 đ**\n"
+                res += "• Sườn trước + Sườn sau + Hậu Ntech TC: **2.300.000 đ** (Sườn 700k + 700k, Hậu 900k)\n"
+                res += "• 💵 **Tổng giá niêm yết:** ~~8.000.000 đ~~\n"
+                res += "• 🔥 **GIÁ TRỌN GÓI SEDAN:** **7.600.000 đ** *(Tiết kiệm ngay 400.000 đ)*\n\n"
+                res += "🚙 **2. XE SUV (7 CHỖ):**\n"
+                res += "• Kính Lái 3M CR50BLK: **5.700.000 đ**\n"
+                res += "• Sườn + Hậu + Khoang sau Ntech TC: **2.800.000 đ** (Sườn 1.4tr + Hậu 900k + Ô chết 500k)\n"
+                res += "• 💵 **Tổng giá niêm yết:** ~~8.500.000 đ~~\n"
+                res += "• 🔥 **GIÁ TRỌN GÓI SUV:** **8.000.000 đ** *(Tiết kiệm ngay 500.000 đ)*\n\n"
+                res += "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ trị giá 500k!"
+                return {"type": "success", "module": "dichvu", "message": res}
+
+            else:
+                # Trả về cả 2 phương án (Ntech Tiêu Chuẩn & Ntech Cao Cấp) khi khách hỏi chung
+                res = "☀️ **BẢNG GIÁ CÁC GÓI KẾT HỢP: KÍNH LÁI 3M CRYSTALLINE + SƯỜN & HẬU NTECH**\n"
+                res += "───────────────────────────────────────\n"
+                res += "🌟 **1. GÓI 1: KÍNH LÁI 3M CR50BLK + SƯỜN & HẬU NTECH CAO CẤP (KHUYÊN DÙNG):**\n"
+                res += "  • **Sedan (4 - 5 chỗ):** **8.500.000 đ** *(Niêm yết: 8.900.000 đ)*\n"
+                res += "  • **SUV (7 chỗ):** **9.300.000 đ** *(Niêm yết: 9.800.000 đ)*\n"
+                res += "  • *Chi tiết:* Kính lái 3M Crystalline CR50BLK (5.7tr) + Sườn trước Ntech CC (1tr) + Sườn sau Ntech CC (1tr) + Hậu Ntech CC (1.2tr) + Ô chết SUV (900k).\n"
+                res += "  • *Ưu điểm:* Khả năng cản nhiệt kính sườn cao cấp vượt trội, chống lóa tốt, bảo hành 10 năm.\n\n"
+                res += "🌟 **2. GÓI 2: KÍNH LÁI 3M CR50BLK + SƯỜN & HẬU NTECH TIÊU CHUẨN (TIẾT KIỆM):**\n"
+                res += "  • **Sedan (4 - 5 chỗ):** **7.600.000 đ** *(Niêm yết: 8.000.000 đ)*\n"
+                res += "  • **SUV (7 chỗ):** **8.000.000 đ** *(Niêm yết: 8.500.000 đ)*\n"
+                res += "  • *Chi tiết:* Kính lái 3M Crystalline CR50BLK (5.7tr) + Sườn hậu Ntech TC (2.3tr - 2.8tr).\n\n"
+                res += "🎁 **CHÍNH SÁCH ƯU ĐÃI TẠI GARA:**\n"
+                res += "• Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá **500.000 đ**).\n"
+                res += "• Kính lái dùng mã **CR50BLK** chuẩn đăng kiểm >50% độ xuyên sáng, không lo rớt đăng kiểm!"
+                return {"type": "success", "module": "dichvu", "message": res}
+
+        # Gói Kính lái 3M + Sườn CeraMAX Diamond
+        elif '3m' in clean_text and 'ceramax' in clean_text:
+            res = "☀️ **BÁO GIÁ GÓI KẾT HỢP: KÍNH LÁI 3M CRYSTALLINE + SƯỜN & HẬU CERAMAX DIAMOND**\n"
+            res += "*(Đỉnh cao kết hợp: Kính lái quang học 3M Crystalline Mỹ + Sườn hậu men gốm siêu cản nhiệt Ceramax 99% IR)*\n"
+            res += "───────────────────────────────────────\n"
+            res += "🚗 **1. XE SEDAN (4 - 5 CHỖ):**\n"
+            res += "• Kính Lái 3M Crystalline (CR50BLK): **5.700.000 đ**\n"
+            res += "• Sườn trước + Sườn sau CeraMAX (20/10/05): **4.000.000 đ** (2tr/cặp)\n"
+            res += "• Kính Hậu CeraMAX: **2.200.000 đ**\n"
+            res += "• 💵 **Tổng giá niêm yết:** ~~11.900.000 đ~~\n"
+            res += "• 🔥 **GIÁ COMBO TRỌN GÓI SEDAN:** **11.200.000 đ** *(Tiết kiệm ngay 700.000 đ)*\n\n"
+            res += "🚙 **2. XE SUV (7 CHỖ):**\n"
+            res += "• Kính Lái 3M Crystalline (CR50BLK): **5.700.000 đ**\n"
+            res += "• Sườn + Hậu + Khoang sau CeraMAX Diamond: **8.000.000 đ**\n"
+            res += "• 💵 **Tổng giá niêm yết:** ~~13.700.000 đ~~\n"
+            res += "• 🔥 **GIÁ COMBO TRỌN GÓI SUV:** **12.900.000 đ** *(Tiết kiệm ngay 800.000 đ)*\n\n"
+            res += "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ trị giá 500k!"
+            return {"type": "success", "module": "dichvu", "message": res}
+
+    # ═════════════════════════════════════════════════════════════════════════
     # 4. TÍNH COMBO ĐA DỊCH VỤ TỰ ĐỘNG (COMBO CALCULATOR)
     # ═════════════════════════════════════════════════════════════════════════
     is_combo = bool(re.search(r'\b(combo|cung luc|vua lam|tron goi|goi combo)\b', clean_text)) or \
@@ -1912,7 +2010,11 @@ def handle_gara_consultation(raw_text, clean_text):
         }
 
     # Kính lái 3M Crystalline CR50BLK
-    if bool(re.search(r'\b(cr50|cr50blk|cr 50|kinh lai 3m)\b', clean_text)):
+    is_single_cr50 = (
+        bool(re.search(r'\b(cr50|cr50blk|cr 50)\b', clean_text)) or
+        (bool(re.search(r'\b(kinh lai 3m|lai 3m|gia le kinh lai)\b', clean_text)) and not is_combine_tint)
+    )
+    if is_single_cr50:
         return {
             "type": "success",
             "module": "dichvu",
