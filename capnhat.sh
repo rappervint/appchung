@@ -15,6 +15,9 @@ cd /home/rappervint/appchung || exit 1
 # 2. Kéo code mới nhất từ nhánh main trên GitHub
 git pull origin main
 
+# Tu dong sua cac so dien thoai bi loi .0 trong database cu tren PythonAnywhere
+python3 fix_pa_phones.py
+
 # 3. Chạm vào file WSGI để PythonAnywhere tự động Reload web (không cần bấm chuột trên web)
 touch /var/www/rappervint_pythonanywhere_com_wsgi.py
 
