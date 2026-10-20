@@ -1979,7 +1979,7 @@ def handle_gara_consultation(raw_text, clean_text):
     # ═════════════════════════════════════════════════════════════════════════
 
     # 8.1. BỌC TRẦN Ô TÔ
-    is_tran = bool(re.search(r'\b(boc\s*tran|tran\s*da|tran\s*nilong|tran\s*nilon|lam\s*tran|dan\s*tran|tran\s*5d|tran\s*6d|tran\s*kim\s*cuong|gia\s*tran|tran\s*oto|tran\s*xe)\b', clean_text))
+    is_tran = ('tran' in clean_text) and any(k in clean_text for k in ['boc', 'da', 'nilong', 'nilon', 'kim cuong', '5d', '6d', 'xe', 'oto', 'gia', 'tu van', 'lam', 'dan'])
     if is_tran:
         if 'vf5' in clean_text or 'vf 5' in clean_text:
             return {
@@ -2085,7 +2085,10 @@ def handle_gara_consultation(raw_text, clean_text):
         return {"type": "success", "module": "dichvu", "message": res}
 
     # 8.6. BỌC GHẾ DA Ô TÔ
-    is_gheda = bool(re.search(r'\b(boc\s*ghe|ghe\s*da|may\s*ghe|da\s*nappa|da\s*simili|da\s*cong\s*nghiep|gia\s*boc\s*ghe)\b', clean_text))
+    is_gheda = ('tran' not in clean_text) and (
+        ('ghe' in clean_text and any(k in clean_text for k in ['da', 'boc', 'may', 'thay', 'lam', 'gia', 'tu van', 'xe', 'oto'])) or
+        any(k in clean_text for k in ['boc ghe', 'ghe da', 'da ghe', 'may ghe', 'thay da', 'thay ghe', 'lam ghe', 'boc da', 'nappa', 'simili', 'da cong nghiep', 'gia boc ghe', 'boc nem', 'nem da'])
+    )
     if is_gheda:
         is_4c = any(k in clean_text for k in ['4', '5', 'sedan', 'hatchback'])
         is_7c = any(k in clean_text for k in ['7', 'suv', 'mpv'])
