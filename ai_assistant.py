@@ -2068,6 +2068,20 @@ def handle_gara_consultation(raw_text, clean_text):
             )
         }
 
+    # 70mai A210
+    if bool(re.search(r'\b(a210|70mai a210|cam a210)\b', clean_text)):
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "📹 **CAMERA HÀNH TRÌNH 70MAI A210 (GHI HÌNH TRƯỚC + SAU):**\n"
+                "• **Giá bán trọn gói:** **2.500.000 đ** *(Mã SP: SP2734848)*\n"
+                "• **Cấu hình:** 2 mắt ghi hình Trước + Sau Full HD, góc rộng, quay đêm rõ nét.\n"
+                "• **Quà tặng:** Tặng thẻ nhớ **32GB**, bao trọn công lắp đặt đi dây âm thẩm mỹ tại gara.\n"
+                "• **Bảo hành:** **12 tháng chính hãng 1 đổi 1**."
+            )
+        }
+
     # 70mai A510
     if bool(re.search(r'\b(a510|70mai a510)\b', clean_text)):
         return {
@@ -2453,8 +2467,9 @@ def handle_gara_consultation(raw_text, clean_text):
                 )
             }
 
-        # Nếu hỏi riêng dòng 70mai
-        if any(k in clean_text for k in ['70mai', 'xiaomi']) and not any(k in clean_text for k in ['vietmap', 'so sanh']):
+        # Nếu hỏi riêng dòng 70mai (Chỉ trả về danh sách tổng hợp khi hỏi chung chung, không hỏi mã cụ thể)
+        has_specific_70mai = any(m in clean_text for m in ['a210', 'a200', 'a510', 'a800', 'm310', '310', 'm500', 's410', 'omni', 't400', 't800'])
+        if any(k in clean_text for k in ['70mai', 'xiaomi']) and not has_specific_70mai and not any(k in clean_text for k in ['vietmap', 'so sanh']):
             return {
                 "type": "success",
                 "module": "dichvu",
@@ -2472,8 +2487,9 @@ def handle_gara_consultation(raw_text, clean_text):
                 )
             }
 
-        # Nếu hỏi riêng dòng Vietmap
-        if any(k in clean_text for k in ['vietmap']) and not any(k in clean_text for k in ['70mai', 'so sanh']):
+        # Nếu hỏi riêng dòng Vietmap (Chỉ trả về danh sách khi không hỏi mã cụ thể)
+        has_specific_vietmap = any(m in clean_text for m in ['m1', 'm2', 's720', 'r440', 's860', 'bs10', 'kc01', 'speedmap'])
+        if any(k in clean_text for k in ['vietmap']) and not has_specific_vietmap and not any(k in clean_text for k in ['70mai', 'so sanh']):
             return {
                 "type": "success",
                 "module": "dichvu",
