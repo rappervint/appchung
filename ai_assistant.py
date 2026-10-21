@@ -93,6 +93,66 @@ def extract_date(text):
 
     return now.strftime('%Y-%m-%d'), clean
 
+def parse_month_year(text):
+    """
+    Trích xuất (month, year) cực kỳ linh hoạt từ câu tiếng Việt:
+    - tháng 7/2026, t7/2026, 7/2026, 07/2025 -> (7, 2026)
+    - tháng 7 năm 2026, thang 7 2025 -> (7, 2025)
+    - tháng 7, t7, thg 7 -> (7, None) (Thiếu thông tin năm!)
+    - năm 2025, 2026 -> (None, 2025)
+    - hôm nay, hôm qua, tháng này, kỳ này -> các hằng số nhận diện
+    """
+    if not text:
+        return None, None
+    clean = remove_accents(text).lower().strip()
+
+    if any(k in clean for k in ['hom nay', 'today']):
+        return 'today', None
+    if any(k in clean for k in ['hom qua', 'yesterday']):
+        return 'yesterday', None
+    if any(k in clean for k in ['thang nay', 'ky nay', 'hien tai']):
+        return 'current_cycle', None
+
+    month = None
+    year = None
+
+    # 1. Dạng Month / Year: "tháng 7/2026", "t7/2026", "7/2026", "07/2025", "thang 7 - 2024"
+    m_my = re.search(r'\b(?:thang|thg|t)?\s*([0-1]?\d)[/-](202\d)\b', clean)
+    if m_my:
+        val_m = int(m_my.group(1))
+        val_y = int(m_my.group(2))
+        if 1 <= val_m <= 12:
+            return val_m, val_y
+
+    # 2. Dạng "tháng 7 năm 2026", "tháng 7 năm 26", "thang 7 2025"
+    m_my2 = re.search(r'\b(?:thang|thg|t)\s*([0-1]?\d)\s+(?:nam\s+)?(202\d|\d{2})\b', clean)
+    if m_my2:
+        val_m = int(m_my2.group(1))
+        raw_y = m_my2.group(2)
+        val_y = int(raw_y) if len(raw_y) == 4 else (2000 + int(raw_y))
+        if 1 <= val_m <= 12:
+            return val_m, val_y
+
+    # 3. Chỉ có năm: "năm 2025", "năm 2026"
+    m_year_only = re.search(r'\b(?:nam\s+)?(202[0-9])\b', clean)
+    if m_year_only and not re.search(r'\b(?:thang|thg|t)\b', clean):
+        return None, int(m_year_only.group(1))
+
+    # 4. Chỉ có tháng: "tháng 7", "tháng 07", "t7", "thg 7"
+    m_m_only = re.search(r'\b(?:thang|thg|t)\s*([0-1]?\d)\b', clean)
+    if m_m_only:
+        val_m = int(m_m_only.group(1))
+        if 1 <= val_m <= 12:
+            month = val_m
+
+    # Kiểm tra xem có năm đi kèm ở vị trí khác trong câu không
+    if month is not None:
+        m_y_any = re.search(r'\b(?:nam\s+)?(202[0-9])\b', clean)
+        if m_y_any:
+            year = int(m_y_any.group(1))
+
+    return month, year
+
 def parse_vietnamese_money(text, default_thousands=True):
     """
     Phân tích số tiền tiếng Việt cực kỳ linh hoạt và chuẩn xác:
@@ -383,6 +443,34 @@ def handle_wizard_step(user_text, session_id):
     flow = session['flow']
     step = session['step']
     data = session['data']
+
+    # ══════════════════════════════════════════
+    # FLOW 0: HỎI LẠI NĂM KHI THIẾU THÔNG TIN (BÁO CÁO ĐÈN)
+    # ══════════════════════════════════════════
+    if flow == 'ask_year_den':
+        target_month = session.get('month', 7)
+        m_parsed, y_parsed = parse_month_year(user_text)
+        chosen_year = y_parsed
+        if not chosen_year:
+            m_short_y = re.search(r'\b(202[0-9]|2[2-9])\b', clean)
+            if m_short_y:
+                val = int(m_short_y.group(1))
+                chosen_year = val if val > 100 else (2000 + val)
+
+        if not chosen_year:
+            avail_years = get_available_years_for_cycle_month(target_month)
+            return {
+                "type": "clarify",
+                "message": (
+                    f"⚠️ Chưa nhận diện được năm. Bạn muốn xem tháng {target_month} của năm nào?\n"
+                    f"*(Ví dụ gõ: {', '.join(str(y) for y in avail_years)} hoặc gõ `hủy` để thoát)*"
+                )
+            }
+
+        del WIZARD_SESSIONS[session_id]
+        return generate_baocao_den_cycle_report(chosen_year, target_month)
+
+
 
     # ══════════════════════════════════════════
     # FLOW 1: WIZARD CHI (SỔ THU CHI)
@@ -1126,29 +1214,41 @@ def handle_undo_last_lamp_order(raw_text, clean_text):
 # 3. TRA CỨU THỐNG KÊ DOANH SỐ ĐÈN TỰ NHIÊN
 # ─────────────────────────────────────────────────────────────────────────────
 
-def handle_baocao_den_stats(raw_text, clean_text):
-    """Báo cáo thống kê chuyên sâu về doanh thu đèn chu kỳ 9-8 và danh sách lắp hôm nay"""
-    is_stat = bool(re.search(r'\b(doanh thu den|doanh so den|bao cao den|ban duoc bao nhieu den|may xe den|don den hom nay|top den|den ban chay)\b', clean_text))
-    if not is_stat:
-        return None
+def get_available_years_for_cycle_month(month):
+    """Lấy danh sách các năm có phát sinh đơn hàng trong chu kỳ tháng này"""
+    if not os.path.exists(DB_DEN):
+        return []
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=5)
+        c = conn.cursor()
+        available_years = []
+        for y in [2026, 2025, 2024, 2023, 2022]:
+            s, e = get_cycle_dates(y, month)
+            c.execute("SELECT 1 FROM orders WHERE order_date >= ? AND order_date <= ? LIMIT 1", (s, e))
+            if c.fetchone():
+                available_years.append(y)
+        conn.close()
+        return available_years
+    except:
+        return []
 
+def generate_baocao_den_cycle_report(year, month):
+    """Xuất báo cáo doanh thu đèn chi tiết theo kỳ tháng/năm chu kỳ 9-8"""
     if not os.path.exists(DB_DEN):
         return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
 
     try:
         conn = sqlite3.connect(DB_DEN, timeout=10)
         c = conn.cursor()
-
-        cy, cm = get_current_cycle()
-        start_date, end_date = get_cycle_dates(cy, cm)
+        s, e = get_cycle_dates(year, month)
 
         c.execute("""
             SELECT COUNT(*), COALESCE(SUM(quantity), 0), COALESCE(SUM(price_k), 0)
             FROM orders
             WHERE order_date >= ? AND order_date <= ?
-        """, (start_date, end_date))
+        """, (s, e))
         row = c.fetchone()
-        order_count = row[0] or 0
+        orders_cnt = row[0] or 0
         total_qty = row[1] or 0
         total_k = row[2] or 0
 
@@ -1156,17 +1256,67 @@ def handle_baocao_den_stats(raw_text, clean_text):
             SELECT COUNT(DISTINCT customer_name || '_' || car_model)
             FROM orders
             WHERE order_date >= ? AND order_date <= ?
-        """, (start_date, end_date))
-        car_count = c.fetchone()[0] or 0
+        """, (s, e))
+        car_cnt = c.fetchone()[0] or 0
 
-        today_str = datetime.now().strftime('%Y-%m-%d')
         c.execute("""
-            SELECT id, product_name, customer_name, car_model, quantity, price_k
+            SELECT product_name, SUM(quantity), SUM(price_k)
             FROM orders
-            WHERE order_date = ?
-            ORDER BY id DESC
-        """, (today_str,))
-        today_rows = c.fetchall()
+            WHERE order_date >= ? AND order_date <= ?
+            GROUP BY product_name
+            ORDER BY SUM(quantity) DESC, SUM(price_k) DESC LIMIT 5
+        """, (s, e))
+        top_prods = c.fetchall()
+        conn.close()
+
+        s_d, s_m = s.split('-')[2], s.split('-')[1]
+        e_d, e_m = e.split('-')[2], e.split('-')[1]
+
+        msg = (
+            f"💡 **BÁO CÁO DOANH THU ĐÈN — KỲ THÁNG {month:02d}/{year}**\n"
+            f"*(Tính từ ngày {s_d}/{s_m} đến {e_d}/{e_m})*\n\n"
+            f"• 💰 **Tổng doanh thu:** **{total_k*1000:,.0f} đ** ({total_k:,}k)\n"
+            f"• 📦 **Tổng số bộ đèn đã lắp:** **{total_qty} bộ** ({orders_cnt} dòng đơn)\n"
+            f"• 🚗 **Số lượt xe phục vụ:** **{car_cnt} xe**\n\n"
+        )
+        if top_prods:
+            msg += f"🔥 **TOP ĐÈN BÁN CHẠY NHẤT KỲ {month:02d}/{year}:**\n"
+            for i, p in enumerate(top_prods, 1):
+                p_name = p[0]
+                p_qty = p[1]
+                p_money = (p[2] or 0) * 1000
+                msg += f"  {i}. **{p_name}**: {p_qty} bộ — **{p_money:,.0f} đ**\n"
+        else:
+            msg += "• *(Chưa có dữ liệu đơn hàng trong kỳ này)*\n"
+
+        msg += f"\n👉 [Mở Báo Cáo Đèn kỳ {month:02d}/{year} trên trình duyệt](/den/?month={month}&year={year})"
+        return {"type": "success", "module": "den", "message": msg}
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi xuất báo cáo đèn: {str(e)}"}
+
+def generate_baocao_den_year_report(year):
+    """Xuất báo cáo tổng kết doanh thu đèn cả năm"""
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=10)
+        c = conn.cursor()
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-12-31"
+
+        c.execute("""
+            SELECT COUNT(*), COALESCE(SUM(quantity), 0), COALESCE(SUM(price_k), 0)
+            FROM orders
+            WHERE order_date >= ? AND order_date <= ?
+        """, (start_date, end_date))
+        orders_cnt, total_qty, total_k = c.fetchone()
+
+        c.execute("""
+            SELECT COUNT(DISTINCT customer_name || '_' || car_model)
+            FROM orders
+            WHERE order_date >= ? AND order_date <= ?
+        """, (start_date, end_date))
+        car_cnt = c.fetchone()[0] or 0
 
         c.execute("""
             SELECT product_name, SUM(quantity), SUM(price_k)
@@ -1178,33 +1328,113 @@ def handle_baocao_den_stats(raw_text, clean_text):
         top_prods = c.fetchall()
         conn.close()
 
+        if orders_cnt == 0:
+            return {
+                "type": "info",
+                "message": f"📊 Chưa tìm thấy dữ liệu doanh thu đèn trong năm **{year}**."
+            }
+
         reply = (
-            f"💡 **BÁO CÁO DOANH THU ĐÈN — KỲ THÁNG {cm:02d}/{cy}**\n"
-            f"*(Tính từ ngày {start_date.split('-')[2]}/{start_date.split('-')[1]} đến {end_date.split('-')[2]}/{end_date.split('-')[1]})*\n\n"
-            f"• 💰 **Tổng doanh thu:** **{total_k*1000:,.0f} đ** ({total_k:,}k)\n"
-            f"• 📦 **Tổng số bộ đèn đã lắp:** **{total_qty} bộ** ({order_count} dòng đơn)\n"
-            f"• 🚗 **Số lượt xe phục vụ:** **{car_count} xe**\n\n"
+            f"💡 **TỔNG KẾT DOANH THU ĐÈN NĂM {year}**\n"
+            f"*(Cả năm {year} từ 01/01/{year} đến 31/12/{year})*\n\n"
+            f"• 💰 **Tổng doanh thu cả năm:** **{total_k*1000:,.0f} đ** ({total_k:,}k)\n"
+            f"• 📦 **Tổng số bộ đèn đã lắp:** **{total_qty} bộ** ({orders_cnt} lượt đơn)\n"
+            f"• 🚗 **Số lượt xe nâng cấp đèn:** **{car_cnt} xe**\n\n"
         )
 
-        if today_rows:
-            reply += f"🕒 **ĐƠN ĐÈN LẮP HÔM NAY ({datetime.now().strftime('%d/%m/%Y')} - {len(today_rows)} đơn):**\n"
-            for r in today_rows:
-                reply += f"  • #{r[0]}: **{r[4]}x {r[1]}** — Xe: {r[3]} ({r[2]}) ➔ **{r[5]*1000:,.0f} đ**\n"
-            reply += "\n"
-        else:
-            reply += f"🕒 **Hôm nay ({datetime.now().strftime('%d/%m/%Y')}):** Chưa có đơn đèn nào được ghi nhận.\n\n"
-
         if top_prods:
-            reply += "🔥 **TOP ĐÈN BÁN CHẠY NHẤT KỲ NÀY:**\n"
+            reply += f"🔥 **TOP 5 DÒNG ĐÈN BÁN CHẠY NHẤT NĂM {year}:**\n"
             for i, p in enumerate(top_prods, 1):
-                reply += f"  {i}. **{p[0]}**: {p[1]} bộ — Doanh số: {p[2]*1000:,.0f} đ\n"
+                p_name = p[0]
+                p_qty = p[1]
+                p_money = (p[2] or 0) * 1000
+                reply += f"  {i}. **{p_name}**: {p_qty} bộ — **{p_money:,.0f} đ**\n"
             reply += "\n"
 
-        reply += "👉 [Bấm vào đây để mở Báo Cáo Doanh Thu Đèn chi tiết](/den/)"
+        reply += f"👉 [Mở Báo Cáo Đèn chi tiết trên hệ thống](/den/)"
         return {"type": "success", "module": "den", "message": reply}
     except Exception as e:
-        return {"type": "error", "message": f"Lỗi tra cứu báo cáo đèn: {str(e)}"}
+        return {"type": "error", "message": f"Lỗi tổng kết năm: {str(e)}"}
 
+def generate_baocao_den_today_report():
+    """Báo cáo danh sách đơn đèn lắp đặt trong ngày hôm nay"""
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=10)
+        c = conn.cursor()
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        c.execute("""
+            SELECT id, product_name, customer_name, car_model, quantity, price_k
+            FROM orders
+            WHERE order_date = ?
+            ORDER BY id DESC
+        """, (today_str,))
+        today_rows = c.fetchall()
+        conn.close()
+
+        msg = f"🕒 **DANH SÁCH ĐƠN ĐÈN LẮP HÔM NAY ({datetime.now().strftime('%d/%m/%Y')}):**\n\n"
+        if today_rows:
+            tot = sum(r[5] for r in today_rows) * 1000
+            msg += f"• Tổng số đơn: **{len(today_rows)} đơn**\n"
+            msg += f"• Doanh thu hôm nay: **{tot:,.0f} đ**\n\n"
+            for r in today_rows:
+                msg += f"  • #{r[0]}: **{r[4]}x {r[1]}** — Xe: {r[3]} ({r[2]}) ➔ **{r[5]*1000:,.0f} đ**\n"
+        else:
+            msg += "• Chưa có đơn đèn nào được ghi nhận trong hôm nay.\n"
+        msg += "\n👉 [Mở Báo Cáo Đèn](/den/)"
+        return {"type": "success", "module": "den", "message": msg}
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi lấy đơn hôm nay: {str(e)}"}
+
+def handle_baocao_den_stats(raw_text, clean_text, session_id="default_user"):
+    """Báo cáo thống kê chuyên sâu về doanh thu đèn chu kỳ 9-8 (hỗ trợ hỏi lại năm nếu thiếu thông tin)"""
+    is_stat = bool(re.search(r'\b(doanh thu den|doanh so den|bao cao den|ban duoc bao nhieu den|may xe den|don den hom nay|top den|den ban chay)\b', clean_text)) or \
+              (any(k in clean_text for k in ['doanh thu', 'doanh so', 'bao cao']) and any(k in clean_text for k in ['den', 'bi', 'gam', 'pha', 'bong']))
+    if not is_stat:
+        return None
+
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+
+    month, year = parse_month_year(clean_text)
+
+    # 1. Nếu hỏi hôm nay
+    if month == 'today' or 'hom nay' in clean_text:
+        return generate_baocao_den_today_report()
+
+    # 2. Nếu người dùng chỉ nói tháng (ví dụ: 'tháng 7', 'tổng doanh thu đèn tháng 7') mà THIẾU THÔNG TIN NĂM
+    if isinstance(month, int) and year is None:
+        avail_years = get_available_years_for_cycle_month(month)
+        if avail_years:
+            WIZARD_SESSIONS[session_id] = {'flow': 'ask_year_den', 'month': month, 'step': 1, 'data': {}}
+            buttons_hint = "\n".join([f"• `Tháng {month}/{y}` *(hoặc gõ `{y}`)*" for y in avail_years])
+            return {
+                "type": "clarify",
+                "message": (
+                    f"💡 Bạn muốn xem báo cáo doanh thu đèn **tháng {month} của năm nào** ạ?\n"
+                    f"─────────────────────────────────────────\n"
+                    f"Hệ thống Báo Cáo Đèn ghi nhận dữ liệu tháng {month} các năm: **{', '.join(str(y) for y in avail_years)}**.\n\n"
+                    f"👉 *Bạn vui lòng chọn hoặc gõ năm cần xem:*\n{buttons_hint}"
+                )
+            }
+        else:
+            return {
+                "type": "info",
+                "message": f"📊 Chưa tìm thấy dữ liệu doanh thu đèn cho **Tháng {month}** trong hệ thống."
+            }
+
+    # 3. Nếu người dùng chỉ định cả tháng và năm (ví dụ: 'tháng 7 năm 2026', 'tháng 7/2025', 't7-2024')
+    if isinstance(month, int) and isinstance(year, int):
+        return generate_baocao_den_cycle_report(year, month)
+
+    # 4. Nếu người dùng chỉ định cả năm (ví dụ: 'năm 2025', 'doanh thu đèn 2025')
+    if month is None and isinstance(year, int):
+        return generate_baocao_den_year_report(year)
+
+    # 5. Mặc định: Tháng này / Kỳ hiện tại
+    cy, cm = get_current_cycle()
+    return generate_baocao_den_cycle_report(cy, cm)
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. SỔ THU CHI (ONE-SHOT)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3258,8 +3488,9 @@ def process_ai_command(user_text, session_id="default_user"):
             return res
 
     # 4. Thống kê & Báo cáo doanh số đèn (kỳ tháng, hôm nay, top bán chạy)
-    if any(k in clean for k in ['doanh thu den', 'doanh so den', 'bao cao den', 'ban duoc bao nhieu den', 'may xe den', 'don den hom nay', 'top den', 'den ban chay']):
-        res = handle_baocao_den_stats(raw, clean)
+    if any(k in clean for k in ['doanh thu den', 'doanh so den', 'bao cao den', 'ban duoc bao nhieu den', 'may xe den', 'don den hom nay', 'top den', 'den ban chay']) or \
+       (any(k in clean for k in ['doanh thu', 'doanh so', 'bao cao']) and any(k in clean for k in ['den', 'bi', 'gam', 'pha', 'bong'])):
+        res = handle_baocao_den_stats(raw, clean, session_id)
         if res:
             return res
 
