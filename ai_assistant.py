@@ -194,12 +194,28 @@ def extract_phone(text):
     m = re.search(r'\b(0[35789]\d{8})\b', text)
     return m.group(1) if m else ""
 
+COMMON_CAR_MODELS = {
+    'vios', 'soluto', 'xpander', 'innova', 'camry', 'altis', 'accent', 'elantra',
+    'cerato', 'k3', 'k5', 'morning', 'i10', 'city', 'civic', 'crv', 'brv', 'hrv', 'brio', 'accord',
+    'cross', 'corolla', 'veloz', 'avanza', 'fortuner', 'everest', 'ranger', 'raptor', 'transit', 'ecosport', 'territory', 'explorer',
+    'tucson', 'santafe', 'creta', 'stargazer', 'custin', 'palisade', 'sonet', 'seltos', 'carnival', 'sedona', 'sorento', 'sportage', 'carens',
+    'vf3', 'vf5', 'vf6', 'vf7', 'vf8', 'vf9', 'e34', 'vfe34', 'fadil', 'luxa', 'luxsa',
+    'attrage', 'outlander', 'triton', 'pajero', 'destinator', 'xforce',
+    'cx3', 'cx30', 'cx5', 'cx8', 'mazda2', 'mazda3', 'mazda6', 'bt50',
+    'almera', 'navara', 'xtrail', 'terra', 'sunny',
+    'xl7', 'ertiga', 'swift', 'ciaz', 'carry',
+    'forester', 'outback', 'peugeot', '2008', '3008', '5008', '408',
+    'mg5', 'zs', 'hs', 'traiblazer', 'colorado', 'cruze', 'spark', 'lacetti', 'captiva', 'orlando',
+    'solati', 'hino', 'dmax', 'mux', 'wigo', 'rush', 'hilux', 'yaris', 'c200', 'c300'
+}
+
 def extract_customer_search_intent(text):
     """
-    Nhận diện ý định tra cứu thông tin khách hàng khi người dùng nhập tên kèm đại từ nhân xưng:
-    - Bắt các đại từ: anh, chị, cô, chú, bác, em, dì, dượng, cậu, mợ, thím, thầy, bạn, ông, bà, cụ, khách hàng, khách, chủ xe
-    - Viết tắt thông dụng: a, c, e (kèm chữ cái phía sau, không bắt các mã số/model như a210, c300)
-    - Tiền tố linh hoạt: tìm, kiểm tra, tra cứu, check, xem, sđt, số điện thoại, xe của, xe...
+    Nhận diện ý định tra cứu thông tin khách hàng cực kỳ thông minh:
+    - Nhập tên kèm đại từ nhân xưng: anh, chị, cô, chú, bác, em, dì, dượng, cậu, mợ, thím, thầy, bạn, ông, bà, cụ, khách hàng, khách, chủ xe, a, c, e
+    - Nhập tên kèm dòng xe (dù có hoặc không có đại từ): 'anh toàn soluto', 'toàn soluto', 'anh toàn vios', 'toàn vios'
+    - Cú pháp đảo: 'xe soluto anh toàn', 'xe vios của anh toàn'
+    - Tiền tố linh hoạt: tìm, kiểm tra, tra cứu, check, xem, sđt, số điện thoại, xe của...
     """
     if not text:
         return None
@@ -211,14 +227,32 @@ def extract_customer_search_intent(text):
 
     # Bỏ tiền tố tìm kiếm / sđt / xem xe nếu có
     sub_text = re.sub(r'^(?:tim(?:\s*kiem)?|kiem\s*tra|tra\s*cuu|check|xem|thong\s*tin(?:\s*ve)?|sdt(?:\s*cua)?|so\s*dien\s*thoai(?:\s*cua)?|so\s*dt(?:\s*cua)?|don\s*(?:hang)?(?:\s*cua)?)\s+', '', sub_text).strip()
+
+    # Pattern A: xe [dòng xe] (của)? (anh/chị/...)? [tên khách] (VD: xe soluto anh toàn, xe vios của anh toàn)
+    m_car_first = re.match(r'^(?:xe(?:\s*cua)?)\s+([a-zA-Z0-9\-_]+)\s+(?:cua\s+)?(?:(anh|chi|co|chu|bac|em|di|duong|cau|mo|thim|thay|ban|ong|ba|cu|a|c|e)\s+)?([a-zA-ZÀ-ỹ0-9\s\-_]+)$', sub_text)
+    if m_car_first:
+        car_kw = m_car_first.group(1).strip()
+        hon = (m_car_first.group(2) or '').strip()
+        name_raw = m_car_first.group(3).strip()
+        name_tokens = [t for t in re.split(r'\s+', name_raw) if t]
+        if name_tokens:
+            return {
+                'has_honorific': bool(hon),
+                'honorific': hon,
+                'name': name_tokens[0],
+                'extra': [car_kw] + name_tokens[1:],
+                'raw_query': f'{name_tokens[0]} {car_kw}',
+                'all_tokens': [name_tokens[0], car_kw]
+            }
+
+    # Bỏ tiền tố xe / xe của nếu có
     sub_text = re.sub(r'^(?:xe(?:\s*cua)?)\s+', '', sub_text).strip()
 
-    # Danh sách đại từ nhân xưng đầy đủ
+    # Pattern B: Có đại từ nhân xưng (VD: 'anh toàn soluto', 'anh toàn vios', 'chị mỹ vios')
     full_hon = r'khach\s+hang|khach|chu\s+xe|anh|chi|co|chu|bac|em|di|duong|cau|mo|thim|thay|ban|ong|ba|cu'
-    
     m_hon = re.match(rf'^({full_hon})\s+([a-zA-Z0-9\s\.\-_]+)$', sub_text)
     if not m_hon:
-        # Đại từ viết tắt a, c, e (bắt buộc theo sau là từ bắt đầu bằng chữ cái, tránh mã sản phẩm/xe như a 210, c 300)
+        # Đại từ viết tắt a, c, e (bắt buộc theo sau là chữ cái)
         m_short = re.match(r'^(a|c|e)\s+([a-zA-Z][a-zA-Z0-9\s\.\-_]*)$', sub_text)
         if m_short:
             m_hon = m_short
@@ -226,18 +260,38 @@ def extract_customer_search_intent(text):
     if m_hon:
         hon = m_hon.group(1).strip()
         rest = m_hon.group(2).strip()
-        # Loại bỏ các từ đệm/từ lịch sự cuối câu: nhe, dum, giup, voi, ha, ko, khong, a
         rest = re.sub(r'\b(nhe|dum|giup|voi|ha|ko|khong|a)\b$', '', rest).strip()
         tokens = [t for t in re.split(r'\s+', rest) if t]
-        if tokens and not tokens[0].isdigit():
+        # Loại bỏ các từ đệm nối giữa tên và xe như: di, xe, chay, lai, chiec, con
+        clean_tokens = [tokens[0]]
+        for t in tokens[1:]:
+            if t not in ('di', 'xe', 'chay', 'lai', 'chiec', 'con'):
+                clean_tokens.append(t)
+        if clean_tokens and not clean_tokens[0].isdigit():
             return {
                 'has_honorific': True,
                 'honorific': hon,
-                'name': tokens[0],
-                'extra': tokens[1:],
+                'name': clean_tokens[0],
+                'extra': clean_tokens[1:],
                 'raw_query': rest,
+                'all_tokens': clean_tokens
+            }
+
+    # Pattern C: Không có đại từ nhưng có [Tên khách] [Dòng xe] (VD: 'toàn soluto', 'toàn vios', 'mỹ vios')
+    tokens = [t for t in re.split(r'\s+', sub_text) if t]
+    if len(tokens) >= 2 and tokens[0].isalpha():
+        ignore_words = {'gia', 'bao', 'ban', 'con', 'het', 'muon', 'can', 'hoi', 'tim', 'nhap', 'xem', 'camera', 'cam', 'man', 'hinh', 'den', 'bi', 'bong', 'dan', 'phim', 'film'}
+        if tokens[0] not in ignore_words and (tokens[1] in COMMON_CAR_MODELS or any(c in tokens[1] for c in ['vios', 'soluto', 'xpander', 'innova', 'camry', 'altis', 'accent', 'veloz', 'rush'])):
+            clean_extra = [t for t in tokens[1:] if t not in ('di', 'xe', 'chay', 'lai', 'chiec', 'con')]
+            return {
+                'has_honorific': False,
+                'honorific': '',
+                'name': tokens[0],
+                'extra': clean_extra,
+                'raw_query': sub_text,
                 'all_tokens': tokens
             }
+
     return None
 
 # ── DANH MỤC ĐÈN THỰC TẾ & BẢNG GIÁ NIÊM YẾT TẠI GARA (k = nghìn đồng) ──
@@ -284,7 +338,8 @@ CAR_MODELS_LIST = [
     'XPANDER', 'INNOVA', 'SOLATI', 'TRANSIT', 'SANTAFE', 'TUCSON', 'CERATO', 'SORENTO', 'SEDONA',
     'ACCENT', 'ELANTRA', 'RANGER', 'CAMRY', 'MAZDA 3', 'MAZDA 2', 'MORNING', 'ERTIGA', 'CUSTIN',
     'VIOS', 'CITY', 'KONA', 'CROSS', 'HILUX', 'RAIZE', 'CRETA', 'SELTOS', 'SONET', 'MPV7',
-    'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'CX5', 'CX8', 'BRV', 'CRV', 'MG5', 'I10', 'XL7', 'K3'
+    'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'CX5', 'CX8', 'BRV', 'CRV', 'MG5', 'I10', 'XL7', 'K3',
+    'SOLUTO', 'ATTRAGE', 'VELOZ', 'AVANZA', 'ALTIS', 'RUSH', 'WIGO', 'ALMERA', 'CIVIC', 'ACCORD'
 ]
 
 def get_current_cycle():
