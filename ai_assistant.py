@@ -154,11 +154,35 @@ def parse_vietnamese_money(text, default_thousands=True):
     return 0
 
 def extract_license_plate(text):
-    clean = text.upper()
-    # Hỗ trợ đa dạng định dạng biển số xe VN: 63A-187.30, 63A - 187.30, 63A18730, 63E-005.67...
+    clean = text.upper().strip()
+    # Bỏ các tiền tố thông dụng như "XE ", "BIỂN SỐ ", "BIỂN ", "BKS ", "SỐ XE "
+    clean_no_prefix = re.sub(r'^(?:XE|BIEN\s*SO|BIEN|BKS|SO\s*XE)\s+', '', clean, flags=re.IGNORECASE).strip()
+
+    # 1. Biển số đầy đủ chuẩn VN: 63A-187.30, 63A - 187.30, 63A18730, 63LD-001.23, 51H-1234...
     m = re.search(r'\b(\d{2}[A-Z]{1,2}(?:\s*[\-\.]\s*|\s*)[0-9]{3,5}(?:[\.\s\-][0-9]{1,2})?)\b', clean)
     if m:
         return m.group(1).strip()
+
+    # 2. Định dạng số xe có dấu chấm/gạch/cách: 014.92, 187.30, 005.67 (3 số + . + 2 số)
+    m = re.search(r'\b([0-9]{3}[\.\-\s][0-9]{2})\b', clean)
+    if m:
+        return m.group(1).strip()
+
+    # 3. Biển số có chữ cái và số (không phải chữ XE): A187.30, A01492, 51H...
+    m = re.search(r'\b((?!XE\b)[A-Z]{1,2}(?:\s*[\-\.]\s*|\s*)[0-9]{3,5}(?:[\.\s\-][0-9]{1,2})?)\b', clean)
+    if m:
+        return m.group(1).strip()
+
+    # 4. Gõ tắt 4 hoặc 5 số cuối của biển số xe (VD: 01492, 18730, 48985, 00567, 9086...)
+    m = re.search(r'\b([0-9]{4,5})\b', clean_no_prefix)
+    if m:
+        val = m.group(1).strip()
+        # Loại trừ năm nếu là 4 chữ số thông thường không đi kèm ngữ cảnh tra cứu xe
+        if len(val) == 4 and val in ['2020', '2021', '2022', '2023', '2024', '2025', '2026']:
+            if not any(k in clean.lower() for k in ['xe', 'bien', 'so xe', 'tra cuu']):
+                return ""
+        return val
+
     return ""
 
 def clean_plate_raw(plate_str):
