@@ -326,17 +326,40 @@ def extract_customer_search_intent(text):
         if m_short:
             m_hon = m_short
 
+    # Danh sách từ dừng tuyệt đối KHÔNG PHẢI là tên khách hàng
+    STOP_WORDS_FOR_NAME = {
+        'nhung', 'cac', 'loai', 'san', 'pham', 'hang', 'the', 'duoc', 'khong', 'may',
+        'bao', 'nao', 'chua', 'camera', 'cam', 'den', 'bi', 'bong', 'pha', 'gam',
+        'phim', 'film', 'ghe', 'da', 'tien', 'phi', 'don', 'doanh', 'thu', 'chi',
+        'tra', 'mua', 'ban', 'sua', 'xe', 'oto', 'auto', 'gara', 'quy', 'ket', 'so', 'du', 'ton'
+    }
+
     if m_hon:
         hon = m_hon.group(1).strip()
         rest = m_hon.group(2).strip()
+
+        # 1. Bảo vệ chống nhận nhầm từ "CÓ" (dấu sắc) thành đại từ "cô":
+        if hon == 'co' and re.search(r'\b(có|cỏ|cỗ)\b', raw, re.IGNORECASE):
+            return None
+
+        # 2. Bảo vệ chống nhận nhầm hành động "CHI" tiền thành đại từ "chị":
+        if hon in ('chi', 'c') and re.search(r'\b(\d+\s*(?:k|tr|trieu|m|nghin|ngan|vnd|d|\$)?|tien|com|xang|mat\s*bang|chi\s*phi|ung|nop)\b', rest, re.IGNORECASE):
+            return None
+
         rest = re.sub(r'\b(nhe|dum|giup|voi|ha|ko|khong|a)\b$', '', rest).strip()
         tokens = [t for t in re.split(r'\s+', rest) if t]
+        if not tokens:
+            return None
+
         # Loại bỏ các từ đệm nối giữa tên và xe như: di, xe, chay, lai, chiec, con
         clean_tokens = [tokens[0]]
         for t in tokens[1:]:
             if t not in ('di', 'xe', 'chay', 'lai', 'chiec', 'con'):
                 clean_tokens.append(t)
-        if clean_tokens and not clean_tokens[0].isdigit():
+
+        first_token = clean_tokens[0].lower() if clean_tokens else ''
+        # Tên khách hàng phải là chuỗi chữ cái hợp lệ (không chứa số), không nằm trong danh sách từ dừng
+        if clean_tokens and re.match(r'^[a-zA-ZÀ-ỹ]+$', clean_tokens[0]) and first_token not in STOP_WORDS_FOR_NAME:
             return {
                 'has_honorific': True,
                 'honorific': hon,
@@ -1449,15 +1472,28 @@ def handle_baocao_den_stats(raw_text, clean_text, session_id="default_user"):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def handle_thuchi(raw_text, clean_text):
-    """Xử lý lệnh ghi sổ thu hoặc chi (One-shot)"""
+    """Xử lý lệnh ghi sổ thu hoặc chi (One-shot) - Bảo vệ tuyệt đối không ghi nhầm câu hỏi doanh thu hay báo cáo"""
     if any(k in clean_text for k in ['lap den', 'gan den', 'bi led', 'bi gam', 'v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'naoevo', 'titan']):
         return None
+
+    # CHẶN NGAY các câu hỏi tra cứu, báo cáo doanh thu, tồn quỹ hoặc câu hỏi nghi vấn:
+    is_explicit_record = bool(re.search(r'\b(ghi\s*chi|ghi\s*thu|phieu\s*chi|phieu\s*thu|lap\s*phieu|tao\s*phieu|nhap\s*chi|nhap\s*thu)\b', clean_text))
+    if not is_explicit_record:
+        # Nếu là câu hỏi doanh thu, số lượng đơn, báo cáo, tồn quỹ
+        if re.search(r'\b(doanh\s*thu|doanh\s*so|tong\s*thu|bao\s*cao|thong\s*ke|ban\s*duoc|kiem\s*duoc|may\s*don|bao\s*nhieu\s*don|so\s*don|ton\s*quy|so\s*du|quy\s*tien|quy\s*con|tien\s*trong\s*ket|ket\s*tien)\b', clean_text):
+            return None
+        # Nếu có từ để hỏi nghi vấn
+        if re.search(r'\b(bao\s*nhieu|may|sao|the\s*nao|chua|ha|ko|khong)\b', clean_text):
+            return None
 
     has_honorific_chi = bool(re.search(r'\b(chị|chi)\s+([a-zA-ZÀ-ỹ]+)', raw_text, re.IGNORECASE))
     is_explicit_chi = bool(re.search(r'\b(ghi\s*chi|phiếu\s*chi|phieu\s*chi|tiền\s*chi|tien\s*chi|chi\s*tiền|chi\s*tien|chi\s+\d+|chi\s+phi|tam\s*ung|ung\s*tien|tra\s+tien|nop\s+tien|tien\s+an|com|xang|mat\s+bang)\b', clean_text))
 
-    is_chi = is_explicit_chi or (bool(re.search(r'\b(chi|tra|mua|dong|nop|ung|ung truoc|xuat tien|tien an|com|xang|mat bang|phi)\b', clean_text)) and not has_honorific_chi)
-    is_thu = bool(re.search(r'\b(thu|nhan|thu tien|khach tra|nap|vao quy|tien ve)\b', clean_text))
+    is_chi = is_explicit_chi or (bool(re.search(r'\b(chi\s+\d+|chi\s+[a-zA-Z0-9\.]+(?:k|tr|trieu)|chi\s+tien|tien\s*com|tien\s*xang|tam\s*ung|tra|mua|dong|nop|ung|ung truoc|xuat tien|tien an|com|xang|mat bang|phi)\b', clean_text)) and not has_honorific_chi)
+    
+    # Chỉ nhận diện THU khi có hành động ghi nhận tiền cụ thể, tuyệt đối không nhận cụm 'doanh thu' hay 'thu' mơ hồ
+    is_explicit_thu = bool(re.search(r'\b(ghi\s*thu|phieu\s*thu|thu\s*tien|khach\s*(?:tra|nop|coc|thanh\s*toan)|thu\s*coc|nap\s*(?:tien|vao\s*quy)|tien\s*ve)\b', clean_text))
+    is_thu = is_explicit_thu or (bool(re.search(r'\b(thu\s+\d+|thu\s+[a-zA-Z0-9\.]+(?:k|tr|trieu)|thu\s+tien|nhan\s+tien)\b', clean_text)) and not bool(re.search(r'\bdoanh\s*thu\b', clean_text)))
     
     trans_type = 'chi' if is_chi else ('thu' if is_thu else None)
     if not trans_type:
@@ -2049,6 +2085,468 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
         }
     except Exception as e:
         return {"type": "error", "message": f"Lỗi tra cứu mặt hàng kho: {str(e)}"}
+
+def parse_time_scope(text):
+    """
+    Trích xuất đa chiều: Phạm vi thời gian (nhiều tháng, năm, hôm nay), Scope phân hệ (cửa hàng, bán hàng, đèn), Ý định đếm đơn
+    - Hỗ trợ câu hỏi nhiều tháng: 'tháng 7, tháng 8, 2026', 'tháng 7, 8 năm 2026', 'tháng 7 và 8', 'từ tháng 7 đến tháng 9'
+    - Hỗ trợ câu hỏi cả năm: 'doanh thu cả năm 2025 là bao nhiêu'
+    - Hỗ trợ câu hỏi số lượng đơn hàng: 'tháng 8 năm 2026 bán được bao nhiêu đơn', 'tháng 7 bán được mấy đơn'
+    - Phân biệt cực kỳ thông minh giữa giới từ 'đến' (từ ... đến ...) và sản phẩm 'đèn' (nâng cấp ánh sáng)
+    """
+    clean = remove_accents(text).lower().strip()
+
+    # 1. Trích xuất năm (4 chữ số dạng 202x)
+    year = None
+    m_y = re.search(r'\b(?:nam\s+)?(202\d)\b', clean)
+    if m_y:
+        year = int(m_y.group(1))
+
+    # 2. Hôm nay / Hôm qua
+    if any(k in clean for k in ['hom nay', 'today']):
+        return {'period': 'today', 'months': [], 'year': year, 'scope': 'all', 'is_order_count': False}
+    if any(k in clean for k in ['hom qua', 'yesterday']):
+        return {'period': 'yesterday', 'months': [], 'year': year, 'scope': 'all', 'is_order_count': False}
+
+    # 3. Trích xuất tháng:
+    months = []
+    # Dạng dải tháng: 'từ tháng X đến tháng Y'
+    m_range = re.search(r'\btu\s+(?:thang\s+)?(\d{1,2})\s+den\s+(?:thang\s+)?(\d{1,2})\b', clean)
+    if m_range:
+        start_m = int(m_range.group(1))
+        end_m = int(m_range.group(2))
+        if 1 <= start_m <= end_m <= 12:
+            months = list(range(start_m, end_m + 1))
+    else:
+        # Dạng combo: 'tháng 7, 8' hoặc 'tháng 7 và 8' hoặc 'tháng 7, 8, 9'
+        m_combo = re.search(r'\b(?:thang|thg|t)\s*(\d{1,2})(?:\s*(?:[,&]|va)\s*(\d{1,2}))+', clean)
+        if m_combo:
+            nums = re.findall(r'\b(\d{1,2})\b', m_combo.group(0))
+            for n in nums:
+                v = int(n)
+                if 1 <= v <= 12 and v not in months:
+                    months.append(v)
+
+        # Dạng liệt kê riêng rẽ: 'tháng 7, tháng 8', 't7, t8'
+        for m in re.finditer(r'\b(?:thang|thg|t)\s*([0-1]?\d)\b', clean):
+            val = int(m.group(1))
+            if 1 <= val <= 12 and val not in months:
+                months.append(val)
+
+        # Dạng mm/yyyy
+        for m in re.finditer(r'\b([0-1]?\d)[/-](202\d)\b', clean):
+            val = int(m.group(1))
+            y_val = int(m.group(2))
+            if 1 <= val <= 12 and val not in months:
+                months.append(val)
+            if not year:
+                year = y_val
+
+    # 4. Scope phân hệ (Phân biệt cẩn trọng giữa giới từ 'đến' và sản phẩm 'đèn'):
+    has_lamp = False
+    if re.search(r'\b(đèn|bi\s*led|bi\s*gầm|độ\s*đèn|đèn\s*pha|bóng)\b', text, re.IGNORECASE):
+        has_lamp = True
+    else:
+        # Nếu câu không dấu, loại trừ các ngữ cảnh 'từ ... đến ...' hoặc 'đến tháng/ngày'
+        clean_no_range = re.sub(r'\btu\s+.*?\s+den\b', ' ', clean)
+        clean_no_range = re.sub(r'\bden\s+(?:thang|ngay|nam|\d)\b', ' ', clean_no_range)
+        if re.search(r'\b(den|bi|gam|pha|bong)\b', clean_no_range) and not any(k in clean for k in ['den pin', 'den ban']):
+            has_lamp = True
+
+    scope = 'all'
+    if has_lamp and not any(k in clean for k in ['cua hang', 'toan bo', 'tong hop', 'gara', 'ban hang']):
+        scope = 'den'
+    elif any(k in clean for k in ['ban hang', 'kho', 'phu kien']):
+        scope = 'banhang'
+
+    # 5. Ý định đếm số lượng đơn hàng:
+    is_order_count = bool(re.search(r'\b(may don|bao nhieu don|so don|don hang)\b', clean))
+
+    period = 'months' if months else ('year' if year else ('current_cycle' if any(k in clean for k in ['thang nay', 'ky nay', 'hien tai']) else 'unknown'))
+    return {
+        'period': period,
+        'months': sorted(months),
+        'year': year,
+        'scope': scope,
+        'is_order_count': is_order_count
+    }
+
+
+def handle_revenue_and_store_stats(raw_text, clean_text, session_id="default_user"):
+    """
+    BỘ ĐIỀU PHỐI BÁO CÁO DOANH THU & TỒN QUỸ & ĐƠN HÀNG TOÀN DIỆN:
+    1. Tồn quỹ / Két tiền mặt hiện tại: 'tồn quỹ hiện tại còn bao nhiêu', 'số dư quỹ'
+    2. Doanh thu nhiều tháng: 'tổng doanh thu của cửa hàng tháng 7, tháng 8, 2026 là bao nhiêu?'
+    3. Doanh thu 1 tháng: 'tháng 7 năm 2026 doanh thu bao nhiêu', 'doanh thu bán hàng tháng 8/2026'
+    4. Doanh thu thiếu thông tin năm: 'tháng 7 bán được mấy đơn', 'tháng 7 doanh thu bao nhiêu' -> Hỏi lại năm kèm số liệu năm 2026
+    5. Doanh thu cả năm: 'doanh thu cả năm 2025 là bao nhiêu'
+    6. Số lượng đơn hàng: 'tháng 8 năm 2026 bán được bao nhiêu đơn'
+    7. Thống kê hôm nay / hôm qua: 'hôm nay bán được bao nhiêu tiền', 'hôm nay chi bao nhiêu'
+    """
+    # ═════════════════════════════════════════════════════════════════════
+    # A. Ý ĐỊNH TRA CỨU TỒN QUỸ / KÉT TIỀN MẶT
+    # ═════════════════════════════════════════════════════════════════════
+    is_cash_balance = bool(re.search(r'\b(ton\s*quy|so\s*du\s*quy|quy\s*tien|tien\s*trong\s*ket|ket\s*tien|quy\s*con|so\s*du\s*hien\s*tai)\b', clean_text)) or \
+                      (bool(re.search(r'\b(con\s*bao\s*nhieu\s*tien|so\s*du)\b', clean_text)) and not any(k in clean_text for k in ['ban', 'den', 'gia', 'don']))
+    if is_cash_balance:
+        if not os.path.exists(DB_THUCHI):
+            return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Sổ Thu Chi!"}
+        try:
+            conn = sqlite3.connect(DB_THUCHI, timeout=10)
+            c = conn.cursor()
+            c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+            p = c.fetchone()
+            if not p:
+                return {"type": "info", "message": "Hiện tại chưa có kỳ thu chi nào đang mở (active)."}
+            period_id, period_name = p[0], p[1]
+            c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE 0 END), SUM(CASE WHEN type='chi' THEN amount ELSE 0 END) FROM transactions WHERE period_id = ?", (period_id,))
+            row = c.fetchone()
+            inc = row[0] or 0
+            exp = row[1] or 0
+            bal = inc - exp
+            conn.close()
+            return {
+                "type": "success",
+                "module": "thuchi",
+                "message": (
+                    f"💰 **BÁO CÁO TỒN QUỸ TIỀN MẶT GARA ({period_name}):**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• 📈 Tổng thu trong kỳ: **+{inc:,.0f} đ**\n"
+                    f"• 📉 Tổng chi trong kỳ: **-{exp:,.0f} đ**\n"
+                    f"• 💵 **TỒN QUỸ (SỐ DƯ HIỆN TẠI):** **{bal:,.0f} đ**\n\n"
+                    f"👉 [Bấm vào đây để mở Sổ Thu Chi xem chi tiết](/thuchi/)"
+                )
+            }
+        except Exception as e:
+            return {"type": "error", "message": f"Lỗi kiểm tra tồn quỹ: {str(e)}"}
+
+    # ═════════════════════════════════════════════════════════════════════
+    # B. KIỂM TRA Ý ĐỊNH BÁO CÁO / THỐNG KÊ DOANH THU HOẶC ĐƠN HÀNG
+    # ═════════════════════════════════════════════════════════════════════
+    is_stat_query = bool(re.search(r'\b(doanh\s*thu|doanh\s*so|tong\s*thu|bao\s*cao|tong\s*ket|ban\s*duoc|kiem\s*duoc|may\s*don|bao\s*nhieu\s*don|so\s*don|don\s*hang)\b', clean_text)) or \
+                    ('ban' in clean_text and 'bao nhieu' in clean_text) or ('doanh thu' in clean_text)
+
+    ts = parse_time_scope(raw_text)
+    if not is_stat_query and ts['period'] == 'unknown':
+        return None
+
+    # B1. HÔM NAY / HÔM QUA
+    if ts['period'] in ('today', 'yesterday'):
+        target_date = datetime.now().date() if ts['period'] == 'today' else (datetime.now().date() - timedelta(days=1))
+        target_str = target_date.strftime('%Y-%m-%d')
+        date_display = target_date.strftime('%d/%m/%Y')
+        title_time = "HÔM NAY" if ts['period'] == 'today' else "HÔM QUA"
+
+        # Nếu hỏi chi hôm nay:
+        if 'chi' in clean_text and not any(k in clean_text for k in ['ban', 'doanh thu', 'doanh so']):
+            exp_today = 0
+            if os.path.exists(DB_THUCHI):
+                try:
+                    conn = sqlite3.connect(DB_THUCHI, timeout=5)
+                    c = conn.cursor()
+                    c.execute("SELECT SUM(amount) FROM transactions WHERE type='chi' AND created_at LIKE ?", (f"{target_str}%",))
+                    r = c.fetchone()
+                    exp_today = r[0] or 0
+                    conn.close()
+                except: pass
+            return {
+                "type": "success",
+                "module": "thuchi",
+                "message": (
+                    f"💸 **TỔNG CHI TIỀN {title_time} ({date_display}):**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Số tiền chi ra: **{exp_today:,.0f} đ**\n\n"
+                    f"👉 [Xem Sổ Thu Chi](/thuchi/)"
+                )
+            }
+
+        # Doanh số bán hàng & Đèn hôm nay:
+        orders_bh, rev_bh = 0, 0
+        if os.path.exists(DB_BANHANG):
+            try:
+                conn = sqlite3.connect(DB_BANHANG, timeout=5)
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*), SUM(total_price) FROM orders WHERE install_date = ?", (target_str,))
+                r = c.fetchone()
+                orders_bh = r[0] or 0
+                rev_bh = r[1] or 0
+                conn.close()
+            except: pass
+
+        orders_den, qty_den, rev_den = 0, 0, 0
+        if os.path.exists(DB_DEN):
+            try:
+                conn = sqlite3.connect(DB_DEN, timeout=5)
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*), SUM(quantity), SUM(price_k * 1000) FROM orders WHERE order_date = ?", (target_str,))
+                r = c.fetchone()
+                orders_den = r[0] or 0
+                qty_den = r[1] or 0
+                rev_den = r[2] or 0
+                conn.close()
+            except: pass
+
+        tot_rev = rev_bh + rev_den
+        tot_orders = orders_bh + orders_den
+        return {
+            "type": "success",
+            "message": (
+                f"📊 **BÁO CÁO DOANH THU TOÀN CỬA HÀNG {title_time} ({date_display}):**\n"
+                f"─────────────────────────────────────────\n"
+                f"💰 **TỔNG DOANH SỐ {title_time}:** **{tot_rev:,.0f} đ** *({tot_orders} đơn hàng)*\n\n"
+                f"• 📦 **Bán Hàng Phụ Kiện:** **{rev_bh:,.0f} đ** ({orders_bh} đơn)\n"
+                f"• 💡 **Báo Cáo Đèn:** **{rev_den:,.0f} đ** ({orders_den} đơn / {qty_den} bộ)\n\n"
+                f"👉 [Xem Bán Hàng](/banhang/) | [Xem Báo Cáo Đèn](/den/) | [Xem Sổ Thu Chi](/thuchi/)"
+            )
+        }
+
+    # B2. HỎI DOANH THU CẢ NĂM (Ví dụ: 'doanh thu cả năm 2025 là bao nhiêu')
+    if ts['period'] == 'year' and ts['year']:
+        target_year = ts['year']
+        cnt_bh, rev_bh = 0, 0
+        if os.path.exists(DB_BANHANG):
+            try:
+                conn = sqlite3.connect(DB_BANHANG, timeout=5)
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*), SUM(total_price) FROM orders WHERE install_date LIKE ?", (f"{target_year}%",))
+                r = c.fetchone()
+                cnt_bh = r[0] or 0
+                rev_bh = r[1] or 0
+                conn.close()
+            except: pass
+
+        cnt_den, qty_den, rev_den = 0, 0, 0
+        if os.path.exists(DB_DEN):
+            try:
+                conn = sqlite3.connect(DB_DEN, timeout=5)
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*), SUM(quantity), SUM(price_k * 1000) FROM orders WHERE order_date LIKE ?", (f"{target_year}%",))
+                r = c.fetchone()
+                cnt_den = r[0] or 0
+                qty_den = r[1] or 0
+                rev_den = r[2] or 0
+                conn.close()
+            except: pass
+
+        if ts['scope'] == 'banhang':
+            return {
+                "type": "success",
+                "message": (
+                    f"📦 **BÁO CÁO DOANH THU BÁN HÀNG CẢ NĂM {target_year}:**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Tổng doanh số: **{rev_bh:,.0f} đ**\n"
+                    f"• Tổng số đơn hàng: **{cnt_bh} đơn**\n\n"
+                    f"👉 [Xem chi tiết Bán Hàng](/banhang/)"
+                )
+            }
+        elif ts['scope'] == 'den':
+            return {
+                "type": "success",
+                "message": (
+                    f"💡 **BÁO CÁO DOANH THU ĐÈN CẢ NĂM {target_year}:**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Tổng doanh số: **{rev_den:,.0f} đ**\n"
+                    f"• Tổng số đơn: **{cnt_den} đơn** ({qty_den} bộ đèn)\n\n"
+                    f"👉 [Xem chi tiết Báo Cáo Đèn](/den/)"
+                )
+            }
+        else:
+            tot_rev = rev_bh + rev_den
+            tot_cnt = cnt_bh + cnt_den
+            return {
+                "type": "success",
+                "message": (
+                    f"📊 **BÁO CÁO TỔNG DOANH THU TOÀN CỬA HÀNG NĂM {target_year}:**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"💰 **TỔNG DOANH THU CẢ NĂM {target_year}:** **{tot_rev:,.0f} đ** *({tot_cnt} đơn hàng)*\n\n"
+                    f"• 📦 **Bán Hàng Phụ Kiện:** **{rev_bh:,.0f} đ** ({cnt_bh} đơn)\n"
+                    f"• 💡 **Báo Cáo Đèn:** **{rev_den:,.0f} đ** ({cnt_den} đơn / {qty_den} bộ)\n\n"
+                    f"👉 [Xem Bán Hàng](/banhang/) | [Xem Báo Cáo Đèn](/den/)"
+                )
+            }
+
+    # B3. HỎI THEO THÁNG (ĐA THÁNG HOẶC 1 THÁNG)
+    if ts['months']:
+        # Nếu chỉ có 1 tháng và THIẾU NĂM (Ví dụ: 'tháng 7 bán được mấy đơn', 'tháng 7 doanh thu bao nhiêu'):
+        if len(ts['months']) == 1 and ts['year'] is None:
+            m_target = ts['months'][0]
+            # Tính dữ liệu năm 2026 (năm gần nhất)
+            preview_yr = 2026
+            m_str = f"{preview_yr}-{m_target:02d}"
+            cnt_bh, rev_bh = 0, 0
+            if os.path.exists(DB_BANHANG):
+                try:
+                    conn = sqlite3.connect(DB_BANHANG, timeout=5)
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*), SUM(total_price) FROM orders WHERE install_date LIKE ?", (f"{m_str}%",))
+                    r = c.fetchone()
+                    cnt_bh = r[0] or 0
+                    rev_bh = r[1] or 0
+                    conn.close()
+                except: pass
+
+            cnt_den, qty_den, rev_den = 0, 0, 0
+            if os.path.exists(DB_DEN):
+                try:
+                    conn = sqlite3.connect(DB_DEN, timeout=5)
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*), SUM(quantity), SUM(price_k * 1000) FROM orders WHERE order_date LIKE ?", (f"{m_str}%",))
+                    r = c.fetchone()
+                    cnt_den = r[0] or 0
+                    qty_den = r[1] or 0
+                    rev_den = r[2] or 0
+                    conn.close()
+                except: pass
+
+            tot_rev = rev_bh + rev_den
+            tot_cnt = cnt_bh + cnt_den
+            order_text = f"**{tot_cnt} đơn**" if ts['is_order_count'] else f"**{tot_rev:,.0f} đ** ({tot_cnt} đơn)"
+
+            return {
+                "type": "clarify",
+                "message": (
+                    f"💡 Bạn muốn xem dữ liệu **Tháng {m_target} của năm nào** ạ?\n"
+                    f"─────────────────────────────────────────\n"
+                    f"Hệ thống ghi nhận dữ liệu Tháng {m_target} các năm: **2024, 2025, 2026**.\n"
+                    f"👉 *Bạn có thể gõ rõ hơn, ví dụ: `tháng {m_target} năm 2026` hoặc gõ số năm `2026`.*\n\n"
+                    f"📊 **Số liệu tạm tính Tháng {m_target}/{preview_yr} (năm gần nhất):**\n"
+                    f"• Tổng toàn cửa hàng: {order_text}\n"
+                    f"  - 📦 Bán Hàng: {rev_bh:,.0f} đ ({cnt_bh} đơn)\n"
+                    f"  - 💡 Đèn: {rev_den:,.0f} đ ({cnt_den} đơn / {qty_den} bộ)"
+                )
+            }
+
+        # Nếu có năm (hoặc nhiều tháng thì mặc định lấy 2026 nếu không nói năm)
+        year_target = ts['year'] if ts['year'] else 2026
+        months_list = sorted(ts['months'])
+
+        total_bh_rev = 0
+        total_bh_orders = 0
+        total_den_rev = 0
+        total_den_orders = 0
+        total_den_qty = 0
+
+        detail_lines = []
+
+        for m in months_list:
+            m_str = f"{year_target}-{m:02d}"
+            cnt_bh, rev_bh = 0, 0
+            if os.path.exists(DB_BANHANG):
+                try:
+                    conn = sqlite3.connect(DB_BANHANG, timeout=5)
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*), SUM(total_price) FROM orders WHERE install_date LIKE ?", (f"{m_str}%",))
+                    r = c.fetchone()
+                    cnt_bh = r[0] or 0
+                    rev_bh = r[1] or 0
+                    conn.close()
+                except: pass
+
+            cnt_den, qty_den, rev_den = 0, 0, 0
+            if os.path.exists(DB_DEN):
+                try:
+                    conn = sqlite3.connect(DB_DEN, timeout=5)
+                    c = conn.cursor()
+                    c.execute("SELECT COUNT(*), SUM(quantity), SUM(price_k * 1000) FROM orders WHERE order_date LIKE ?", (f"{m_str}%",))
+                    r = c.fetchone()
+                    cnt_den = r[0] or 0
+                    qty_den = r[1] or 0
+                    rev_den = r[2] or 0
+                    conn.close()
+                except: pass
+
+            total_bh_rev += rev_bh
+            total_bh_orders += cnt_bh
+            total_den_rev += rev_den
+            total_den_orders += cnt_den
+            total_den_qty += qty_den
+
+            m_tot_rev = rev_bh + rev_den
+            m_tot_cnt = cnt_bh + cnt_den
+
+            if ts['scope'] == 'banhang':
+                detail_lines.append(f"🔹 **Tháng {m:02d}/{year_target}:** **{rev_bh:,.0f} đ** ({cnt_bh} đơn bán hàng)")
+            elif ts['scope'] == 'den':
+                detail_lines.append(f"🔹 **Tháng {m:02d}/{year_target}:** **{rev_den:,.0f} đ** ({cnt_den} đơn / {qty_den} bộ đèn)")
+            else:
+                detail_lines.append(
+                    f"🔹 **Tháng {m:02d}/{year_target}:** **{m_tot_rev:,.0f} đ** ({m_tot_cnt} đơn)\n"
+                    f"   • Bán Hàng Phụ Kiện: **{rev_bh:,.0f} đ** ({cnt_bh} đơn)\n"
+                    f"   • Báo Cáo Đèn: **{rev_den:,.0f} đ** ({cnt_den} đơn / {qty_den} bộ)"
+                )
+
+        grand_tot_rev = total_bh_rev + total_den_rev
+        grand_tot_cnt = total_bh_orders + total_den_orders
+
+        months_str = " & ".join(f"Tháng {m}" for m in months_list)
+
+        # Nếu người dùng hỏi số lượng đơn hàng:
+        if ts['is_order_count']:
+            if ts['scope'] == 'banhang':
+                reply = (
+                    f"📦 **SỐ LƯỢNG ĐƠN BÁN HÀNG ({months_str}/{year_target}):**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Tổng số đơn: **{total_bh_orders} đơn hàng** (Doanh thu: **{total_bh_rev:,.0f} đ**)\n\n"
+                    + "\n".join(detail_lines) + "\n\n"
+                    f"👉 [Xem chi tiết Bán Hàng](/banhang/)"
+                )
+            elif ts['scope'] == 'den':
+                reply = (
+                    f"💡 **SỐ LƯỢNG ĐƠN ĐÈN ({months_str}/{year_target}):**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Tổng số đơn: **{total_den_orders} đơn** ({total_den_qty} bộ đèn | Doanh thu: **{total_den_rev:,.0f} đ**)\n\n"
+                    + "\n".join(detail_lines) + "\n\n"
+                    f"👉 [Xem chi tiết Báo Cáo Đèn](/den/)"
+                )
+            else:
+                reply = (
+                    f"📊 **SỐ LƯỢNG ĐƠN TOÀN CỬA HÀNG ({months_str}/{year_target}):**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"📦 **TỔNG SỐ ĐƠN:** **{grand_tot_cnt} đơn hàng** *(Doanh thu: **{grand_tot_rev:,.0f} đ**)*\n\n"
+                    f"📋 **CHI TIẾT THEO TỪNG THÁNG:**\n"
+                    + "\n".join(detail_lines) + "\n"
+                    f"─────────────────────────────────────────\n"
+                    f"🏆 **TỔNG KẾT THEO PHÂN HỆ:**\n"
+                    f"• 📦 Bán Hàng Phụ Kiện: **{total_bh_orders} đơn** ({total_bh_rev:,.0f} đ)\n"
+                    f"• 💡 Báo Cáo Đèn: **{total_den_orders} đơn** ({total_den_qty} bộ | {total_den_rev:,.0f} đ)\n\n"
+                    f"👉 [Xem Bán Hàng](/banhang/) | [Xem Báo Cáo Đèn](/den/)"
+                )
+            return {"type": "success", "message": reply}
+
+        # Nếu người dùng hỏi doanh thu:
+        if ts['scope'] == 'banhang':
+            reply = (
+                f"📦 **BÁO CÁO DOANH THU BÁN HÀNG ({months_str}/{year_target}):**\n"
+                f"─────────────────────────────────────────\n"
+                f"💰 **TỔNG DOANH SỐ:** **{total_bh_rev:,.0f} đ** *({total_bh_orders} đơn hàng)*\n\n"
+                + "\n".join(detail_lines) + "\n\n"
+                f"👉 [Xem chi tiết Bán Hàng](/banhang/)"
+            )
+        elif ts['scope'] == 'den':
+            reply = (
+                f"💡 **BÁO CÁO DOANH THU ĐÈN ({months_str}/{year_target}):**\n"
+                f"─────────────────────────────────────────\n"
+                f"💰 **TỔNG DOANH SỐ:** **{total_den_rev:,.0f} đ** *({total_den_orders} đơn / {total_den_qty} bộ)*\n\n"
+                + "\n".join(detail_lines) + "\n\n"
+                f"👉 [Xem chi tiết Báo Cáo Đèn](/den/)"
+            )
+        else:
+            reply = (
+                f"📊 **BÁO CÁO TỔNG DOANH THU CỬA HÀNG ({months_str}/{year_target}):**\n"
+                f"─────────────────────────────────────────\n"
+                f"💰 **TỔNG DOANH THU TOÀN CỬA HÀNG:** **{grand_tot_rev:,.0f} đ** *({grand_tot_cnt} đơn)*\n\n"
+                f"📋 **CHI TIẾT THEO TỪNG THÁNG:**\n"
+                + "\n".join(detail_lines) + "\n"
+                f"─────────────────────────────────────────\n"
+                f"🏆 **TỔNG KẾT THEO PHÂN HỆ ({months_str}/{year_target}):**\n"
+                f"• 📦 **Bán Hàng Phụ Kiện:** **{total_bh_rev:,.0f} đ** ({total_bh_orders} đơn)\n"
+                f"• 💡 **Nâng Cấp Ánh Sáng (Đèn):** **{total_den_rev:,.0f} đ** ({total_den_orders} đơn / {total_den_qty} bộ)\n\n"
+                f"👉 [Xem Bán Hàng](/banhang/) | [Xem Báo Cáo Đèn](/den/) | [Xem Sổ Thu Chi](/thuchi/)"
+            )
+        return {"type": "success", "message": reply}
+
+    return None
+
 
 def handle_summary_stats(raw_text, clean_text):
     """Báo cáo tổng hợp số dư quỹ, doanh thu hôm nay"""
@@ -3046,7 +3544,8 @@ def handle_gara_consultation(raw_text, clean_text):
         return {"type": "success", "module": "dichvu", "message": res}
 
     # 8.5. CAMERA HÀNH TRÌNH
-    is_cam = bool(re.search(r'\b(cam\s*hanh\s*trinh|camera\s*hanh\s*trinh|70mai|vietmap|a510|a800se|s720|r440|s860|the\s*nho)\b', clean_text))
+    is_cam = bool(re.search(r'\b(cam\s*hanh\s*trinh|camera\s*hanh\s*trinh|70mai|vietmap|a510|a800se|s720|r440|s860|the\s*nho)\b', clean_text)) or \
+             (bool(re.search(r'\b(cam|camera)\b', clean_text)) and any(w in clean_text for w in ['loai', 'cac', 'nhung', 'nao', 'tu van', 'gia', 'bao gia', 'co nhung', 'lap', 'gan', 'muon', 'can', 'co']))
     if is_cam:
         if any(k in clean_text for k in ['the nho', 'usb']):
             return {
@@ -3512,7 +4011,12 @@ def process_ai_command(user_text, session_id="default_user"):
         if res:
             return res
 
-    # 4. Thống kê & Báo cáo doanh số đèn (kỳ tháng, hôm nay, top bán chạy)
+    # 4. Thống kê & Báo cáo doanh thu toàn cửa hàng / Tồn quỹ / Đơn hàng (ƯU TIÊN TUYỆT ĐỐI)
+    res_stats = handle_revenue_and_store_stats(raw, clean, session_id)
+    if res_stats:
+        return res_stats
+
+    # 4.2. Thống kê & Báo cáo chuyên sâu doanh số đèn chu kỳ 9-8 (kỳ tháng, hôm nay, top bán chạy)
     if any(k in clean for k in ['doanh thu den', 'doanh so den', 'bao cao den', 'ban duoc bao nhieu den', 'may xe den', 'don den hom nay', 'top den', 'den ban chay']) or \
        (any(k in clean for k in ['doanh thu', 'doanh so', 'bao cao']) and any(k in clean for k in ['den', 'bi', 'gam', 'pha', 'bong'])):
         res = handle_baocao_den_stats(raw, clean, session_id)
