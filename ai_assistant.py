@@ -3271,8 +3271,102 @@ def handle_gara_consultation(raw_text, clean_text):
             )
         }
 
-    # Phim cách nhiệt riêng cho VinFast VF3
-    if any(k in clean_text for k in ['vf3', 'vf 3', 'vinfast vf3']):
+    # ═════════════════════════════════════════════════════════════════════════
+    # TƯ VẤN THÔNG MINH CHO XE ĐIỆN QUỐC DÂN VINFAST VF3
+    # ═════════════════════════════════════════════════════════════════════════
+    is_vf3 = any(k in clean_text for k in ['vf3', 'vf 3', 'vinfast vf3'])
+    if is_vf3:
+        # A. Khách hỏi Camera 360 cho VF3:
+        if any(k in clean_text for k in ['360', 'cam 360', 'camera 360']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📷 **BÁO GIÁ CAMERA 360 ĐỘ CHO VINFAST VF3 (TRẦN BÌNH AUTO):**\n"
+                    "─────────────────────────────────────────\n"
+                    "Dòng xe VinFast VF3 có 2 phương án lắp Camera 360 độ toàn cảnh tối ưu nhất:\n\n"
+                    "🔹 **PHƯƠNG ÁN 1: CAMERA 360 RỜI CẮM ZIN MÀN HÌNH THEO XE (GIỮ NGUYÊN MÀN GỐC)**\n"
+                    "• **Camera 360 TEXPAD ZONE 4 (Chuyên cho VF3):** **8.800.000 đ** *(Khuyên dùng nhất)*\n"
+                    "  - Cắm giắc zin 100%, tích hợp thẳng vào màn hình zin của xe VF3.\n"
+                    "  - Mô phỏng 3D siêu nét, tự kích hoạt khi xi nhan, lùi hoặc chạy chậm dưới 20km/h.\n"
+                    "  - Bảo hành chính hãng 2 năm.\n"
+                    "• **Camera 360 OWIN (Bản cho VF3):** **8.500.000 đ** *(Mắt cam Sony quay đêm cực sáng)*\n\n"
+                    "🔹 **PHƯƠNG ÁN 2: MÀN HÌNH ANDROID LIỀN CAMERA 360 (VỪA GIẢI TRÍ VỪA QUAN SÁT)**\n"
+                    "• **Màn hình WINCA Android liền Cam 360 cho VF3:** **10.500.000 đ** *(Ngon bổ rẻ)*\n"
+                    "  - Trọn bộ gồm Màn hình Android cảm ứng + 4 mắt Cam 360 toàn cảnh.\n"
+                    "  - Xem YouTube ngầm, dẫn đường Vietmap Live cảnh báo tốc độ phạt nguội.\n"
+                    "• **Màn hình GOTECH VF3 360 / GBA VF3 360:** **19.900.000 đ - 20.000.000 đ** *(Cao cấp màn 2K)*\n"
+                    "• **Màn hình dài VF3 kiểu Mercedes (Kèm Cam 360):** **17.500.000 đ**\n"
+                    "─────────────────────────────────────────\n"
+                    "🎁 **Cam kết tại gara:** Tặng công căn chỉnh bạt chuẩn xác, cắm giắc zin 100% không cắt trích dây, an toàn tuyệt đối cho hệ thống điện xe VF3!"
+                )
+            }
+
+        # B. Khách hỏi Màn hình Android cho VF3:
+        if any(k in clean_text for k in ['man hinh', 'man', 'dvd', 'android']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "📺 **BÁO GIÁ MÀN HÌNH ANDROID CHO VINFAST VF3:**\n"
+                    "• **WINCA Android cho VF3 (Màn đơn):** **7.500.000 đ** (Tặng Vietmap Live 2 năm + Sim 4G)\n"
+                    "• **Màn HTD ODO cho VF3 (Có cảm ứng + Tặng 2 mắt cam lề):** **7.500.000 đ**\n"
+                    "• **WINCA Android liền Camera 360 cho VF3:** **10.500.000 đ** *(Bán chạy nhất)*\n"
+                    "• **Màn dài VF3 kiểu Mercedes (Ram 4/32):** **17.500.000 đ**\n"
+                    "• **GOTECH VF3 360 (Màn 2K cao cấp):** **19.900.000 đ**\n"
+                    "🔧 Cắm giắc zin theo xe 100%, bảo hành 2 năm chính hãng."
+                )
+            }
+
+        # C. Khách hỏi Đèn / Nâng cấp ánh sáng cho VF3:
+        if any(k in clean_text for k in ['den', 'bi led', 'bi gam', 'den tron', 'xi nhan', 'mi led']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "💡 **GÓI NÂNG CẤP ĐÈN & ÁNH SÁNG CHO VINFAST VF3:**\n"
+                    "• **Bi gầm LED F10 Turbo / S3:** **3.900.000 đ - 4.500.000 đ** *(Tăng sáng gấp 5 lần đèn zin, đi mưa phá sương cực đỉnh)*\n"
+                    "• **Mặt Calang đèn tròn VF3 (Mẫu V4):** **16.000.000 đ** *(Phong cách Defender siêu hầm hố)*\n"
+                    "• **Mí LED VF3 full chuyển màu RGB:** **2.500.000 đ**\n"
+                    "• **Đèn xi nhan G63 cho VF3:** **5.500.000 đ**\n"
+                    "• **Đèn hậu VF3 Custom:** **3.500.000 đ - 10.000.000 đ**\n"
+                    "• **Led cánh chim / Led logo VinFast:** **1.500.000 đ - 1.800.000 đ**"
+                )
+            }
+
+        # D. Khách hỏi Bọc ghế da cho VF3:
+        if bool(re.search(r'\b(ghe|boc\s*ghe|ghe\s*da|da\s*ghe|nappa|simili|ghe\s*dien)\b', clean_text)) or \
+           (bool(re.search(r'\bda\b', clean_text)) and not bool(re.search(r'\b(dan|danh|dan\s*phim|dan\s*film|dan\s*kinh)\b', clean_text))):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "💺 **BÁO GIÁ BỌC GHẾ DA & GHẾ ĐIỆN CHO VINFAST VF3:**\n"
+                    "• **Da Simili tiêu chuẩn:** **3.500.000 đ**\n"
+                    "• **Da Công Nghiệp cao cấp:** **6.000.000 đ** *(Mềm mát, bền 4-5 năm)*\n"
+                    "• **Da Nappa chuẩn xe sang:** **9.500.000 đ**\n"
+                    "• **Da ghế LAVOR CN Milan:** **8.000.000 đ** | **LAVOR Nappa Lux:** **10.500.000 đ**\n"
+                    "• **Ghế điện VF3 (UniSeat / GBA):** **16.000.000 đ** *(Chỉnh điện đa hướng cực kỳ êm ái)*"
+                )
+            }
+
+        # E. Khách hỏi Phụ kiện / Đồ chơi ngoại thất cho VF3:
+        if any(k in clean_text for k in ['phu kien', 'do choi', 'cop truoc', 'gia noc', 'phuoc', 'cua hit', 'vo lang']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "🚗 **TOP PHỤ KIỆN & ĐỒ CHƠI ĐỘ ĐẸP CHO VINFAST VF3:**\n"
+                    "• **Cốp trước VF3 (EasyCop):** **5.500.000 đ** *(Thêm khoang chứa đồ phía trước)*\n"
+                    "• **Cửa hít X-Win VF3:** **9.500.000 đ** *(Đóng cửa êm ái nhẹ nhàng)*\n"
+                    "• **Giá nóc nguyên khối lắp zin:** **5.000.000 đ - 7.000.000 đ**\n"
+                    "• **Phuộc TEIN Basic / Phuộc HT25:** **4.500.000 đ - 12.600.000 đ** *(Khắc phục bồng bềnh)*\n"
+                    "• **Vô lăng Carbon / Nappa:** **2.000.000 đ - 6.500.000 đ**\n"
+                    "• **Thang treo hông + Cốp đồ treo hông:** **6.000.000 đ - 6.500.000 đ**"
+                )
+            }
+
+        # F. Bảng giá dán Phim cách nhiệt cho VF3 (chỉ khi hỏi về phim, kính hoặc hỏi chung vf3):
         return {
             "type": "success",
             "module": "dichvu",
@@ -3288,6 +3382,30 @@ def handle_gara_consultation(raw_text, clean_text):
                 "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch (500k)."
             )
         }
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # CAMERA 360 ĐỘ QUAN SÁT TOÀN CẢNH (MỌI DÒNG XE)
+    # ═════════════════════════════════════════════════════════════════════════
+    is_cam360 = bool(re.search(r'\b(cam\s*360|camera\s*360|cam360|camera360|360\s*do|toan\s*canh|xoa\s*diem\s*mu)\b', clean_text))
+    if is_cam360:
+        res = "📷 **BÁO GIÁ CAMERA 360 ĐỘ TOÀN CẢNH CHÍNH HÃNG:**\n"
+        res += "─────────────────────────────────────────\n"
+        res += "Gara Trần Bình Auto cung cấp 2 giải pháp Camera 360 độ xóa điểm mù tối ưu:\n\n"
+        res += "📱 **1. MÀN HÌNH ANDROID LIỀN CAMERA 360 (KHUYÊN DÙNG NHẤT):**\n"
+        res += "• **Gotech G360 (9 - 10 inch):** **10.400.000 đ** *(Màn HD, tặng Sim 4G + Vietmap Live)*\n"
+        res += "• **Winca S170+ Pro 360:** **11.800.000 đ** *(Màn QLED 2K siêu nét, bán chạy số 1)*\n"
+        res += "• **Gotech GC360:** **12.900.000 đ** | **Gotech GT2K 360:** **14.900.000 đ**\n"
+        res += "• **Winca S200+ Pro 360:** **13.500.000 đ** | **S300+ Pro 360 (2K):** **15.500.000 đ**\n"
+        res += "• **Gotech GT2K 360 Pro:** **17.900.000 đ** | **GT2K 360 Max:** **19.600.000 đ**\n\n"
+        res += "🔄 **2. CAMERA 360 RỜI CẮM ZIN MÀN HÌNH GỐC THEO XE:**\n"
+        res += "• **TexPad Zone 4 (Cho VF3, XForce, Everest, CX5, CRV...):** **8.8tr - 15.5tr**\n"
+        res += "• **Camera 360 Owin (2D / Sony AHD / Pro):** **9.6tr - 16.1tr**\n"
+        res += "• **Camera 360 DCT (T1 Pro / T2 Pro / T3 Pro):** **12.8tr - 18.8tr**\n"
+        res += "• **Camera 360 ICAR Elliview (M11 / V5):** **15.8tr - 16.8tr**\n"
+        res += "─────────────────────────────────────────\n"
+        res += "🎁 Tặng công lắp đặt đi dây âm thẩm mỹ và căn chỉnh bạt chuẩn xác tại gara.\n"
+        res += "👉 *Bạn đang đi xe gì và đời nào để gara tư vấn giải pháp cắm giắc zin chuẩn nhất nhé!*"
+        return {"type": "success", "module": "dichvu", "message": res}
 
     # Bọc da Nappa
     if bool(re.search(r'\b(nappa|da nappa)\b', clean_text)) and not is_compare:
