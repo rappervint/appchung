@@ -213,31 +213,40 @@ def parse_vietnamese_money(text, default_thousands=True):
 
     return 0
 
+KNOWN_PRODUCT_CODES = {
+    'A310', 'M310', 'A210', 'A200', 'A500', 'A510', 'A800', 'A810', 'M300', 'M500', 'S410', 'T800', 'X200',
+    'KC01', 'S720', 'R440', 'TS2K', 'TS5K', 'M1', 'M2', 'C25', 'C26',
+    'V20', 'F10', 'S3', 'S6', 'S8', 'S9', 'M10', 'M20', 'M30', 'M40', 'G1', 'CB150', 'F150',
+    'BS10', 'D4', 'S150', 'S170', 'S200', 'S300', 'GT2K', 'GC6', 'NC6', 'B10'
+}
+
 def extract_license_plate(text):
     clean = text.upper().strip()
-    # Bỏ các tiền tố thông dụng như "XE ", "BIỂN SỐ ", "BIỂN ", "BKS ", "SỐ XE "
     clean_no_prefix = re.sub(r'^(?:XE|BIEN\s*SO|BIEN|BKS|SO\s*XE)\s+', '', clean, flags=re.IGNORECASE).strip()
+
+    # Loại trừ ngay nếu trùng mã sản phẩm / camera / phụ kiện đã biết
+    if clean in KNOWN_PRODUCT_CODES or clean_no_prefix in KNOWN_PRODUCT_CODES:
+        return ""
 
     # 1. Biển số đầy đủ chuẩn VN: 63A-187.30, 63A - 187.30, 63A18730, 63LD-001.23, 51H-1234...
     m = re.search(r'\b(\d{2}[A-Z]{1,2}(?:\s*[\-\.]\s*|\s*)[0-9]{3,5}(?:[\.\s\-][0-9]{1,2})?)\b', clean)
     if m:
         return m.group(1).strip()
 
-    # 2. Định dạng số xe có dấu chấm/gạch/cách: 014.92, 187.30, 005.67 (3 số + . + 2 số)
+    # 2. Định dạng số xe có dấu chấm/gạch: 014.92, 187.30, 005.67 (3 số + . + 2 số)
     m = re.search(r'\b([0-9]{3}[\.\-\s][0-9]{2})\b', clean)
     if m:
         return m.group(1).strip()
 
-    # 3. Biển số có chữ cái và số (không phải chữ XE): A187.30, A01492, 51H...
-    m = re.search(r'\b((?!XE\b)[A-Z]{1,2}(?:\s*[\-\.]\s*|\s*)[0-9]{3,5}(?:[\.\s\-][0-9]{1,2})?)\b', clean)
+    # 3. Biển số có sê-ri chữ cái và 5 số có định dạng: A-187.30, A.187.30 (bắt buộc có định dạng 3 số . 2 số để tránh nhầm mã SP như A310)
+    m = re.search(r'\b([A-Z]{1,2}[\-\.][0-9]{3}[\.\-\s][0-9]{2})\b', clean)
     if m:
         return m.group(1).strip()
 
-    # 4. Gõ tắt 4 hoặc 5 số cuối của biển số xe (VD: 01492, 18730, 48985, 00567, 9086...)
+    # 4. Gõ tắt 4 hoặc 5 số cuối của biển số xe (VD: 01492, 18730, 48985, 00567...)
     m = re.search(r'\b([0-9]{4,5})\b', clean_no_prefix)
     if m:
         val = m.group(1).strip()
-        # Loại trừ năm nếu là 4 chữ số thông thường không đi kèm ngữ cảnh tra cứu xe
         if len(val) == 4 and val in ['2020', '2021', '2022', '2023', '2024', '2025', '2026']:
             if not any(k in clean.lower() for k in ['xe', 'bien', 'so xe', 'tra cuu']):
                 return ""
@@ -1649,6 +1658,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                     })
 
             else:
+                valid_phone_filter = f"%{clean_phone_q}%" if len(clean_phone_q) >= 9 else "__NO_PHONE_MATCH__"
                 c.execute("""
                     SELECT id, customer_name, phone, license_plate, install_date, total_price 
                     FROM orders 
@@ -1658,7 +1668,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                        OR phone LIKE ?
                        OR customer_name LIKE ?
                     ORDER BY install_date DESC LIMIT 10
-                """, (f"%{clean_q}%", f"%{search_query}%", f"%{clean_phone_q if clean_phone_q else clean_q}%", f"%{search_query}%", f"%{search_query}%"))
+                """, (f"%{clean_q}%", f"%{search_query}%", valid_phone_filter, valid_phone_filter, f"%{search_query}%"))
                 orders = c.fetchall()
 
                 for o in orders:
@@ -2634,6 +2644,21 @@ def handle_gara_consultation(raw_text, clean_text):
                 "📹 **CAMERA HÀNH TRÌNH VIETMAP M2 (4K - XEM TỪ XA):**\n"
                 "• **Giá trọn gói:** **8.980.000 đ**\n"
                 "• **Tính năng:** Mắt trước 4K, **tặng SIM 12 tháng** xem video trực tiếp & định vị xe từ xa qua điện thoại."
+            )
+        }
+
+    # 70mai M310 / A310 (Giải đáp thông minh khi khách hỏi A310 hoặc M310)
+    if bool(re.search(r'\b(m310|a310|70mai 310|cam 310|camera 310|70mai m310|70mai a310|camera a310|camera m310|cam m310|cam a310)\b', clean_text)):
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "📹 **CAMERA HÀNH TRÌNH 70MAI M310 / M310 PLUS (3K):**\n"
+                "• **Giá bán trọn gói:** **1.500.000 đ** *(Bản quốc tế Plus 3K - Sẵn hàng tại kho gara)*\n"
+                "• **Cấu hình:** Ghi hình trước siêu nét 3K (1296P/3K), góc rộng 130°, cảm biến nhạy sáng quay đêm rõ biển số, kết nối Wi-Fi xem & tải video trực tiếp về điện thoại qua app 70mai.\n"
+                "• **Quà tặng:** Tặng thẻ nhớ tốc độ cao, bao trọn gói công lắp đặt đi dây âm kín zin 100% tại gara.\n"
+                "• **Bảo hành:** **12 tháng chính hãng 1 đổi 1**.\n\n"
+                "💡 *Lưu ý:* 70mai dòng 310 có tên chính thức là **70mai M310** (dòng cam trước nhỏ gọn giấu sau gương). Nếu bạn cần loại **ghi hình cả Trước + Sau**, có thể tham khảo thêm: **70mai A210 / A200 (2.500.000 đ)** hoặc **70mai A510 3K Sony Starvis 2 (3.400.000 đ)** nhé!"
             )
         }
 
