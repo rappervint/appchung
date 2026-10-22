@@ -1975,6 +1975,20 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
     - Tìm không dấu, có dấu, tìm theo mã SP..., nhóm hàng, tên hàng
     - Tự động sắp xếp sản phẩm còn tồn kho và có độ khớp cao nhất lên đầu
     """
+    if 'texpad' in clean_text and '360' in clean_text:
+        return {
+            "type": "info",
+            "module": "banhang",
+            "message": (
+                "⚠️ **THÔNG BÁO TỪ TRẦN BÌNH AUTO:**\n"
+                "Hiện tại dòng **Camera 360 TexPad gara đã ngừng kinh doanh**.\n\n"
+                "👉 Gara khuyên dùng các dòng Camera 360 độ thế hệ mới đang có sẵn hàng:\n"
+                "• **Camera 360 Owin (VF3, XForce, Mazda, CRV...):** **8.5tr - 16.1tr** *(Cắm giắc zin 100%, cảm biến Sony siêu nét)*\n"
+                "• **Camera 360 DCT (T1 Pro / T2 Pro):** **12.8tr - 15.8tr** *(Dòng cam 360 nét nhất hiện nay)*\n"
+                "• **Màn hình liền Cam 360 WINCA S170+ / S300+:** **10.5tr - 15.5tr**"
+            )
+        }
+
     if not os.path.exists(DB_BANHANG):
         return None
 
@@ -2072,10 +2086,13 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
             war_badge = f"{war_m} tháng" if war_m > 0 else (p['warranty_raw'] or 'Theo nhà sản xuất')
             cat_label = f"📁 *{p['category']}*\n" if p['category'] else ""
 
+            stock_val = p.get('stock') or 0
+            stock_badge = f"🟢 Còn hàng: **{int(stock_val)}**" if stock_val > 0 else "🔴 *Tạm hết hàng*"
+
             reply += f"• **{p['name']}** `({p['code'] or 'SP'})`\n"
             if cat_label:
                 reply += f"  {cat_label}"
-            reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | 🛡️ Bảo hành: **{war_badge}**\n\n"
+            reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | 🛡️ BH: **{war_badge}** | {stock_badge}\n\n"
 
         reply += "👉 [Xem danh sách kho hàng](/banhang/)"
         return {
@@ -3284,15 +3301,16 @@ def handle_gara_consultation(raw_text, clean_text):
                 "message": (
                     "📷 **BÁO GIÁ CAMERA 360 ĐỘ CHO VINFAST VF3 (TRẦN BÌNH AUTO):**\n"
                     "─────────────────────────────────────────\n"
-                    "Dòng xe VinFast VF3 có 2 phương án lắp Camera 360 độ toàn cảnh tối ưu nhất:\n\n"
+                    "Dòng xe VinFast VF3 có 2 phương án nâng cấp Camera 360 độ toàn cảnh tối ưu nhất:\n\n"
                     "🔹 **PHƯƠNG ÁN 1: CAMERA 360 RỜI CẮM ZIN MÀN HÌNH THEO XE (GIỮ NGUYÊN MÀN GỐC)**\n"
-                    "• **Camera 360 TEXPAD ZONE 4 (Chuyên cho VF3):** **8.800.000 đ** *(Khuyên dùng nhất)*\n"
+                    "• **Camera 360 OWIN (Bản cho VF3):** **8.500.000 đ** *(Khuyên dùng nhất - Không CarPlay)*\n"
+                    "  - Bản có tích hợp Apple CarPlay: **9.500.000 đ**\n"
                     "  - Cắm giắc zin 100%, tích hợp thẳng vào màn hình zin của xe VF3.\n"
-                    "  - Mô phỏng 3D siêu nét, tự kích hoạt khi xi nhan, lùi hoặc chạy chậm dưới 20km/h.\n"
+                    "  - Mắt cam Sony quay đêm siêu nét, tự động bật góc nhìn khi xi nhan, lùi hoặc chạy chậm dưới 20km/h.\n"
                     "  - Bảo hành chính hãng 2 năm.\n"
-                    "• **Camera 360 OWIN (Bản cho VF3):** **8.500.000 đ** *(Mắt cam Sony quay đêm cực sáng)*\n\n"
-                    "🔹 **PHƯƠNG ÁN 2: MÀN HÌNH ANDROID LIỀN CAMERA 360 (VỪA GIẢI TRÍ VỪA QUAN SÁT)**\n"
-                    "• **Màn hình WINCA Android liền Cam 360 cho VF3:** **10.500.000 đ** *(Ngon bổ rẻ)*\n"
+                    "• **Camera 360 MHU cho VF3 (Lắp zin chuẩn hãng):** **13.900.000 đ**\n\n"
+                    "🔹 **PHƯƠNG ÁN 2: MÀN HÌNH ANDROID LIỀN CAMERA 360 (VỪA GIẢI TRÍ VỪA XÓA ĐIỂM MÙ)**\n"
+                    "• **Màn hình WINCA Android liền Cam 360 cho VF3:** **10.500.000 đ** *(Ngon bổ rẻ - Bán chạy)*\n"
                     "  - Trọn bộ gồm Màn hình Android cảm ứng + 4 mắt Cam 360 toàn cảnh.\n"
                     "  - Xem YouTube ngầm, dẫn đường Vietmap Live cảnh báo tốc độ phạt nguội.\n"
                     "• **Màn hình GOTECH VF3 360 / GBA VF3 360:** **19.900.000 đ - 20.000.000 đ** *(Cao cấp màn 2K)*\n"
@@ -3388,6 +3406,21 @@ def handle_gara_consultation(raw_text, clean_text):
     # ═════════════════════════════════════════════════════════════════════════
     is_cam360 = bool(re.search(r'\b(cam\s*360|camera\s*360|cam360|camera360|360\s*do|toan\s*canh|xoa\s*diem\s*mu)\b', clean_text))
     if is_cam360:
+        # Nếu khách hỏi dòng TexPad 360:
+        if 'texpad' in clean_text:
+            return {
+                "type": "info",
+                "module": "dichvu",
+                "message": (
+                    "⚠️ **THÔNG BÁO TỪ TRẦN BÌNH AUTO:**\n"
+                    "Hiện tại dòng **Camera 360 TexPad gara đã ngừng kinh doanh**.\n\n"
+                    "👉 Gara khuyên dùng các dòng Camera 360 độ thế hệ mới độ nét cao và ổn định hơn:\n"
+                    "• **Camera 360 Owin (Sony AHD / Pro):** **8.5tr - 16.1tr** *(Cắm giắc zin màn theo xe, mắt cam Sony quay đêm cực nét, BH 2 năm)*\n"
+                    "• **Camera 360 DCT (T1 Pro / T2 Pro):** **12.8tr - 15.8tr** *(Dòng cam 360 sắc nét hàng đầu)*\n"
+                    "• **Màn hình Android liền Cam 360 WINCA S170+:** **11.8tr** *(Vừa xem YouTube vừa quan sát toàn cảnh 360)*"
+                )
+            }
+
         res = "📷 **BÁO GIÁ CAMERA 360 ĐỘ TOÀN CẢNH CHÍNH HÃNG:**\n"
         res += "─────────────────────────────────────────\n"
         res += "Gara Trần Bình Auto cung cấp 2 giải pháp Camera 360 độ xóa điểm mù tối ưu:\n\n"
@@ -3398,9 +3431,8 @@ def handle_gara_consultation(raw_text, clean_text):
         res += "• **Winca S200+ Pro 360:** **13.500.000 đ** | **S300+ Pro 360 (2K):** **15.500.000 đ**\n"
         res += "• **Gotech GT2K 360 Pro:** **17.900.000 đ** | **GT2K 360 Max:** **19.600.000 đ**\n\n"
         res += "🔄 **2. CAMERA 360 RỜI CẮM ZIN MÀN HÌNH GỐC THEO XE:**\n"
-        res += "• **TexPad Zone 4 (Cho VF3, XForce, Everest, CX5, CRV...):** **8.8tr - 15.5tr**\n"
-        res += "• **Camera 360 Owin (2D / Sony AHD / Pro):** **9.6tr - 16.1tr**\n"
-        res += "• **Camera 360 DCT (T1 Pro / T2 Pro / T3 Pro):** **12.8tr - 18.8tr**\n"
+        res += "• **Camera 360 Owin (Bản cho VF3, XForce, Mazda, CRV, CX5...):** **8.5tr - 16.1tr** *(Cảm biến Sony ban đêm siêu sáng)*\n"
+        res += "• **Camera 360 DCT (T1 Pro / T2 Pro / T3 Pro):** **12.8tr - 18.8tr** *(Ghi hình 4 hướng lúc tắt máy)*\n"
         res += "• **Camera 360 ICAR Elliview (M11 / V5):** **15.8tr - 16.8tr**\n"
         res += "─────────────────────────────────────────\n"
         res += "🎁 Tặng công lắp đặt đi dây âm thẩm mỹ và căn chỉnh bạt chuẩn xác tại gara.\n"
