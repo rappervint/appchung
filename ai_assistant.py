@@ -979,6 +979,17 @@ def handle_baocao_den(raw_text, clean_text):
     if is_pure_query:
         return None
 
+    # GUARDRAIL BẢO VỆ: Chỉ ghi nhận đơn khi có dấu hiệu lên đơn rõ ràng (hành động, khách, xe, biển số hoặc giá tiền độc lập)
+    has_action = bool(re.search(r'\b(lap|gan|thay|do|ban|len don|nhap don|ghi don|don den|nhap)\b', clean_text))
+    has_special = bool(re.search(r'\b(mua ve|xe di xet|giao tho|xe bai)\b', clean_text))
+    has_plate = bool(re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5})\b', raw_text.upper()))
+    has_customer = bool(re.search(r'\b(anh|chi|chu|bac|em|thay|co|khach|chu xe)\s+[a-zA-ZÀ-ỹ]+', raw_text, re.IGNORECASE))
+    has_explicit_price = bool(re.search(r'\s+(\d{3,5})\b', clean_text)) or bool(re.search(r'\b\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|nghin|ngàn)\b', clean_text))
+
+    is_order_intent = has_action or has_special or has_plate or has_customer or (has_explicit_price and len(clean_text.split()) >= 3)
+    if not is_order_intent:
+        return None
+
     text = raw_text.strip()
 
     # 1. Biển số xe
@@ -1060,20 +1071,24 @@ def handle_baocao_den(raw_text, clean_text):
             num_str = m_p.group(1).replace(',', '.')
             unit = (m_p.group(2) or '').lower()
             val = float(num_str)
-            if unit in ['tr', 'trieu', 'triệu']:
-                price_k = int(val * 1000)
-            elif unit in ['k', 'nghin', 'ngàn']:
-                price_k = int(val)
-            elif val >= 100000:
-                price_k = int(val / 1000)
-            elif val >= 100:
-                price_k = int(val)
-            elif val > 0 and val < 50:
-                price_k = int(val * 1000)
-            else:
-                price_k = int(val)
-            raw_name = c[:m_p.start()].strip()
-            raw_name = re.sub(r'\b(giá|gia)\b\s*$', '', raw_name, flags=re.IGNORECASE).strip()
+            prefix_char = c[:m_p.start()].strip()
+            # Nếu tiền tố chỉ có 1 chữ cái (như 'f' trong 'f10', hay 's' trong 's3') thì số này là đuôi mã sản phẩm, không phải giá tiền!
+            is_lamp_code_suffix = len(prefix_char) <= 1 and prefix_char.isalpha()
+            if not is_lamp_code_suffix:
+                if unit in ['tr', 'trieu', 'triệu']:
+                    price_k = int(val * 1000)
+                elif unit in ['k', 'nghin', 'ngàn']:
+                    price_k = int(val)
+                elif val >= 100000:
+                    price_k = int(val / 1000)
+                elif val >= 100:
+                    price_k = int(val)
+                elif val > 0 and val < 50:
+                    price_k = int(val * 1000)
+                else:
+                    price_k = int(val)
+                raw_name = prefix_char
+                raw_name = re.sub(r'\b(giá|gia)\b\s*$', '', raw_name, flags=re.IGNORECASE).strip()
 
         matched_name = ''
         matched_default = 3500
@@ -3285,6 +3300,66 @@ def handle_gara_consultation(raw_text, clean_text):
                 "📺 **MÀN HÌNH GOTECH GT2K (ĐỘ PHÂN GIẢI 2K - BH 2 NĂM):**\n"
                 "• Màn đơn: GT2K New **9.6tr** | GT2K Pro **11.9tr** | GT2K Max **14.5tr**\n"
                 "• Màn liền Cam 360: GT2K 360 **14.9tr** | GT2K 360 Pro **17.9tr** | GT2K 360 Max **19.6tr**"
+            )
+        }
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # TƯ VẤN & BÁO GIÁ ĐÈN GẦM / BI GẦM LED / BI PHA (TRẦN BÌNH AUTO)
+    # ═════════════════════════════════════════════════════════════════════════
+    is_f10_query = bool(re.search(r'\b(f10|f10\s*turbo|f10\s*new|f10\s*pro|f10\s*hyper|bi\s*gam\s*f10|den\s*gam\s*f10|den\s*f10)\b', clean_text)) and \
+                   not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text))
+    if is_f10_query:
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "💡 **BÁO GIÁ BI GẦM F10 SERIES (CHÍNH HÃNG - BÁN CHẠY SỐ 1):**\n"
+                "─────────────────────────────────────────\n"
+                "Bi gầm LED F10 là dòng bi gầm quốc dân tăng sáng gấp 5-7 lần đèn halogen zin, gom cắt chuẩn không chói mắt:\n\n"
+                "• **Bi gầm F10 New 2.0 (Bản tiêu chuẩn):** **3.900.000 đ**\n"
+                "  - Công suất 35W/40W, ánh sáng trắng ấm bám đường cực tốt.\n"
+                "• **Bi gầm F10 Ba Màu (3000K / 4300K / 5500K):** **4.200.000 đ - 4.500.000 đ**\n"
+                "  - Đổi màu linh hoạt bằng công tắc gầm zin: Vàng đậm (phá sương/mưa bão) - Vàng nắng (hỗn hợp) - Trắng (đi phố).\n"
+                "• **Bi gầm F10 Turbo V2 (Mới nhất - Công suất khủng):** **5.100.000 đ - 6.000.000 đ**\n"
+                "  - Tích hợp tâm pha trợ lực cực xa, độ phủ rộng ngang đỉnh cao.\n"
+                "• **Bi gầm F10 Hyper 2.0 (5000K):** **5.500.000 đ**\n"
+                "  - Nhiệt màu 5000K chuẩn mịn mắt, mặt cắt sắc nét, bám đường mưa tuyệt hảo.\n"
+                "• **Bi gầm F10 Pro V2 (3 màu cao cấp):** **5.500.000 đ**\n"
+                "─────────────────────────────────────────\n"
+                "🎁 **Ưu đãi & Chính sách lắp đặt tại Trần Bình Auto:**\n"
+                "• Tặng kèm pát zin theo từng dòng xe, cắm giắc chuyển đổi không cắt trích dây zin.\n"
+                "• Bảo hành chính hãng 2 năm (1 đổi 1).\n"
+                "• Căn chỉnh góc chiếu chuẩn đăng kiểm toàn quốc.\n"
+                "👉 *Bạn đang đi dòng xe gì để gara kiểm tra pát zin và tư vấn mẫu phù hợp nhất nhé!*"
+            )
+        }
+
+    is_general_fog_light = bool(re.search(r'\b(den\s*gam|bi\s*gam|do\s*den|do\s*bi|cac\s*loai\s*bi\s*gam|cac\s*loai\s*den\s*gam|tu\s*van\s*den\s*gam|tu\s*van\s*bi\s*gam|gia\s*den\s*gam|gia\s*bi\s*gam|den\s*gam\s*loai\s*nao)\b', clean_text)) or \
+                           (bool(re.search(r'\b(s3|s6|s8|s9|naoevo|v20|m30|m40)\b', clean_text)) and not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text)))
+    if is_general_fog_light:
+        return {
+            "type": "success",
+            "module": "dichvu",
+            "message": (
+                "💡 **BÁO GIÁ & TƯ VẤN CÁC DÒNG BI GẦM Ô TÔ (TRẦN BÌNH AUTO):**\n"
+                "─────────────────────────────────────────\n"
+                "Gara có đầy đủ các phân khúc Bi gầm LED chính hãng tăng sáng từ 4 - 7 lần, bao đăng kiểm:\n\n"
+                "🌟 **1. PHÂN KHÚC TIẾT KIỆM (1.5tr - 3.0tr) - DÒNG NAOEVO S-SERIES:**\n"
+                "• **Naoevo S3:** **1.500.000 đ** *(Ngon bổ rẻ, tăng sáng gấp 3 lần halogen)*\n"
+                "• **Naoevo S6 / S6 Pro:** **1.800.000 đ - 2.000.000 đ**\n"
+                "• **Naoevo S8 / S9 Pro:** **2.500.000 đ - 3.000.000 đ**\n\n"
+                "🌟 **2. PHÂN KHÚC QUỐC DÂN BÁN CHẠY NHẤT (3.9tr - 5.5tr) - BI GẦM F10:**\n"
+                "• **F10 New 2.0:** **3.900.000 đ** (Gom sáng nét, bám đường)\n"
+                "• **F10 Ba Màu (3000K/4300K/5500K):** **4.200.000 đ - 4.500.000 đ** *(Chuyên đi mưa phá sương)*\n"
+                "• **F10 Turbo V2:** **5.100.000 đ - 6.000.000 đ** *(Công suất khủng có trợ pha)*\n"
+                "• **F10 Hyper / F10 Pro V2:** **5.500.000 đ**\n\n"
+                "🌟 **3. PHÂN KHÚC CAO CẤP & BI PHA LED:**\n"
+                "• **Bi gầm M30 Ultra / M40 Ultra:** **5.500.000 đ - 6.500.000 đ**\n"
+                "• **Bi LED Pha V20 Ultra / V20 Base:** **5.850.000 đ - 6.500.000 đ**\n"
+                "• **Titan Gold / Titan Black:** **5.500.000 đ - 6.750.000 đ**\n"
+                "─────────────────────────────────────────\n"
+                "🎁 Lắp đặt pát zin 100%, cắm giắc chuyên dụng, bảo hành 2 năm 1 đổi 1.\n"
+                "👉 *Bạn muốn lắp cho xe gì và thường đi đường phố hay đi đường đèo/sương mù nhiều ạ?*"
             )
         }
 
