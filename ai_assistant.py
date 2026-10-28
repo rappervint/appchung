@@ -492,6 +492,170 @@ def detect_consulted_product(text_clean: str) -> str:
             return key
     return ""
 
+def commit_thuchi_transaction(payload):
+    """Thực thi ghi khoản thu/chi vào Database sau khi người dùng đã xác nhận"""
+    trans_type = payload['trans_type']
+    amount = payload['amount']
+    note = payload['note']
+    date_str = payload['date_str']
+
+    if not os.path.exists(DB_THUCHI):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
+
+    try:
+        conn = sqlite3.connect(DB_THUCHI, timeout=10)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+        p = c.fetchone()
+        if not p:
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute("INSERT INTO periods (name, start_date, status) VALUES ('Kỳ tự động AI', ?, 'active')", (now_str,))
+            period_id = c.lastrowid
+            period_name = "Kỳ tự động AI"
+        else:
+            period_id = p['id']
+            period_name = p['name']
+
+        now_str = f"{date_str} {datetime.now().strftime('%H:%M:%S')}"
+        c.execute("INSERT INTO transactions (period_id, type, amount, note, created_at) VALUES (?, ?, ?, ?, ?)",
+                  (period_id, trans_type, amount, note.capitalize(), now_str))
+        conn.commit()
+
+        c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
+        balance = c.fetchone()[0] or 0
+        conn.close()
+
+        action_icon = "💸 ĐÃ GHI KHOẢN CHI" if trans_type == 'chi' else "💰 ĐÃ GHI KHOẢN THU"
+        amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
+        return {
+            "type": "success",
+            "module": "thuchi",
+            "message": f"✅ {action_icon} THÀNH CÔNG!\n\n"
+                       f"• **Phân loại:** {trans_type.upper()}\n"
+                       f"• **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
+                       f"• **Nội dung:** {note.capitalize()}\n"
+                       f"• **Ngày ghi nhận:** {date_str}\n"
+                       f"• **Kỳ ghi nhận:** {period_name}\n"
+                       f"• **Số dư quỹ kỳ này hiện tại:** **{balance:,.0f} đ**\n\n"
+                       f"👉 [Bấm vào đây để mở Sổ Thu Chi](/thuchi/)"
+        }
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi ghi sổ thu chi: {str(e)}"}
+
+
+def commit_baocao_den_order(payload):
+    """Thực thi ghi đơn báo cáo đèn vào Database sau khi người dùng đã xác nhận"""
+    items = payload['items']
+    cust_name = payload['cust_name']
+    found_car = payload['found_car']
+    plate = payload['plate']
+    order_date = payload['order_date']
+    discount_k = payload.get('discount_k', 0)
+    total_base_k = payload.get('total_base_k', 0)
+    total_final_k = payload.get('total_final_k', 0)
+
+    if not os.path.exists(DB_DEN):
+        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=10)
+        c = conn.cursor()
+        saved_ids = []
+        for it in items:
+            c.execute("""
+                INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
+                VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
+            """, (order_date, it['product_name'], cust_name, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
+            saved_ids.append(c.lastrowid)
+        conn.commit()
+        conn.close()
+
+        item_lines = []
+        for i, it in enumerate(items, 1):
+            qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
+            default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
+            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
+            if it['discount_k'] > 0:
+                final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
+            else:
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
+
+        items_text = "\n".join(item_lines)
+        total_base_str = f"{total_base_k*1000:,.0f} đ ({total_base_k:,}k)"
+        total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
+        discount_text = f"\n• **Giảm giá:** -{discount_k*1000:,.0f} đ (-{discount_k:,}k)" if discount_k > 0 else ""
+
+        id_text = f"#{saved_ids[0]}" if len(saved_ids) == 1 else f"#{saved_ids[0]} - #{saved_ids[-1]} ({len(saved_ids)} món)"
+
+        return {
+            "type": "success",
+            "module": "den",
+            "message": (
+                f"💡 **ĐÃ XÁC NHẬN & GHI NHẬN ĐƠN BÁO CÁO ĐÈN THÀNH CÔNG!**\n\n"
+                f"• **Mã đơn:** {id_text}\n"
+                f"• **Khách hàng:** **{cust_name}**\n"
+                f"• **Dòng xe:** {found_car or 'Chưa rõ dòng xe'}\n"
+                + (f"• **Biển số:** {plate}\n" if plate else "")
+                + f"• **Ngày ghi nhận:** {order_date}\n\n"
+                f"📦 **Chi tiết các món ({len(items)} món):**\n"
+                f"{items_text}\n"
+                + (f"• **Tổng tiền gốc:** {total_base_str}\n" if discount_k > 0 else "")
+                + discount_text
+                + f"\n• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n\n"
+                f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
+                f"*(Nếu muốn hủy, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
+            )
+        }
+    except Exception as e:
+        return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
+
+
+def execute_confirmed_action(action_type, payload, session_id="default_user"):
+    """Thực thi hành động sau khi người dùng đã xác nhận đồng ý"""
+    if action_type == 'learn_knowledge':
+        raw_text = payload.get('raw_text', '')
+        if knowledge_base:
+            return knowledge_base.analyze_and_learn(raw_text)
+        return {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
+
+    elif action_type == 'delete_knowledge':
+        kw = payload.get('keyword_or_id', '')
+        if knowledge_base:
+            return knowledge_base.delete_learned_knowledge(kw)
+        return {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
+
+    elif action_type == 'thuchi':
+        return commit_thuchi_transaction(payload)
+
+    elif action_type == 'baocao_den':
+        return commit_baocao_den_order(payload)
+
+    elif action_type == 'admin_edit_order':
+        kwargs = payload.get('kwargs', {})
+        if gemini_engine:
+            res_txt = gemini_engine.sua_don_hang(**kwargs)
+            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN SỬA ĐƠN THÀNH CÔNG!**\n\n{res_txt}"}
+        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+
+    elif action_type == 'admin_delete_order':
+        order_id = payload.get('order_id')
+        if gemini_engine:
+            res_txt = gemini_engine.xoa_don_hang(order_id)
+            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN XÓA ĐƠN THÀNH CÔNG!**\n\n{res_txt}"}
+        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+
+    elif action_type == 'admin_update_stock':
+        kwargs = payload.get('kwargs', {})
+        if gemini_engine:
+            res_txt = gemini_engine.cap_nhat_kho_hang(**kwargs)
+            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN CẬP NHẬT KHO THÀNH CÔNG!**\n\n{res_txt}"}
+        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+
+    return {"type": "error", "message": "Không nhận diện được hành động cần thực thi."}
+
 def handle_wizard_step(user_text, session_id):
     """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
     session = WIZARD_SESSIONS.get(session_id)
@@ -508,9 +672,37 @@ def handle_wizard_step(user_text, session_id):
             "message": "🛑 **ĐÃ HỦY PHIÊN NHẬP LIỆU TỪNG BƯỚC!**\nKhông có dữ liệu nào được lưu. Bạn có thể bắt đầu lại bất cứ lúc nào."
         }
 
-    flow = session['flow']
-    step = session['step']
-    data = session['data']
+    flow = session.get('flow')
+    step = session.get('step')
+    data = session.get('data')
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FLOW XÁC NHẬN TOÀN DIỆN (UNIVERSAL CONFIRMATION INTERCEPTOR)
+    # Áp dụng cho MỌI thao tác: Ghi nhớ, Sửa giá, Thu chi, Đơn đèn, Sửa/Xóa đơn
+    # ═════════════════════════════════════════════════════════════════════════
+    if flow == 'confirm_action':
+        is_confirm = clean in [
+            'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
+            'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1',
+            'dung', 'đúng', 'chinh xac', 'chính xác', 'thuc hien', 'thực hiện', 'ok / luu', 'ok/luu'
+        ] or clean.startswith('ok')
+
+        is_cancel = clean in ['huy', 'hủy', 'khong', 'không', 'no', 'cancel', 'thoi', 'thôi', 'dung', 'dừng', 'stop', 'k']
+
+        if is_confirm:
+            action_type = session.get('action_type')
+            payload = session.get('payload', {})
+            del WIZARD_SESSIONS[session_id]
+            return execute_confirmed_action(action_type, payload, session_id)
+        elif is_cancel:
+            del WIZARD_SESSIONS[session_id]
+            return {
+                "type": "info",
+                "message": "🛑 **ĐÃ HỦY THAO TÁC!**\nKhông có bất kỳ dữ liệu nào bị thay đổi trong hệ thống."
+            }
+        else:
+            del WIZARD_SESSIONS[session_id]
+            return None
 
     # ══════════════════════════════════════════
     # FLOW 0: HỎI LẠI NĂM KHI THIẾU THÔNG TIN (BÁO CÁO ĐÈN)
@@ -997,7 +1189,7 @@ def handle_wizard_step(user_text, session_id):
 # 1. NHẬP BÁO CÁO DOANH THU ĐÈN TỐI ƯU SIÊU TỐC (ONE-SHOT)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def handle_baocao_den(raw_text, clean_text):
+def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     """
     Xử lý lệnh ghi đơn báo cáo doanh thu đèn tối ưu tuyệt đối (One-shot command):
     - Bóc tách theo bất kỳ trật tự câu chữ nào: [Khách] [Xe] [Đèn] [Giá] hoặc [Đèn] [Xe] [Khách]
@@ -1185,61 +1377,52 @@ def handle_baocao_den(raw_text, clean_text):
 
     total_final_k = sum(it['final_price_k'] for it in items)
 
-    if not os.path.exists(DB_DEN):
-        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
+    item_lines = []
+    for i, it in enumerate(items, 1):
+        qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
+        default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
+        base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
+        if it['discount_k'] > 0:
+            final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
+            item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
+        else:
+            item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
 
-    try:
-        conn = sqlite3.connect(DB_DEN, timeout=10)
-        c = conn.cursor()
-        saved_ids = []
-        for it in items:
-            c.execute("""
-                INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
-                VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
-            """, (order_date, it['product_name'], cust_name, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
-            saved_ids.append(c.lastrowid)
-        conn.commit()
-        conn.close()
+    items_text = "\n".join(item_lines)
+    total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
 
-        item_lines = []
-        for i, it in enumerate(items, 1):
-            qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
-            default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
-            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
-            if it['discount_k'] > 0:
-                final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
-                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
-            else:
-                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
+    confirm_msg = (
+        f"❓ **XÁC NHẬN TẠO ĐƠN BÁO CÁO ĐÈN:**\n"
+        f"───────────────────────────────────────\n"
+        f"• 👤 **Khách hàng:** **{cust_name}**\n"
+        f"• 🚗 **Dòng xe:** **{found_car or 'Chưa rõ dòng xe'}**\n"
+        + (f"• 🚘 **Biển số:** **{plate}**\n" if plate else "")
+        + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
+        + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
+        + f"• 📅 **Ngày lắp:** **{order_date}**\n"
+        f"───────────────────────────────────────\n"
+        f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
+        f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+    )
 
-        items_text = "\n".join(item_lines)
-        total_base_str = f"{total_base_k*1000:,.0f} đ ({total_base_k:,}k)"
-        total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
-        discount_text = f"\n• **Giảm giá:** -{discount_k*1000:,.0f} đ (-{discount_k:,}k)" if discount_k > 0 else ""
-
-        id_text = f"#{saved_ids[0]}" if len(saved_ids) == 1 else f"#{saved_ids[0]} - #{saved_ids[-1]} ({len(saved_ids)} món)"
-
-        return {
-            "type": "success",
-            "module": "den",
-            "message": (
-                f"💡 **ĐÃ GHI NHẬN ĐƠN BÁO CÁO ĐÈN THÀNH CÔNG!**\n\n"
-                f"• **Mã đơn:** {id_text}\n"
-                f"• **Khách hàng:** **{cust_name}**\n"
-                f"• **Dòng xe:** {found_car or 'Chưa rõ dòng xe'}\n"
-                + (f"• **Biển số:** {plate}\n" if plate else "")
-                + f"• **Ngày ghi nhận:** {order_date}\n\n"
-                f"📦 **Chi tiết các món ({len(items)} món):**\n"
-                f"{items_text}\n"
-                + (f"• **Tổng tiền gốc:** {total_base_str}\n" if discount_k > 0 else "")
-                + discount_text
-                + f"\n• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n\n"
-                f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
-                f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
-            )
+    WIZARD_SESSIONS[session_id] = {
+        'flow': 'confirm_action',
+        'action_type': 'baocao_den',
+        'payload': {
+            'items': items,
+            'cust_name': cust_name,
+            'found_car': found_car,
+            'plate': plate,
+            'order_date': order_date,
+            'discount_k': discount_k,
+            'total_base_k': total_base_k,
+            'total_final_k': total_final_k
         }
-    except Exception as e:
-        return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
+    }
+    return {
+        "type": "clarify",
+        "message": confirm_msg
+    }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. XÓA / HOÀN NGUYÊN ĐƠN ĐÈN VỪA NHẬP NHẦM
@@ -1522,7 +1705,7 @@ def handle_baocao_den_stats(raw_text, clean_text, session_id="default_user"):
 # 4. SỔ THU CHI (ONE-SHOT)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def handle_thuchi(raw_text, clean_text):
+def handle_thuchi(raw_text, clean_text, session_id='default_user'):
     """Xử lý lệnh ghi sổ thu hoặc chi (One-shot) - Bảo vệ tuyệt đối không ghi nhầm câu hỏi doanh thu hay báo cáo"""
     if any(k in clean_text for k in ['lap den', 'gan den', 'bi led', 'bi gam', 'v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'naoevo', 'titan']):
         return None
@@ -1566,49 +1749,36 @@ def handle_thuchi(raw_text, clean_text):
     if not note:
         note = "Ghi nhanh qua trợ lý AI"
 
-    if not os.path.exists(DB_THUCHI):
-        return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
+    amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
+    action_label = "KHOẢN CHI" if trans_type == 'chi' else "KHOẢN THU"
+    action_icon = "💸" if trans_type == 'chi' else "💰"
 
-    try:
-        conn = sqlite3.connect(DB_THUCHI, timeout=10)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
+    confirm_msg = (
+        f"❓ **XÁC NHẬN GHI SỔ THU CHI ({action_label}):**\n"
+        f"───────────────────────────\n"
+        f"• {action_icon} **Phân loại:** **{trans_type.upper()}**\n"
+        f"• 💰 **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
+        f"• 📝 **Nội dung:** **{note.capitalize()}**\n"
+        f"• 📅 **Ngày phát sinh:** **{date_str}**\n"
+        f"───────────────────────────\n"
+        f"👉 Anh có chắc chắn muốn **LƯU KHOẢN NÀY VÀO SỔ QUỸ** không?\n\n"
+        f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+    )
 
-        c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
-        p = c.fetchone()
-        if not p:
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            c.execute("INSERT INTO periods (name, start_date, status) VALUES ('Kỳ tự động AI', ?, 'active')", (now_str,))
-            period_id = c.lastrowid
-            period_name = "Kỳ tự động AI"
-        else:
-            period_id = p['id']
-            period_name = p['name']
-
-        now_str = f"{date_str} {datetime.now().strftime('%H:%M:%S')}"
-        c.execute("INSERT INTO transactions (period_id, type, amount, note, created_at) VALUES (?, ?, ?, ?, ?)",
-                  (period_id, trans_type, amount, note.capitalize(), now_str))
-        conn.commit()
-
-        c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
-        balance = c.fetchone()[0] or 0
-        conn.close()
-
-        action_icon = "💸 ĐÃ GHI KHOẢN CHI" if trans_type == 'chi' else "💰 ĐÃ GHI KHOẢN THU"
-        return {
-            "type": "success",
-            "module": "thuchi",
-            "message": f"{action_icon} THÀNH CÔNG!\n\n"
-                       f"• **Phân loại:** {trans_type.upper()}\n"
-                       f"• **Số tiền:** **{amount:,.0f} đ**\n"
-                       f"• **Nội dung:** {note.capitalize()}\n"
-                       f"• **Ngày:** {date_str}\n"
-                       f"• **Kỳ ghi nhận:** {period_name}\n"
-                       f"• **Số dư quỹ kỳ này hiện tại:** **{balance:,.0f} đ**\n\n"
-                       f"👉 [Bấm vào đây để mở Sổ Thu Chi](/thuchi/)"
+    WIZARD_SESSIONS[session_id] = {
+        'flow': 'confirm_action',
+        'action_type': 'thuchi',
+        'payload': {
+            'trans_type': trans_type,
+            'amount': amount,
+            'note': note,
+            'date_str': date_str
         }
-    except Exception as e:
-        return {"type": "error", "message": f"Lỗi ghi sổ thu chi: {str(e)}"}
+    }
+    return {
+        "type": "clarify",
+        "message": confirm_msg
+    }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. TRA CỨU BẢO HÀNH & ĐƠN HÀNG
@@ -4193,7 +4363,7 @@ def ask_clarification(raw_text, clean_text, session_id):
     return {"type": "clarify", "message": msg}
 
 
-def parse_and_execute_admin_command(raw, clean):
+def parse_and_execute_admin_command(raw, clean, session_id='default_user'):
     """Xử lý siêu tốc các thao tác quản trị trực tiếp trên Database nội bộ (< 0.005 giây)"""
     # 0. Tự động nhận diện và lưu API Key Gemini mới khi người dùng gửi trong chat
     m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{40,65})\b', raw)
@@ -4245,14 +4415,37 @@ def parse_and_execute_admin_command(raw, clean):
             if m_plate:
                 new_plate = m_plate.group(1).upper()
 
-            res_text = gemini_engine.sua_don_hang(
-                ma_don_hang=order_id,
-                ten_khach_moi=new_cust,
-                dong_xe_moi=new_car,
-                sdt_moi=new_phone,
-                bien_so_moi=new_plate
+            changes = []
+            if new_cust: changes.append(f"Tên khách mới: **{new_cust}**")
+            if new_car: changes.append(f"Dòng xe mới: **{new_car}**")
+            if new_phone: changes.append(f"SĐT mới: **{new_phone}**")
+            if new_plate: changes.append(f"Biển số mới: **{new_plate}**")
+            change_txt = "\n".join([f"  - {c}" for c in changes]) if changes else "Cập nhật thông tin chi tiết đơn hàng"
+
+            confirm_msg = (
+                f"❓ **XÁC NHẬN CHỈNH SỬA ĐƠN HÀNG #{order_id}:**\n"
+                f"─────────────────────────────────────────\n"
+                f"• Mã đơn: **#{order_id}**\n"
+                f"• Các thông tin điều chỉnh:\n{change_txt}\n"
+                f"─────────────────────────────────────────\n"
+                f"👉 Anh có chắc chắn muốn **CẬP NHẬT ĐƠN HÀNG NÀY** không?\n\n"
+                f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
             )
-            return {"type": "success", "message": res_text}
+
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_edit_order',
+                'payload': {
+                    'kwargs': {
+                        'ma_don_hang': order_id,
+                        'ten_khach_moi': new_cust,
+                        'dong_xe_moi': new_car,
+                        'sdt_moi': new_phone,
+                        'bien_so_moi': new_plate
+                    }
+                }
+            }
+            return {"type": "clarify", "message": confirm_msg}
 
     # 2. Cập nhật tồn kho sản phẩm siêu tốc
     if any(k in clean for k in ['cap nhat kho', 'ton kho', 'nhap kho', 'sua kho']):
@@ -4261,16 +4454,41 @@ def parse_and_execute_admin_command(raw, clean):
         if m_code and m_qty and gemini_engine:
             code = m_code.group(1).upper()
             qty = int(m_qty.group(1))
-            res_text = gemini_engine.cap_nhat_kho_hang(ma_hoac_ten_sp=code, ton_kho_moi=qty)
-            return {"type": "success", "message": res_text}
+            confirm_msg = (
+                f"❓ **XÁC NHẬN CẬP NHẬT TỒN KHO:**\n"
+                f"─────────────────────────────────────────\n"
+                f"• Sản phẩm: **{code}**\n"
+                f"• Tồn kho điều chỉnh: **{qty}** bộ / chiếc\n"
+                f"─────────────────────────────────────────\n"
+                f"👉 Anh có muốn **LƯU SỐ LƯỢNG NÀY VÀO KHO HÀNG** không?\n\n"
+                f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+            )
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_update_stock',
+                'payload': {'kwargs': {'ma_hoac_ten_sp': code, 'ton_kho_moi': qty}}
+            }
+            return {"type": "clarify", "message": confirm_msg}
 
     # 3. Xóa đơn hàng siêu tốc
     if any(k in clean for k in ['xoa don', 'huy don']):
         m_id = re.search(r'(?:don|ma)?\s*#?(\d{3,6})\b', clean)
         if m_id and gemini_engine:
             order_id = int(m_id.group(1))
-            res_text = gemini_engine.xoa_don_hang(ma_don_hang=order_id)
-            return {"type": "success", "message": res_text}
+            confirm_msg = (
+                f"⚠️ **CẢNH BÁO: XÁC NHẬN XÓA ĐƠN HÀNG #{order_id}:**\n"
+                f"─────────────────────────────────────────\n"
+                f"Thao tác này sẽ xóa vĩnh viễn đơn hàng **#{order_id}** khỏi hệ thống dữ liệu!\n"
+                f"─────────────────────────────────────────\n"
+                f"👉 Anh có chắc chắn muốn **XÓA ĐƠN HÀNG NÀY** không?\n\n"
+                f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'** để xóa | Bấm **[🛑 Hủy]** để hủy bỏ)*"
+            )
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_delete_order',
+                'payload': {'order_id': order_id}
+            }
+            return {"type": "clarify", "message": confirm_msg}
 
     return None
 
@@ -4308,11 +4526,36 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     # ═════════════════════════════════════════════════════════════════════
     if KNOWLEDGE_AVAILABLE and knowledge_base:
         if knowledge_base.is_learning_command(clean):
+            preview = getattr(knowledge_base, 'prepare_learning_preview', lambda x: None)(raw)
+            if preview and preview.get('message'):
+                WIZARD_SESSIONS[session_id] = {
+                    'flow': 'confirm_action',
+                    'action_type': 'learn_knowledge',
+                    'payload': {'raw_text': raw}
+                }
+                return {
+                    "type": "clarify",
+                    "message": preview['message']
+                }
             return knowledge_base.analyze_and_learn(raw)
+
         if clean in ['xem bo nho', 'danh sach ghi nho', 'da nho gi', 'bo nho ai', 'nho nhung gi', 'tri thuc gara']:
             return knowledge_base.list_learned_knowledge()
+
         if any(k in clean for k in ['xoa ghi nho', 'quen ghi nho', 'xoa bai hoc']):
-            return knowledge_base.delete_learned_knowledge(raw)
+            confirm_msg = (
+                f"❓ **XÁC NHẬN XÓA GHI NHỚ TRI THỨC:**\n"
+                f"─────────────────────────────────────────\n"
+                f"Anh có chắc chắn muốn xóa bài học tri thức liên quan đến **'{raw}'** khỏi bộ não AI không?\n"
+                f"─────────────────────────────────────────\n"
+                f"👉 *(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'** để xóa | Bấm **[🛑 Hủy]** để bỏ qua)*"
+            )
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_action',
+                'action_type': 'delete_knowledge',
+                'payload': {'keyword_or_id': raw}
+            }
+            return {"type": "clarify", "message": confirm_msg}
 
     # ═════════════════════════════════════════════════════════════════════
     # 1. KÍCH HOẠT WIZARD SỔ CHI KHI CHỈ NHẮN "CHI" HOẶC "GHI CHI"
@@ -4348,7 +4591,7 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     # ═════════════════════════════════════════════════════════════════════
     # 2.3. FAST-TRACK ADMIN ENGINE: XỬ LÝ SIÊU TỐC LỆNH QUẢN TRỊ (< 0.005s)
     # ═════════════════════════════════════════════════════════════════════
-    res_admin = parse_and_execute_admin_command(raw, clean)
+    res_admin = parse_and_execute_admin_command(raw, clean, session_id=session_id)
     if res_admin:
         return res_admin
 
@@ -4472,13 +4715,13 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
 
     # 7. Nhập Đơn Báo Cáo Đèn (ƯU TIÊN CAO khi có mã đèn hoặc hành động lắp đặt)
     if has_lamp_keyword or (any(k in clean for k in ['lap', 'gan', 'do', 'thay', 'ban']) and any(k in clean for k in ['den', 'bi', 'bong', 'pha', 'gam'])):
-        res = handle_baocao_den(raw, clean)
+        res = handle_baocao_den(raw, clean, session_id=session_id)
         if res:
             return res
 
     # 8. Sổ thu chi (thu, chi, tiền ăn, tiền xăng...)
     if any(k in clean for k in ['thu', 'chi', 'tra tien', 'mua', 'dong tien', 'nop', 'ung']):
-        res = handle_thuchi(raw, clean)
+        res = handle_thuchi(raw, clean, session_id=session_id)
         if res:
             return res
 

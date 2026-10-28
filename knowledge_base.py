@@ -293,6 +293,82 @@ def extract_learning_content(raw_text: str) -> str:
     return raw
 
 
+def prepare_learning_preview(raw_text: str) -> dict:
+    """Tạo thông tin xem trước và câu hỏi xác nhận trước khi lưu vào bộ não AI"""
+    content = extract_learning_content(raw_text)
+    if not content or len(content) < 2:
+        return None
+
+    clean_content = remove_accents(content).lower()
+    price_display, price_num = parse_vietnamese_currency(content)
+
+    split_words = r'^(.*?)(?:\s+(?:là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
+    topic_raw = ""
+    m_topic = re.search(split_words, content, re.IGNORECASE)
+    if m_topic and len(m_topic.group(1).strip()) >= 2:
+        topic_raw = m_topic.group(1).strip()
+    else:
+        protected = re.sub(r'(\d)\.(\d)', r'\1__DOT__\2', content)
+        parts = protected.split(',')
+        topic_raw = parts[0].replace('__DOT__', '.').strip()
+
+    cleaned_t = clean_topic_name(topic_raw) or topic_raw
+    topic = cleaned_t.strip().title()
+    clean_topic = remove_accents(topic).lower()
+
+    catalog_item = find_catalog_product(clean_topic) or find_catalog_product(clean_content)
+
+    if catalog_item:
+        formal_topic = catalog_item['topic']
+        active_price = price_display if price_display else catalog_item['default_price']
+        custom_note = catalog_item['note']
+        if any(w in clean_content for w in ['chua bao gom the', 'chua the', 'khong the', 'khong kem the']):
+            custom_note = "Chưa bao gồm thẻ nhớ (Gara có sẵn thẻ nhớ SanDisk/Kioxia chuyên dụng 32GB/64GB/128GB tốc độ cao)."
+        elif any(w in clean_content for w in ['tang the 64gb', 'tang the 64', 'the 64gb']):
+            custom_note = "Tặng kèm thẻ nhớ 64GB chuyên dụng tốc độ cao."
+        elif any(w in clean_content for w in ['tang the 32gb', 'the 32gb']):
+            custom_note = "Tặng kèm thẻ nhớ 32GB chuyên dụng."
+
+        msg = (
+            f"❓ **XÁC NHẬN CẬP NHẬT / GHI NHỚ QUY ĐỊNH:**\n"
+            f"─────────────────────────────────────────\n"
+            f"📌 **Sản phẩm / Dịch vụ:** **{formal_topic}**\n"
+            f"💵 **Mức giá đề xuất:** **{active_price}**\n"
+            f"⚙️ **Thông số bảo tồn:** {catalog_item['specs_desc']}\n"
+            f"📝 **Lưu ý / Quà tặng:** {custom_note}\n"
+            f"🛡️ **Bảo hành:** {catalog_item['warranty']}\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn **LƯU & ÁP DỤNG** quy định này vào bộ não AI không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        )
+        return {
+            "type": "catalog",
+            "topic": formal_topic,
+            "price": active_price,
+            "message": msg
+        }
+    else:
+        msg = (
+            f"❓ **XÁC NHẬN GHI NHỚ TRI THỨC VÀO BỘ NÃO GARA:**\n"
+            f"─────────────────────────────────────────\n"
+            f"📌 **Chủ đề:** **{topic}**\n"
+        )
+        if price_display:
+            msg += f"💵 **Mức giá ghi nhận:** **{price_display}**\n"
+        msg += (
+            f"📋 **Nội dung quy định:** {content}\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Anh có muốn **LƯU VĨNH VIỄN** thông tin này vào bộ não AI không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        )
+        return {
+            "type": "custom",
+            "topic": topic,
+            "price": price_display,
+            "message": msg
+        }
+
+
 def analyze_and_learn(raw_text: str) -> dict:
     """
     Phân tích nội dung kiến thức được dạy:
