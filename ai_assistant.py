@@ -3228,7 +3228,8 @@ def handle_gara_consultation(raw_text, clean_text):
             "message": (
                 "📹 **CAMERA HÀNH TRÌNH 70MAI A510 (SONY STARVIS 2):**\n"
                 "• **Giá trọn gói:** **3.400.000 đ** (Trước 3K + Sau, cảm biến Sony quay đêm siêu sáng)\n"
-                "• **Quà tặng:** Tặng thẻ nhớ 64GB, tích hợp GPS hiển thị tốc độ."
+                "• **Lưu ý:** Chưa bao gồm thẻ nhớ (Gara có sẵn thẻ nhớ SanDisk/Kioxia chuyên dụng 32GB/64GB/128GB tốc độ cao).\n"
+                "• **Bảo hành:** 12 tháng chính hãng 1 đổi 1, miễn phí công lắp đặt đi dây âm thẩm mỹ."
             )
         }
 

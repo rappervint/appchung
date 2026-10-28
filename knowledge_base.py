@@ -59,12 +59,14 @@ init_knowledge_db()
 
 
 def is_learning_command(clean_text: str) -> bool:
-    """Kiểm tra xem câu lệnh có phải là lệnh dạy học / ghi nhớ tri thức không"""
+    """Kiểm tra xem câu lệnh có phải là lệnh dạy học / ghi nhớ / sửa lại quy định không"""
     clean = clean_text.strip().lower()
     patterns = [
-        r'^(?:ghi\s*nho|nho|hoc|day\s*ai|quy\s*tac|ghi\s*chu|luu\s*y)\s*[:,\-]\s*',
+        r'^(?:ghi\s*nho|nho|hoc|day\s*ai|quy\s*tac|ghi\s*chu|luu\s*y)\s*[:,\-]?\s*',
         r'^(?:ghi\s*nho|nho|hoc|day\s*ai|quy\s*tac|ghi\s*chu|luu\s*y)\s+(?:cho\s+toi|giup\s+toi|rang|la)?\s*',
-        r'^(?:nho\s+ky|nho\s+ro|ghi\s+nho\s+ky)\s*[:,\-]?\s*'
+        r'^(?:nho\s+ky|nho\s+ro|ghi\s+nho\s+ky)\s*[:,\-]?\s*',
+        r'^(?:sua\s*lai|chinh\s*lai|cap\s*nhat\s*lai|doi\s*lai|thay\s*doi)\s*(?:la|cho|thong\s*tin|quy\s*dinh|san\s*pham)?\s*[:,\-]?\s*',
+        r'\b(?:sua\s*lai|chinh\s*lai|cap\s*nhat\s*lai)\s+[a-z0-9]+\s+'
     ]
     for pat in patterns:
         if re.search(pat, clean):
@@ -73,12 +75,13 @@ def is_learning_command(clean_text: str) -> bool:
 
 
 def extract_learning_content(raw_text: str) -> str:
-    """Tách bỏ tiền tố 'ghi nhớ:', 'nhớ:' để lấy nội dung cốt lõi cần học"""
+    """Tách bỏ tiền tố 'ghi nhớ:', 'nhớ:', 'sửa lại:'... để lấy nội dung cốt lõi cần học"""
     raw = raw_text.strip()
     patterns = [
-        r'^(?:ghi\s*nhớ|nhớ|học|dạy\s*ai|quy\s*tắc|ghi\s*chú|lưu\s*ý)\s*[:,\-]\s*',
+        r'^(?:ghi\s*nhớ|nhớ|học|dạy\s*ai|quy\s*tắc|ghi\s*chú|lưu\s*ý)\s*[:,\-]?\s*',
         r'^(?:ghi\s*nhớ|nhớ|học|dạy\s*ai|quy\s*tắc|ghi\s*chú|lưu\s*ý)\s+(?:cho\s+tôi|giúp\s+tôi|rằng|là)?\s*',
-        r'^(?:nhớ\s+kỹ|nhớ\s+rõ|ghi\s+nhớ\s+kỹ)\s*[:,\-]?\s*'
+        r'^(?:nhớ\s+kỹ|nhớ\s+rõ|ghi\s+nhớ\s+kỹ)\s*[:,\-]?\s*',
+        r'^(?:sửa\s*lại|chỉnh\s*lại|cập\s*nhật\s*lại|đổi\s*lại|thay\s*đổi)\s*(?:là|cho|thông\s*tin|quy\s*định|sản\s*phẩm)?\s*[:,\-]?\s*',
     ]
     for pat in patterns:
         raw = re.sub(pat, '', raw, flags=re.IGNORECASE).strip()
@@ -105,10 +108,10 @@ def analyze_and_learn(raw_text: str) -> dict:
     price_str = m_money.group(1) if m_money else ""
 
     # 2. Bóc tách chủ đề sản phẩm / dịch vụ
-    # Cắt phần trước chữ 'là', 'giá', 'khoảng', 'tầm' hoặc lấy vế trước dấu phẩy
+    split_words = r'^(.*?)(?:\s+(?:là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
     topic_raw = ""
-    m_topic = re.search(r'^(.*?)(?:\s+(?:là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam)\s+|\s*[:=]\s*)', content, re.IGNORECASE)
-    if m_topic and len(m_topic.group(1).strip()) > 2:
+    m_topic = re.search(split_words, content, re.IGNORECASE)
+    if m_topic and len(m_topic.group(1).strip()) >= 2:
         topic_raw = m_topic.group(1).strip()
     else:
         # Tách theo dấu phẩy đầu tiên nhưng bỏ qua dấu chấm số tiền
@@ -120,13 +123,42 @@ def analyze_and_learn(raw_text: str) -> dict:
     topic = topic_raw.strip().title()
     clean_topic = remove_accents(topic).lower()
 
+    # Nhận diện các mã sản phẩm đặc thù để chuẩn hóa tên đẹp
+    KNOWN_NAMES = {
+        'a510': 'Camera Hành Trình 70Mai A510',
+        '70mai a510': 'Camera Hành Trình 70Mai A510',
+        'a200': 'Camera Hành Trình 70Mai A200',
+        'a210': 'Camera Hành Trình 70Mai A210',
+        'm310': 'Camera Hành Trình 70Mai M310 Plus',
+        'm1': 'Camera Hành Trình Vietmap M1',
+        'm2': 'Camera Hành Trình Vietmap M2 4K',
+        'f10': 'Bi Gầm LED F10 Series Aozoom',
+        's3': 'Bi Gầm Naoevo S3'
+    }
+    if clean_topic in KNOWN_NAMES:
+        topic = KNOWN_NAMES[clean_topic]
+
+    # Nếu người dùng sửa quy định mà không nói giá, tự động giữ giá đã biết
+    KNOWN_DEFAULT_PRICES = {
+        'a510': '3.400.000 đ',
+        '70mai a510': '3.400.000 đ',
+        'a200': '2.500.000 đ',
+        'a210': '2.500.000 đ',
+        'm310': '1.500.000 đ',
+        'm1': '6.190.000 đ',
+        'f10': '3.900.000 đ',
+        's3': '1.500.000 đ'
+    }
+    if not price_str and clean_topic in KNOWN_DEFAULT_PRICES:
+        price_str = KNOWN_DEFAULT_PRICES[clean_topic]
+
     # Chuẩn hóa giá tiền có đơn vị đ
     if price_str and not any(u in price_str.lower() for u in ['đ', 'vnd', 'tr', 'k']):
         price_display = f"{price_str} đ"
     else:
         price_display = price_str
 
-    # 3. Bóc tách tùy chọn phụ phí (như: may thêm túi 100k, tối đa 2 túi...)
+    # 3. Bóc tách tùy chọn phụ phí / quy định điều chỉnh (như: chưa bao gồm thẻ nhớ, may thêm túi...)
     options = []
     content_protected = re.sub(r'(\d)\.(\d)', r'\1__DOT__\2', content)
     sub_clauses = re.split(r'[,;\n]', content_protected)
@@ -136,15 +168,23 @@ def analyze_and_learn(raw_text: str) -> dict:
         clean_cl = remove_accents(cl).lower()
         if not cl:
             continue
-        # Bỏ qua vế đầu tiên nếu nó đã là vế chứa topic và giá chính
-        if idx == 0 and any(w in clean_cl for w in clean_topic.split()[:2]):
-            continue
-        # Bỏ qua nếu trùng tên topic hoặc chỉ chứa giá tiền chính
-        if clean_cl == clean_topic or (price_str and cl == price_str):
+        # Bỏ qua vế đầu tiên nếu nó chỉ là topic
+        if clean_cl == clean_topic:
             continue
         if re.match(r'^(?:là|la|giá|gia)?\s*\d{1,3}(?:\.\d{3})+(?:\s*đ)?$', clean_cl):
             continue
+        # Nếu vế có chứa topic và quy định nối tiếp (như 'a510 chưa bao gồm thẻ nhớ')
+        if topic_raw.lower() in cl.lower():
+            after_topic = cl[cl.lower().find(topic_raw.lower()) + len(topic_raw):].strip()
+            if after_topic:
+                options.append(after_topic)
+                continue
         options.append(cl)
+
+    if not options and topic_raw:
+        after_t = content[content.lower().find(topic_raw.lower()) + len(topic_raw):].strip()
+        if after_t:
+            options.append(after_t)
 
     options_text = "; ".join(options) if options else ""
 
@@ -155,6 +195,18 @@ def analyze_and_learn(raw_text: str) -> dict:
     keywords_set.add(clean_topic)
 
     # Thêm các biến thể viết tắt / không dấu / gõ tắt
+    if 'a510' in clean_topic or 'a510' in clean_content:
+        keywords_set.update(['a510', '70mai a510', 'cam a510', 'camera a510', 'cam 70mai a510', 'camera 70mai a510'])
+    if 'a200' in clean_topic or 'a200' in clean_content:
+        keywords_set.update(['a200', '70mai a200', 'cam a200', 'camera a200'])
+    if 'm310' in clean_topic or 'm310' in clean_content:
+        keywords_set.update(['m310', '70mai m310', 'cam m310', 'camera m310'])
+    if 'm1' in clean_topic or 'm1' in clean_content:
+        keywords_set.update(['vietmap m1', 'cam m1', 'camera m1', 'm1'])
+    if 'f10' in clean_topic or 'f10' in clean_content:
+        keywords_set.update(['f10', 'bi gam f10', 'den f10', 'f10 turbo', 'f10 new'])
+    if 's3' in clean_topic or 's3' in clean_content:
+        keywords_set.update(['s3', 'naoevo s3', 'bi gam s3'])
     if 'san' in clean_topic or 'tham' in clean_topic:
         keywords_set.update(['san 5d', 'tham 5d', 'lot san 5d', 'tham san 5d', 'san oto', 'tham oto', 'san xe'])
         if '4 cho' in clean_content or '4cho' in clean_content:
@@ -222,8 +274,11 @@ def analyze_and_learn(raw_text: str) -> dict:
     conn.close()
 
     # 7. Trả về phản hồi xác nhận cho người dùng
+    is_updating = any(k in remove_accents(raw_text).lower() for k in ['sua lai', 'chinh lai', 'cap nhat lai', 'doi lai'])
+    title_confirm = f"🧠 **ĐÃ CẬP NHẬT VÀ GHI NHỚ LẠI QUY ĐỊNH CHO {topic.upper()}!**" if is_updating else "🧠 **ĐÃ HỌC VÀ GHI NHỚ VÀO BỘ NÃO GARA THÀNH CÔNG!**"
+
     res_msg = (
-        f"🧠 **ĐÃ HỌC VÀ GHI NHỚ VÀO BỘ NÃO GARA THÀNH CÔNG!**\n"
+        f"{title_confirm}\n"
         f"─────────────────────────────────────────\n"
         f"📌 **Chủ đề / Sản phẩm:** **{topic}** (Mã nhớ: `#{mem_id}`)\n"
     )
