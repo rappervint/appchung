@@ -4342,12 +4342,50 @@ def process_ai_command(user_text, session_id="default_user"):
     # Nếu người dùng hỏi về tình trạng Gemini hoặc thắc mắc về AI
     if any(k in clean for k in ['gemini', 'key gemini', 'sao gemini', 'kiem tra gemini', 'test gemini']):
         if GEMINI_AVAILABLE and gemini_engine:
+            if not getattr(gemini_engine, 'DEFAULT_API_KEY', None):
+                return {
+                    "type": "warning",
+                    "message": (
+                        "⚠️ **CHƯA CÓ API KEY GEMINI TRÊN MÁY CHỦ NÀY!**\n"
+                        "─────────────────────────────────────────\n"
+                        "Để kích hoạt Gemini 3.5 Flash, anh chỉ cần **dán trực tiếp mã API Key** (dạng `AQ...` hoặc `AIzaSy...`) vào khung chat này!\n"
+                        "Hệ thống sẽ tự nhận diện và kích hoạt ngay tức thì."
+                    )
+                }
+            if not getattr(gemini_engine, 'GENAI_AVAILABLE', False):
+                return {
+                    "type": "warning",
+                    "message": (
+                        "⚠️ **MÁY CHỦ CHƯA CÀI ĐẶT THƯ VIỆN GOOGLE GENAI!**\n"
+                        "─────────────────────────────────────────\n"
+                        "Trên máy chủ PythonAnywhere, anh hãy mở cửa sổ Bash Console và chạy lệnh:\n"
+                        "`pip install --user google-genai`\n\n"
+                        "Sau đó sang tab Web và bấm nút **Reload**."
+                    )
+                }
             res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
             if res_gemini and res_gemini.get('message'):
                 return res_gemini
             status_msg = getattr(gemini_engine, 'get_key_status_message', lambda: '')()
             if status_msg:
                 return {"type": "warning", "message": status_msg}
+            return {
+                "type": "warning",
+                "message": (
+                    "⚠️ **ĐANG KẾT NỐI GEMINI NHƯNG CHƯA NHẬN ĐƯỢC PHẢN HỒI**\n"
+                    "─────────────────────────────────────────\n"
+                    "Vui lòng kiểm tra lại kết nối mạng trên máy chủ hoặc thử dán lại mã API Key vào khung chat."
+                )
+            }
+        else:
+            return {
+                "type": "warning",
+                "message": (
+                    "⚠️ **MÁY CHỦ CHƯA NẠP ĐƯỢC GEMINI ENGINE!**\n"
+                    "─────────────────────────────────────────\n"
+                    "Vui lòng chạy lệnh: `pip install --user google-genai` và kiểm tra tệp `gemini_engine.py`."
+                )
+            }
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.2. TRA CỨU TRI THỨC TỰ ĐỘNG TỪ BỘ NHỚ GARA ĐÃ HỌC (< 0.003s)
