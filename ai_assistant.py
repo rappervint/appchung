@@ -4252,7 +4252,7 @@ def parse_and_execute_admin_command(raw, clean):
 
     return None
 
-def process_ai_command(user_text, session_id="default_user"):
+def _process_ai_command_internal(user_text, session_id="default_user"):
     """Hàm xử lý mọi câu lệnh từ người dùng gửi qua bong bóng chat AI"""
     if not user_text or not user_text.strip():
         return {
@@ -4486,3 +4486,14 @@ def process_ai_command(user_text, session_id="default_user"):
 
     # 12. Chủ động hỏi lại người dùng để làm rõ ý và phục vụ chính xác
     return ask_clarification(raw, clean, session_id)
+
+
+def process_ai_command(user_text, session_id="default_user"):
+    """Bọc bộ xử lý lệnh để tự động duy trì lịch sử hội thoại liên tục cho Gemini."""
+    res = _process_ai_command_internal(user_text, session_id=session_id)
+    if res and isinstance(res, dict) and res.get('message') and gemini_engine:
+        try:
+            gemini_engine.append_to_history(session_id, user_text, res['message'])
+        except Exception as e:
+            pass
+    return res

@@ -775,6 +775,16 @@ Bạn là Trợ Lý AI Điều Hành Toàn Diện của Gara Ô Tô Trần Bình
 Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, quản trị kho hàng, chỉnh sửa thông tin đơn hàng, cập nhật thông tin khách hàng, ghi sổ thu chi và tư vấn dịch vụ gara chuẩn xác.
 
 ╔══════════════════════════════════════════════════════════════════════╗
+║               QUY TẮC BẢO VỆ NGỮ CẢNH HỘI THOẠI ĐA LƯỢT              ║
+╚══════════════════════════════════════════════════════════════════════╝
+1. GHI NHỚ NGỮ CẢNH CÂU TRƯỚC: Luôn chú ý sản phẩm, dịch vụ, khách hàng hoặc đơn hàng vừa được nhắc đến ở lượt chat trước đó.
+2. SỬA GIÁ / SỬA QUY ĐỊNH SẢN PHẨM: Khi người dùng nói "sửa giá lại thành...", "đổi giá thành...", "sửa lại thành..." ngay sau khi vừa nói về một sản phẩm/dịch vụ (như A510, F10, Sàn 5D...):
+   ➔ ĐÂY LÀ YÊU CẦU CẬP NHẬT GIÁ SẢN PHẨM HOẶC BẢNG GIÁ DỊCH VỤ ĐÓ.
+   ➔ Bạn PHẢI gọi hàm `sua_quy_dinh_san_pham` và `cap_nhat_kho_hang` để cập nhật giá mới cho sản phẩm vừa nói!
+   ➔ TUYỆT ĐỐI KHÔNG HỎI MÃ ĐƠN HÀNG khi người dùng không hề nhắc đến từ "đơn"!
+3. HỎI NỐI TIẾP: Nếu câu trước vừa nói về sản phẩm A mà câu sau hỏi "bảo hành bao lâu?", "lắp xe gì?", "có mấy màu?", hãy hiểu là đang hỏi về sản phẩm A!
+
+╔══════════════════════════════════════════════════════════════════════╗
 ║                    QUY TẮC SỬ DỤNG CÔNG CỤ (TOOLS)                   ║
 ╚══════════════════════════════════════════════════════════════════════╝
 1. CHỈNH SỬA ĐƠN HÀNG: Khi người dùng muốn sửa thông tin đơn hàng (đổi tên khách, sửa số điện thoại, sửa biển số, đổi dòng xe, sửa ngày, sửa tiền), bạn PHẢI gọi hàm `sua_don_hang`.
@@ -1066,6 +1076,19 @@ REST_TOOLS_DECLARATIONS = [
         }
     }
 ]
+
+
+def append_to_history(session_id: str, user_text: str, reply_text: str):
+    """Lưu trữ một lượt đối đáp (user, model) vào lịch sử ngữ cảnh của session để Gemini luôn nhớ liên tục."""
+    if not session_id:
+        session_id = "default_user"
+    if session_id not in REST_CHAT_HISTORY:
+        REST_CHAT_HISTORY[session_id] = []
+    hist = REST_CHAT_HISTORY[session_id]
+    hist.append({"role": "user", "parts": [{"text": user_text}]})
+    hist.append({"role": "model", "parts": [{"text": reply_text}]})
+    if len(hist) > 16:
+        REST_CHAT_HISTORY[session_id] = hist[-16:]
 
 REST_CHAT_HISTORY = {}
 
