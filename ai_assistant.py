@@ -45,6 +45,13 @@ DB_BANHANG = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
 DB_DEN = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
 DB_THUCHI = os.path.join(BASE_DIR, 'app_thuchi', 'finance.db')
 
+try:
+    import gemini_engine
+    GEMINI_AVAILABLE = True
+except Exception as e:
+    gemini_engine = None
+    GEMINI_AVAILABLE = False
+
 def remove_accents(input_str):
     if not input_str:
         return ""
@@ -4214,6 +4221,14 @@ def process_ai_command(user_text, session_id="default_user"):
                 "*(Ví dụ: `F10 Turbo`, `S3`, `S6`, `V20 Base`, `M40 Ultra`, `Titan Gold`... hoặc gõ `hủy` để thoát)*"
             )
         }
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.3. TRỢ LÝ ĐIỀU HÀNH THÔNG MINH GEMINI 3.5 FLASH (TỰ ĐỘNG THỰC THI & TƯ VẤN)
+    # ═════════════════════════════════════════════════════════════════════
+    if GEMINI_AVAILABLE and gemini_engine:
+        res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
+        if res_gemini and res_gemini.get('message'):
+            return res_gemini
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.4. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
