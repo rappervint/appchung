@@ -526,6 +526,15 @@ def thong_ke_doanh_thu(
         nam: Năm cần thống kê (ví dụ 2026, 2025). Nếu không truyền, mặc định năm hiện tại.
         ngay_cu_the: Ngày cụ thể YYYY-MM-DD (nếu muốn xem hôm nay hoặc ngày bất kỳ).
     """
+    try:
+        thang = int(thang) if (thang and str(thang).isdigit()) else 0
+    except Exception:
+        thang = 0
+    try:
+        nam = int(nam) if (nam and str(nam).isdigit()) else 0
+    except Exception:
+        nam = 0
+
     now = datetime.now()
     cur_year = nam if nam > 0 else now.year
 
@@ -877,10 +886,191 @@ def get_key_status_message() -> str:
 
 import urllib.request
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.5. BỘ CÔNG CỤ TOOLS REST API & TỰ ĐỘNG THỰC THI (FUNCTION CALLING ENGINE)
+# ─────────────────────────────────────────────────────────────────────────────
+
+TOOL_DISPATCH = {
+    "sua_don_hang": sua_don_hang,
+    "xoa_don_hang": xoa_don_hang,
+    "cap_nhat_kho_hang": cap_nhat_kho_hang,
+    "cap_nhat_thong_tin_khach_hang": cap_nhat_thong_tin_khach_hang,
+    "tra_cuu_khach_hang_va_bao_hanh": tra_cuu_khach_hang_va_bao_hanh,
+    "tra_cuu_san_pham_kho_hang": tra_cuu_san_pham_kho_hang,
+    "thong_ke_doanh_thu": thong_ke_doanh_thu,
+    "ghi_so_thu_chi": ghi_so_thu_chi,
+    "len_don_bao_cao_den_nhanh": len_don_bao_cao_den_nhanh,
+    "ghi_nho_tri_thuc_gara": ghi_nho_tri_thuc_gara,
+    "sua_quy_dinh_san_pham": sua_quy_dinh_san_pham,
+    "tra_cuu_tri_thuc_gara": tra_cuu_tri_thuc_gara,
+}
+
+REST_TOOLS_DECLARATIONS = [
+    {
+        "name": "sua_don_hang",
+        "description": "Chỉnh sửa thông tin đơn hàng đã có trong hệ thống (đổi tên khách, đổi số điện thoại, sửa biển số, đổi xe, sửa ngày, sửa tiền)",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ma_don_hang": {"type": "INTEGER", "description": "Mã đơn hàng cần sửa (ví dụ: 747, 729)"},
+                "loai_don": {"type": "STRING", "description": "Loại đơn ('banhang', 'den', hoặc 'auto')"},
+                "ten_khach_moi": {"type": "STRING", "description": "Tên khách mới"},
+                "sdt_moi": {"type": "STRING", "description": "Số điện thoại mới"},
+                "bien_so_moi": {"type": "STRING", "description": "Biển số xe mới"},
+                "dong_xe_moi": {"type": "STRING", "description": "Dòng xe mới (ví dụ: Accent, Vios, CX5)"},
+                "ten_san_pham_moi": {"type": "STRING", "description": "Tên sản phẩm mới"},
+                "gia_tien_moi": {"type": "NUMBER", "description": "Giá tiền mới (VNĐ)"},
+                "ngay_moi": {"type": "STRING", "description": "Ngày mới YYYY-MM-DD"}
+            },
+            "required": ["ma_don_hang"]
+        }
+    },
+    {
+        "name": "xoa_don_hang",
+        "description": "Xóa hoặc hủy một đơn hàng theo mã đơn trong phần mềm bán hàng hoặc báo cáo đèn",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ma_don_hang": {"type": "INTEGER", "description": "Mã đơn hàng cần xóa"},
+                "loai_don": {"type": "STRING", "description": "Loại đơn ('auto', 'den', 'banhang')"}
+            },
+            "required": ["ma_don_hang"]
+        }
+    },
+    {
+        "name": "cap_nhat_kho_hang",
+        "description": "Cập nhật số lượng tồn kho, giá bán lẻ hoặc giá vốn của sản phẩm trong kho hàng",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ma_hoac_ten_sp": {"type": "STRING", "description": "Mã sản phẩm (SP...) hoặc tên sản phẩm"},
+                "ton_kho_moi": {"type": "INTEGER", "description": "Số lượng tồn kho mới"},
+                "gia_ban_moi": {"type": "NUMBER", "description": "Giá bán lẻ mới (VNĐ)"},
+                "gia_von_moi": {"type": "NUMBER", "description": "Giá vốn nhập mới (VNĐ)"}
+            },
+            "required": ["ma_hoac_ten_sp"]
+        }
+    },
+    {
+        "name": "cap_nhat_thong_tin_khach_hang",
+        "description": "Cập nhật đổi tên, số điện thoại hoặc biển số xe cho khách hàng đã có lịch sử",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "dinh_danh_cu": {"type": "STRING", "description": "Biển số xe cũ, SĐT cũ hoặc tên khách cũ để tìm kiếm"},
+                "ten_moi": {"type": "STRING", "description": "Tên khách mới"},
+                "sdt_moi": {"type": "STRING", "description": "Số điện thoại mới"},
+                "bien_so_moi": {"type": "STRING", "description": "Biển số mới"}
+            },
+            "required": ["dinh_danh_cu"]
+        }
+    },
+    {
+        "name": "tra_cuu_khach_hang_va_bao_hanh",
+        "description": "Tra cứu lịch sử làm dịch vụ, sửa chữa, bảo hành theo biển số xe, SĐT hoặc tên khách",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "tu_khoa": {"type": "STRING", "description": "Biển số xe (ví dụ '63A-187.30'), Số điện thoại hoặc tên khách"}
+            },
+            "required": ["tu_khoa"]
+        }
+    },
+    {
+        "name": "tra_cuu_san_pham_kho_hang",
+        "description": "Tra cứu giá bán và số lượng tồn kho của các sản phẩm phụ kiện trong kho",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "tu_khoa": {"type": "STRING", "description": "Tên hoặc mã sản phẩm (ví dụ: 'F10', 'A510', 'taplo', 'bóng led')"}
+            },
+            "required": ["tu_khoa"]
+        }
+    },
+    {
+        "name": "thong_ke_doanh_thu",
+        "description": "Thống kê báo cáo doanh thu toàn gara, doanh thu đèn chu kỳ 9-8, doanh thu bán hàng hoặc sổ thu chi",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "loai_thong_ke": {"type": "STRING", "description": "'tat_ca', 'den', 'banhang', 'thuchi'"},
+                "thang": {"type": "INTEGER", "description": "Tháng cần xem (1-12)"},
+                "nam": {"type": "INTEGER", "description": "Năm cần xem (ví dụ 2026)"},
+                "ngay_cu_the": {"type": "STRING", "description": "Ngày cụ thể YYYY-MM-DD"}
+            }
+        }
+    },
+    {
+        "name": "ghi_so_thu_chi",
+        "description": "Ghi phiếu thu tiền hoặc phiếu chi tiền vào sổ quỹ tài chính của gara",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "loai": {"type": "STRING", "description": "'chi' hoặc 'thu'"},
+                "so_tien": {"type": "INTEGER", "description": "Số tiền (VNĐ, ví dụ: 350000)"},
+                "noi_dung": {"type": "STRING", "description": "Lý do / mục đích chi hoặc thu"},
+                "ngay": {"type": "STRING", "description": "Ngày phát sinh YYYY-MM-DD"}
+            },
+            "required": ["loai", "so_tien", "noi_dung"]
+        }
+    },
+    {
+        "name": "len_don_bao_cao_den_nhanh",
+        "description": "Lên đơn nhanh vào Sổ Báo Cáo Doanh Thu Đèn khi khách hàng chốt đơn lắp đèn",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ten_den": {"type": "STRING", "description": "Tên sản phẩm đèn (F10 New, F10 Turbo, S3...)"},
+                "gia_tien_k": {"type": "INTEGER", "description": "Giá thu thực tế theo k (ví dụ: 3900 cho 3.9tr, 5100 cho 5.1tr)"},
+                "khach_hang": {"type": "STRING", "description": "Tên khách hàng"},
+                "dong_xe": {"type": "STRING", "description": "Dòng xe (Accent, Vios, VF3...)"},
+                "so_luong": {"type": "INTEGER", "description": "Số lượng bộ đèn (mặc định 1)"},
+                "ngay": {"type": "STRING", "description": "Ngày lắp đặt YYYY-MM-DD"}
+            },
+            "required": ["ten_den", "gia_tien_k"]
+        }
+    },
+    {
+        "name": "ghi_nho_tri_thuc_gara",
+        "description": "Ghi nhớ một kiến thức, quy định, chính sách, hoặc bảng giá mới vào bộ não tri thức vĩnh viễn của gara",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "noi_dung_ghi_nho": {"type": "STRING", "description": "Nội dung cần ghi nhớ"}
+            },
+            "required": ["noi_dung_ghi_nho"]
+        }
+    },
+    {
+        "name": "sua_quy_dinh_san_pham",
+        "description": "Cập nhật hoặc sửa đổi quy định, quà tặng, thẻ nhớ của một sản phẩm trong gara",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ten_san_pham": {"type": "STRING", "description": "Tên sản phẩm"},
+                "quy_dinh_moi": {"type": "STRING", "description": "Quy định mới (ví dụ: 'chưa bao gồm thẻ nhớ')"}
+            },
+            "required": ["ten_san_pham", "quy_dinh_moi"]
+        }
+    },
+    {
+        "name": "tra_cuu_tri_thuc_gara",
+        "description": "Tra cứu các quy định, bảng giá đặc thù mà chủ gara đã dạy cho AI trong bộ nhớ",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "chu_de_hoac_tu_khoa": {"type": "STRING", "description": "Chủ đề cần tra cứu"}
+            },
+            "required": ["chu_de_hoac_tu_khoa"]
+        }
+    }
+]
+
 REST_CHAT_HISTORY = {}
 
 def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
-    """Xử lý Gemini trực tiếp qua chuẩn REST API của Google (Zero-Dependency).
+    """Xử lý Gemini trực tiếp qua chuẩn REST API của Google có hỗ trợ Function Calling tự động.
     Hoạt động 100% trên mọi nền tảng (PythonAnywhere, VPS, Docker, Windows, Linux)
     mà không cần bất kỳ thư viện bên ngoài nào.
     """
@@ -904,6 +1094,7 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
         
         payload = {
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "tools": [{"function_declarations": REST_TOOLS_DECLARATIONS}],
             "contents": history,
             "generationConfig": {
                 "maxOutputTokens": 800,
@@ -924,14 +1115,84 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
                 if not candidates:
                     continue
                 
-                content = candidates[0].get("content", {})
+                candidate = candidates[0]
+                content = candidate.get("content", {})
                 parts = content.get("parts", [])
                 if not parts:
                     continue
                 
+                first_part = parts[0]
+
+                # 1. Nếu Gemini yêu cầu gọi Tool (Function Calling)
+                if "functionCall" in first_part:
+                    fn_name = first_part["functionCall"].get("name")
+                    fn_args = first_part["functionCall"].get("args", {})
+                    tool_fn = TOOL_DISPATCH.get(fn_name)
+                    
+                    if tool_fn:
+                        try:
+                            tool_result = tool_fn(**fn_args)
+                        except Exception as e_fn:
+                            tool_result = f"Lỗi thực thi công cụ {fn_name}: {e_fn}"
+                    else:
+                        tool_result = f"Không tìm thấy công cụ {fn_name}"
+
+                    # Gửi kết quả Tool về lại Gemini để tổng hợp câu trả lời hoàn chỉnh
+                    history.append(content)
+                    history.append({
+                        "role": "user",
+                        "parts": [{
+                            "functionResponse": {
+                                "name": fn_name,
+                                "response": {"result": tool_result}
+                            }
+                        }]
+                    })
+
+                    payload_followup = {
+                        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                        "tools": [{"function_declarations": REST_TOOLS_DECLARATIONS}],
+                        "contents": history,
+                        "generationConfig": {
+                            "maxOutputTokens": 800,
+                            "temperature": 0.2
+                        }
+                    }
+
+                    try:
+                        req_f = urllib.request.Request(
+                            url,
+                            data=json.dumps(payload_followup).encode("utf-8"),
+                            headers={"Content-Type": "application/json"}
+                        )
+                        with urllib.request.urlopen(req_f, timeout=15) as resp_f:
+                            res_f = json.loads(resp_f.read().decode("utf-8"))
+                            cands_f = res_f.get("candidates", [])
+                            if cands_f:
+                                parts_f = cands_f[0].get("content", {}).get("parts", [])
+                                txt_f = "\n".join([p.get("text", "") for p in parts_f if "text" in p]).strip()
+                                if txt_f:
+                                    history.append({"role": "model", "parts": [{"text": txt_f}]})
+                                    LAST_KEY_ERROR = None
+                                    return {
+                                        "type": "success",
+                                        "module": "gemini_assistant",
+                                        "message": txt_f
+                                    }
+                    except Exception as e_f:
+                        print(f"[GeminiEngine-REST] Lỗi vòng 2 functionResponse: {e_f}")
+
+                    # Fallback trả thẳng kết quả Tool nếu vòng 2 gặp trục trặc
+                    LAST_KEY_ERROR = None
+                    return {
+                        "type": "success",
+                        "module": "gemini_assistant",
+                        "message": str(tool_result)
+                    }
+
+                # 2. Nếu Gemini trả lời văn bản thông thường
                 text_parts = [p.get("text", "") for p in parts if "text" in p]
                 reply_text = "\n".join(text_parts).strip()
-                
                 if reply_text:
                     history.append({"role": "model", "parts": [{"text": reply_text}]})
                     LAST_KEY_ERROR = None
@@ -940,6 +1201,7 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
                         "module": "gemini_assistant",
                         "message": reply_text
                     }
+
         except urllib.error.HTTPError as e:
             err_body = ""
             try:
