@@ -4162,6 +4162,88 @@ def ask_clarification(raw_text, clean_text, session_id):
 
     return {"type": "clarify", "message": msg}
 
+
+def parse_and_execute_admin_command(raw, clean):
+    """Xử lý siêu tốc các thao tác quản trị trực tiếp trên Database nội bộ (< 0.005 giây)"""
+    # 0. Tự động nhận diện và lưu API Key Gemini mới khi người dùng gửi trong chat
+    m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33})\b', raw)
+    if m_key:
+        new_key = m_key.group(1)
+        cfg = {"api_key": new_key, "preferred_model": "gemini-3.5-flash-lite", "fallback_model": "gemini-3.5-flash", "enabled": True}
+        try:
+            if gemini_engine:
+                with open(gemini_engine.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(cfg, f, ensure_ascii=False, indent=2)
+                gemini_engine.DEFAULT_API_KEY = new_key
+                gemini_engine.GEMINI_CLIENT = None
+                gemini_engine.GEMINI_SESSIONS.clear()
+            return {
+                "type": "success",
+                "message": (
+                    f"🔑 **ĐÃ LƯU & KÍCH HOẠT API KEY GEMINI MỚI THÀNH CÔNG!**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• Key: `{new_key[:8]}...{new_key[-4:]}`\n"
+                    f"• Model siêu tốc: **Gemini 3.5 Flash Lite** (Phản hồi < 1.5s)\n"
+                    f"👉 Toàn bộ các tính năng AI thông minh thế hệ mới đã sẵn sàng phục vụ anh!"
+                )
+            }
+        except Exception as e:
+            return {"type": "error", "message": f"Lỗi lưu API Key: {str(e)}"}
+
+    # 1. Chỉnh sửa đơn hàng siêu tốc
+    if any(k in clean for k in ['sua don', 'chinh don', 'doi don']):
+        m_id = re.search(r'(?:don|don den|don ban hang|don hang|ma)?\s*#?(\d{3,6})\b', clean)
+        if m_id and gemini_engine:
+            order_id = int(m_id.group(1))
+            new_cust = ""
+            m_cust = re.search(r'(?:doi|thanh|sang)?\s*(?:ten khach|khach hang|khach)\s*(?:la|thanh|sang)?\s*([^,\.\n]+?)(?:\s+(?:sdt|so dien thoai|bien so|xe|dong xe|gia|ngay)|$)', clean)
+            if m_cust:
+                new_cust = m_cust.group(1).strip().title()
+
+            new_car = ""
+            m_car = re.search(r'(?:xe|dong xe)\s*(?:la|thanh|sang)?\s*([A-Za-z0-9\s]+?)(?:\s+(?:sdt|bien so|gia|ngay)|$)', clean)
+            if m_car:
+                new_car = m_car.group(1).strip().upper()
+
+            new_phone = ""
+            m_phone = re.search(r'\b(0[35789]\d{8})\b', raw)
+            if m_phone:
+                new_phone = m_phone.group(1)
+
+            new_plate = ""
+            m_plate = re.search(r'\b(\d{2}[A-Za-z]\s*[-.]?\s*\d{3,5}(?:\.\d{2})?)\b', raw)
+            if m_plate:
+                new_plate = m_plate.group(1).upper()
+
+            res_text = gemini_engine.sua_don_hang(
+                ma_don_hang=order_id,
+                ten_khach_moi=new_cust,
+                dong_xe_moi=new_car,
+                sdt_moi=new_phone,
+                bien_so_moi=new_plate
+            )
+            return {"type": "success", "message": res_text}
+
+    # 2. Cập nhật tồn kho sản phẩm siêu tốc
+    if any(k in clean for k in ['cap nhat kho', 'ton kho', 'nhap kho', 'sua kho']):
+        m_code = re.search(r'\b(SP\d+|A\d+|M\d+|F10|S\d+)\b', raw, re.IGNORECASE)
+        m_qty = re.search(r'(?:thanh|con|la|so luong)\s*(\d{1,4})\s*(?:cai|bo|chiec)?\b', clean)
+        if m_code and m_qty and gemini_engine:
+            code = m_code.group(1).upper()
+            qty = int(m_qty.group(1))
+            res_text = gemini_engine.cap_nhat_kho_hang(ma_hoac_ten_sp=code, ton_kho_moi=qty)
+            return {"type": "success", "message": res_text}
+
+    # 3. Xóa đơn hàng siêu tốc
+    if any(k in clean for k in ['xoa don', 'huy don']):
+        m_id = re.search(r'(?:don|ma)?\s*#?(\d{3,6})\b', clean)
+        if m_id and gemini_engine:
+            order_id = int(m_id.group(1))
+            res_text = gemini_engine.xoa_don_hang(ma_don_hang=order_id)
+            return {"type": "success", "message": res_text}
+
+    return None
+
 def process_ai_command(user_text, session_id="default_user"):
     """Hàm xử lý mọi câu lệnh từ người dùng gửi qua bong bóng chat AI"""
     if not user_text or not user_text.strip():
@@ -4223,9 +4305,14 @@ def process_ai_command(user_text, session_id="default_user"):
         }
 
     # ═════════════════════════════════════════════════════════════════════
-    # 2.3. TRỢ LÝ ĐIỀU HÀNH THÔNG MINH GEMINI 3.5 FLASH (TỰ ĐỘNG THỰC THI & TƯ VẤN)
+    # 2.3. FAST-TRACK ADMIN ENGINE: XỬ LÝ SIÊU TỐC LỆNH QUẢN TRỊ (< 0.005s)
     # ═════════════════════════════════════════════════════════════════════
-    if GEMINI_AVAILABLE and gemini_engine:
+    res_admin = parse_and_execute_admin_command(raw, clean)
+    if res_admin:
+        return res_admin
+
+    # Nếu câu lệnh phức tạp, chuyển cho Gemini 3.5 Flash xử lý
+    if GEMINI_AVAILABLE and gemini_engine and gemini_engine.is_admin_or_edit_intent(clean):
         res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
         if res_gemini and res_gemini.get('message'):
             return res_gemini
@@ -4304,6 +4391,12 @@ def process_ai_command(user_text, session_id="default_user"):
     res = handle_summary_stats(raw, clean)
     if res:
         return res
+
+    # 11.5. HỎI ĐÁP MỞ & PHÂN TÍCH CHUYÊN SÂU (GEMINI 3.5 FLASH)
+    if GEMINI_AVAILABLE and gemini_engine:
+        res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
+        if res_gemini and res_gemini.get('message'):
+            return res_gemini
 
     # 12. Chủ động hỏi lại người dùng để làm rõ ý và phục vụ chính xác
     return ask_clarification(raw, clean, session_id)

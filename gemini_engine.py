@@ -51,8 +51,22 @@ def load_gemini_config():
 
 CURRENT_CONFIG = load_gemini_config()
 DEFAULT_API_KEY = CURRENT_CONFIG.get("api_key", "AIzaSyDhhrP3krB44mAtzXfY0r0Fw8CM-wsBFsY")
-# Danh sách model ưu tiên theo yêu cầu người dùng: Gemini 3.5 Flash hàng đầu, kèm fallback dự phòng
-AVAILABLE_MODELS = [CURRENT_CONFIG.get("preferred_model", "gemini-3.5-flash"), "gemini-3.5-flash-lite", "gemini-2.5-flash"]
+# Danh sách model siêu tốc: Gemini 3.5 Flash Lite và Gemini 3.5 Flash
+AVAILABLE_MODELS = [
+    CURRENT_CONFIG.get("preferred_model", "gemini-3.5-flash-lite"),
+    CURRENT_CONFIG.get("fallback_model", "gemini-3.5-flash")
+]
+
+def is_admin_or_edit_intent(clean_text: str) -> bool:
+    """Nhận diện các câu lệnh quản trị: sửa đơn, cập nhật kho, đổi thông tin khách, xóa đơn..."""
+    edit_keywords = [
+        'sua don', 'chinh don', 'doi ten khach', 'doi sdt', 'sua sdt', 'doi so dien thoai',
+        'sua so dien thoai', 'sua bien so', 'doi bien so', 'doi ngay', 'sua ngay', 'doi xe',
+        'sua xe', 'doi gia', 'sua gia', 'sua mon', 'doi mon', 'cap nhat kho', 'sua kho',
+        'chinh kho', 'doi gia ban', 'sua gia ban', 'doi gia von', 'sua gia von', 'ton kho ma',
+        'cap nhat thong tin', 'doi thong tin', 'sua thong tin', 'xoa don', 'huy don'
+    ]
+    return any(k in clean_text for k in edit_keywords)
 
 # Lưu trữ Client và phiên chat của Gemini theo session_id để giữ ngữ cảnh hội thoại
 GEMINI_CLIENT = None
@@ -777,7 +791,8 @@ def get_or_create_gemini_chat(session_id: str = "default_user", model_name: str 
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 tools=GARA_TOOLS,
-                temperature=0.3
+                max_output_tokens=600,
+                temperature=0.2
             )
         )
         GEMINI_SESSIONS[session_key] = chat
