@@ -52,6 +52,13 @@ except Exception as e:
     gemini_engine = None
     GEMINI_AVAILABLE = False
 
+try:
+    import knowledge_base
+    KNOWLEDGE_AVAILABLE = True
+except Exception as e:
+    knowledge_base = None
+    KNOWLEDGE_AVAILABLE = False
+
 def remove_accents(input_str):
     if not input_str:
         return ""
@@ -4274,6 +4281,17 @@ def process_ai_command(user_text, session_id="default_user"):
             return res
 
     # ═════════════════════════════════════════════════════════════════════
+    # 0.1. DẠY HỌC & GHI NHỚ TRI THỨC VÀO BỘ NÃO GARA (PERSISTENT MEMORY)
+    # ═════════════════════════════════════════════════════════════════════
+    if KNOWLEDGE_AVAILABLE and knowledge_base:
+        if knowledge_base.is_learning_command(clean):
+            return knowledge_base.analyze_and_learn(raw)
+        if clean in ['xem bo nho', 'danh sach ghi nho', 'da nho gi', 'bo nho ai', 'nho nhung gi', 'tri thuc gara']:
+            return knowledge_base.list_learned_knowledge()
+        if any(k in clean for k in ['xoa ghi nho', 'quen ghi nho', 'xoa bai hoc']):
+            return knowledge_base.delete_learned_knowledge(raw)
+
+    # ═════════════════════════════════════════════════════════════════════
     # 1. KÍCH HOẠT WIZARD SỔ CHI KHI CHỈ NHẮN "CHI" HOẶC "GHI CHI"
     # ═════════════════════════════════════════════════════════════════════
     if clean in ['chi', 'ghi chi', 'nhap chi', 'phieu chi', 'so chi', 'tao phieu chi']:
@@ -4316,6 +4334,14 @@ def process_ai_command(user_text, session_id="default_user"):
         res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
         if res_gemini and res_gemini.get('message'):
             return res_gemini
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.2. TRA CỨU TRI THỨC TỰ ĐỘNG TỪ BỘ NHỚ GARA ĐÃ HỌC (< 0.003s)
+    # ═════════════════════════════════════════════════════════════════════
+    if KNOWLEDGE_AVAILABLE and knowledge_base:
+        res_learned = knowledge_base.query_learned_knowledge(clean, raw)
+        if res_learned:
+            return res_learned
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.4. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
