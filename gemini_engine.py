@@ -874,43 +874,124 @@ def get_key_status_message() -> str:
         )
     return ""
 
-def ask_gemini(message: str, session_id: str = "default_user") -> dict:
-    """Xử lý câu lệnh hội thoại / điều khiển thông qua Gemini Flash với cơ chế Model Cascade.
-    
-    Returns:
-        dict: {'type': 'success', 'message': '...'} hoặc None nếu gặp lỗi (để fallback).
+
+import urllib.request
+
+REST_CHAT_HISTORY = {}
+
+def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
+    """Xử lý Gemini trực tiếp qua chuẩn REST API của Google (Zero-Dependency).
+    Hoạt động 100% trên mọi nền tảng (PythonAnywhere, VPS, Docker, Windows, Linux)
+    mà không cần bất kỳ thư viện bên ngoài nào.
     """
     global LAST_KEY_ERROR
-    if not GENAI_AVAILABLE:
+    api_key = DEFAULT_API_KEY
+    if not api_key:
         return None
 
-    # Thử qua từng model trong danh sách ưu tiên (Gemini 3.5 Flash trước)
-    for model_name in AVAILABLE_MODELS:
-        chat = get_or_create_gemini_chat(session_id, model_name)
-        if not chat:
-            continue
+    if session_id not in REST_CHAT_HISTORY:
+        REST_CHAT_HISTORY[session_id] = []
+    
+    history = REST_CHAT_HISTORY[session_id]
+    history.append({"role": "user", "parts": [{"text": message}]})
+    if len(history) > 12:
+        history = history[-12:]
+        REST_CHAT_HISTORY[session_id] = history
 
+    for model_name in AVAILABLE_MODELS:
+        clean_model = model_name.replace("models/", "")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
+        
+        payload = {
+            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "contents": history,
+            "generationConfig": {
+                "maxOutputTokens": 800,
+                "temperature": 0.2
+            }
+        }
+        
         try:
-            response = chat.send_message(message)
-            text_resp = response.text or ""
-            if text_resp.strip():
-                LAST_KEY_ERROR = None
-                return {
-                    "type": "success",
-                    "module": "gemini_assistant",
-                    "message": text_resp.strip()
-                }
-        except Exception as e:
-            err_str = str(e)
-            print(f"[GeminiEngine] Model {model_name} gặp lỗi: {err_str[:120]}")
-            if "leaked" in err_str.lower() or "403" in err_str or "permission_denied" in err_str.lower():
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                res_data = json.loads(resp.read().decode("utf-8"))
+                
+                candidates = res_data.get("candidates", [])
+                if not candidates:
+                    continue
+                
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                if not parts:
+                    continue
+                
+                text_parts = [p.get("text", "") for p in parts if "text" in p]
+                reply_text = "\n".join(text_parts).strip()
+                
+                if reply_text:
+                    history.append({"role": "model", "parts": [{"text": reply_text}]})
+                    LAST_KEY_ERROR = None
+                    return {
+                        "type": "success",
+                        "module": "gemini_assistant",
+                        "message": reply_text
+                    }
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8")
+            except Exception:
+                pass
+            print(f"[GeminiEngine-REST] Lỗi HTTP {e.code} với model {clean_model}: {err_body[:150]}")
+            if e.code == 403 or "leaked" in err_body.lower() or "permission_denied" in err_body.lower():
                 LAST_KEY_ERROR = "API_KEY_LEAKED_403"
-            elif "invalid" in err_str.lower() and "key" in err_str.lower():
+            elif e.code == 400 and ("invalid" in err_body.lower() or "api_key" in err_body.lower()):
                 LAST_KEY_ERROR = "API_KEY_INVALID"
-            # Nếu hết quota (429) hoặc lỗi model, thử model tiếp theo trong danh sách
-            session_key = f"{session_id}_{model_name}"
-            if session_key in GEMINI_SESSIONS:
-                del GEMINI_SESSIONS[session_key]
+            continue
+        except Exception as e:
+            print(f"[GeminiEngine-REST] Lỗi kết nối model {clean_model}: {str(e)[:120]}")
             continue
 
     return None
+
+def ask_gemini(message: str, session_id: str = "default_user") -> dict:
+    """Xử lý câu lệnh hội thoại / điều khiển thông qua Gemini Flash với cơ chế Model Cascade.
+    Hỗ trợ cả Google GenAI SDK (nếu có) lẫn Direct REST API (zero-dependency).
+    """
+    global LAST_KEY_ERROR
+
+    # 1. Thử qua Google GenAI SDK nếu có
+    if GENAI_AVAILABLE:
+        for model_name in AVAILABLE_MODELS:
+            chat = get_or_create_gemini_chat(session_id, model_name)
+            if not chat:
+                continue
+
+            try:
+                response = chat.send_message(message)
+                text_resp = response.text or ""
+                if text_resp.strip():
+                    LAST_KEY_ERROR = None
+                    return {
+                        "type": "success",
+                        "module": "gemini_assistant",
+                        "message": text_resp.strip()
+                    }
+            except Exception as e:
+                err_str = str(e)
+                print(f"[GeminiEngine-SDK] Model {model_name} gặp lỗi: {err_str[:120]}")
+                if "leaked" in err_str.lower() or "403" in err_str or "permission_denied" in err_str.lower():
+                    LAST_KEY_ERROR = "API_KEY_LEAKED_403"
+                elif "invalid" in err_str.lower() and "key" in err_str.lower():
+                    LAST_KEY_ERROR = "API_KEY_INVALID"
+                session_key = f"{session_id}_{model_name}"
+                if session_key in GEMINI_SESSIONS:
+                    del GEMINI_SESSIONS[session_key]
+                continue
+
+    # 2. Fallback sang Zero-Dependency REST API (hoạt động 100% trên PythonAnywhere mà không cần pip install)
+    return ask_gemini_rest(message, session_id)

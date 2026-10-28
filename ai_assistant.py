@@ -4352,17 +4352,7 @@ def process_ai_command(user_text, session_id="default_user"):
                         "Hệ thống sẽ tự nhận diện và kích hoạt ngay tức thì."
                     )
                 }
-            if not getattr(gemini_engine, 'GENAI_AVAILABLE', False):
-                return {
-                    "type": "warning",
-                    "message": (
-                        "⚠️ **MÁY CHỦ CHƯA CÀI ĐẶT THƯ VIỆN GOOGLE GENAI!**\n"
-                        "─────────────────────────────────────────\n"
-                        "Trên máy chủ PythonAnywhere, anh hãy mở cửa sổ Bash Console và chạy lệnh:\n"
-                        "`pip install --user google-genai`\n\n"
-                        "Sau đó sang tab Web và bấm nút **Reload**."
-                    )
-                }
+
             res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
             if res_gemini and res_gemini.get('message'):
                 return res_gemini
