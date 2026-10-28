@@ -33,8 +33,9 @@ CONFIG_FILE = os.path.join(BASE_DIR, 'gemini_config.json')
 
 def load_gemini_config():
     cfg = {
-        "api_key": "AIzaSyDhhrP3krB44mAtzXfY0r0Fw8CM-wsBFsY",
-        "preferred_model": "gemini-3.5-flash",
+        "api_key": "",
+        "preferred_model": "gemini-3.5-flash-lite",
+        "fallback_model": "gemini-3.5-flash",
         "enabled": True
     }
     if os.path.exists(CONFIG_FILE):
@@ -50,7 +51,7 @@ def load_gemini_config():
     return cfg
 
 CURRENT_CONFIG = load_gemini_config()
-DEFAULT_API_KEY = CURRENT_CONFIG.get("api_key", "AIzaSyDhhrP3krB44mAtzXfY0r0Fw8CM-wsBFsY")
+DEFAULT_API_KEY = CURRENT_CONFIG.get("api_key", "")
 # Danh sách model siêu tốc: Gemini 3.5 Flash Lite và Gemini 3.5 Flash
 AVAILABLE_MODELS = [
     CURRENT_CONFIG.get("preferred_model", "gemini-3.5-flash-lite"),
@@ -695,6 +696,52 @@ def len_don_bao_cao_den_nhanh(
     )
 
 # Danh sách Tools cung cấp cho Gemini
+
+def ghi_nho_tri_thuc_gara(noi_dung_ghi_nho: str) -> str:
+    """Ghi nhớ một kiến thức, quy định, chính sách, hoặc bảng giá mới vào bộ não tri thức vĩnh viễn của gara.
+
+    Args:
+        noi_dung_ghi_nho: Toàn bộ nội dung cần ghi nhớ (ví dụ: 'sàn 5d cho xe 4 chỗ là 1.800.000, may thêm túi 100k, tối đa 2 túi').
+    """
+    try:
+        import knowledge_base
+        res = knowledge_base.analyze_and_learn(noi_dung_ghi_nho)
+        return res.get("message", "Đã ghi nhớ thành công.")
+    except Exception as e:
+        return f"Lỗi khi lưu tri thức: {e}"
+
+
+def sua_quy_dinh_san_pham(ten_san_pham: str, quy_dinh_moi: str) -> str:
+    """Cập nhật hoặc sửa đổi quy định, quà tặng, thẻ nhớ, bảo hành của một sản phẩm/dịch vụ cụ thể trong gara.
+
+    Args:
+        ten_san_pham: Tên sản phẩm cần sửa đổi (ví dụ: 'A510', '70mai A510', 'F10', 'M1').
+        quy_dinh_moi: Quy định hoặc điều chỉnh mới (ví dụ: 'chưa bao gồm thẻ nhớ', 'không tặng thẻ nhớ', 'bảo hành 3 năm').
+    """
+    try:
+        import knowledge_base
+        res = knowledge_base.analyze_and_learn(f"sửa lại {ten_san_pham} {quy_dinh_moi}")
+        return res.get("message", "Đã cập nhật quy định thành công.")
+    except Exception as e:
+        return f"Lỗi khi cập nhật quy định: {e}"
+
+
+def tra_cuu_tri_thuc_gara(chu_de_hoac_tu_khoa: str) -> str:
+    """Tra cứu các quy định, bảng giá đặc thù, kiến thức riêng mà chủ gara đã dạy cho AI trong bộ nhớ.
+
+    Args:
+        chu_de_hoac_tu_khoa: Từ khóa hoặc tên sản phẩm cần tra cứu (ví dụ: 'sàn 5d', 'a510', 'bọc trần').
+    """
+    try:
+        import knowledge_base
+        clean_kw = knowledge_base.remove_accents(chu_de_hoac_tu_khoa).lower()
+        res = knowledge_base.query_learned_knowledge(clean_kw, chu_de_hoac_tu_khoa)
+        if res:
+            return res.get("message", "")
+        return f"Chưa có ghi nhớ đặc biệt nào cho '{chu_de_hoac_tu_khoa}' trong bộ não gara."
+    except Exception as e:
+        return f"Lỗi tra cứu tri thức: {e}"
+
 GARA_TOOLS = [
     sua_don_hang,
     xoa_don_hang,
@@ -704,7 +751,10 @@ GARA_TOOLS = [
     tra_cuu_san_pham_kho_hang,
     thong_ke_doanh_thu,
     ghi_so_thu_chi,
-    len_don_bao_cao_den_nhanh
+    len_don_bao_cao_den_nhanh,
+    ghi_nho_tri_thuc_gara,
+    sua_quy_dinh_san_pham,
+    tra_cuu_tri_thuc_gara
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -726,6 +776,10 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 6. TRA CỨU TỒN KHO & GIÁ SẢN PHẨM: Khi hỏi "tồn kho...", "giá sản phẩm...", hãy gọi `tra_cuu_san_pham_kho_hang`.
 7. BÁO CÁO DOANH THU & TÀI CHÍNH: Khi hỏi doanh thu, hãy gọi `thong_ke_doanh_thu`.
 8. GHI SỔ THU CHI: Khi có lệnh "chi..." hoặc "thu...", hãy gọi `ghi_so_thu_chi`.
+
+10. GHI NHỚ TRI THỨC GARA: Khi người dùng muốn dạy AI ghi nhớ kiến thức/bảng giá mới ('ghi nhớ...', 'nhớ...'), hãy gọi `ghi_nho_tri_thuc_gara`.
+11. SỬA ĐỔI QUY ĐỊNH SẢN PHẨM: Khi người dùng muốn sửa lại quy định, quà tặng, thẻ nhớ của sản phẩm ('sửa lại a510 chưa bao gồm thẻ nhớ', 'chỉnh lại...'), hãy gọi `sua_quy_dinh_san_pham`.
+12. TRA CỨU TRI THỨC GARA: Khi khách hoặc người dùng hỏi về sản phẩm đã được dạy (như 'sàn 5d', 'a510 quy định mới...'), hãy gọi `tra_cuu_tri_thuc_gara`.
 9. LÊN ĐƠN BÁO CÁO ĐÈN: Khi người dùng chốt bán hoặc lắp đèn cụ thể cho khách/xe kèm giá tiền (ví dụ: "anh Cường accent f10 new 3900"), hãy gọi `len_don_bao_cao_den_nhanh`.
    ⚠️ LƯU Ý BẢO VỆ: Nếu người dùng CHỈ gõ tên đèn để hỏi giá hoặc tư vấn (như "f10", "f10 turbo", "đèn gầm"), TUYỆT ĐỐI KHÔNG LÊN ĐƠN, mà hãy trả lời tư vấn & báo giá chi tiết!
 
@@ -802,12 +856,31 @@ def get_or_create_gemini_chat(session_id: str = "default_user", model_name: str 
         return None
 
 
+LAST_KEY_ERROR = None
+
+def get_key_status_message() -> str:
+    global LAST_KEY_ERROR
+    if LAST_KEY_ERROR == "API_KEY_LEAKED_403":
+        return (
+            "⚠️ **API KEY GEMINI ĐÃ BỊ GOOGLE KHÓA BẢO MẬT (403 PERMISSION_DENIED)**\n"
+            "─────────────────────────────────────────\n"
+            "Google phát hiện mã API Key trước đó bị lộ công khai trên internet nên đã tự động vô hiệu hóa.\n"
+            "Vì lý do này, AI tạm thời chưa thể gọi được trí tuệ Gemini 3.5 Flash mà đang chạy bằng bộ lọc cục bộ.\n\n"
+            "👉 **CÁCH KÍCH HOẠT LẠI TRONG 30 GIÂY (HOÀN TOÀN MIỄN PHÍ):**\n"
+            "1. Anh truy cập: https://aistudio.google.com/app/apikey\n"
+            "2. Bấm nút **'Create API Key'**\n"
+            "3. Sao chép mã (bắt đầu bằng `AIzaSy...`) rồi **dán trực tiếp vào khung chat này**!\n"
+            "Hệ thống sẽ tự nhận diện, lưu an toàn vào máy và bật Gemini ngay lập tức!"
+        )
+    return ""
+
 def ask_gemini(message: str, session_id: str = "default_user") -> dict:
     """Xử lý câu lệnh hội thoại / điều khiển thông qua Gemini Flash với cơ chế Model Cascade.
     
     Returns:
         dict: {'type': 'success', 'message': '...'} hoặc None nếu gặp lỗi (để fallback).
     """
+    global LAST_KEY_ERROR
     if not GENAI_AVAILABLE:
         return None
 
@@ -821,6 +894,7 @@ def ask_gemini(message: str, session_id: str = "default_user") -> dict:
             response = chat.send_message(message)
             text_resp = response.text or ""
             if text_resp.strip():
+                LAST_KEY_ERROR = None
                 return {
                     "type": "success",
                     "module": "gemini_assistant",
@@ -829,6 +903,10 @@ def ask_gemini(message: str, session_id: str = "default_user") -> dict:
         except Exception as e:
             err_str = str(e)
             print(f"[GeminiEngine] Model {model_name} gặp lỗi: {err_str[:120]}")
+            if "leaked" in err_str.lower() or "403" in err_str or "permission_denied" in err_str.lower():
+                LAST_KEY_ERROR = "API_KEY_LEAKED_403"
+            elif "invalid" in err_str.lower() and "key" in err_str.lower():
+                LAST_KEY_ERROR = "API_KEY_INVALID"
             # Nếu hết quota (429) hoặc lỗi model, thử model tiếp theo trong danh sách
             session_key = f"{session_id}_{model_name}"
             if session_key in GEMINI_SESSIONS:

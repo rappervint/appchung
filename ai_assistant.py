@@ -4174,7 +4174,7 @@ def ask_clarification(raw_text, clean_text, session_id):
 def parse_and_execute_admin_command(raw, clean):
     """Xử lý siêu tốc các thao tác quản trị trực tiếp trên Database nội bộ (< 0.005 giây)"""
     # 0. Tự động nhận diện và lưu API Key Gemini mới khi người dùng gửi trong chat
-    m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33})\b', raw)
+    m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{40,65})\b', raw)
     if m_key:
         new_key = m_key.group(1)
         cfg = {"api_key": new_key, "preferred_model": "gemini-3.5-flash-lite", "fallback_model": "gemini-3.5-flash", "enabled": True}
@@ -4335,6 +4335,19 @@ def process_ai_command(user_text, session_id="default_user"):
         res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
         if res_gemini and res_gemini.get('message'):
             return res_gemini
+        status_msg = getattr(gemini_engine, 'get_key_status_message', lambda: '')()
+        if status_msg:
+            return {"type": "warning", "message": status_msg}
+
+    # Nếu người dùng hỏi về tình trạng Gemini hoặc thắc mắc về AI
+    if any(k in clean for k in ['gemini', 'key gemini', 'sao gemini', 'kiem tra gemini', 'test gemini']):
+        if GEMINI_AVAILABLE and gemini_engine:
+            res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
+            if res_gemini and res_gemini.get('message'):
+                return res_gemini
+            status_msg = getattr(gemini_engine, 'get_key_status_message', lambda: '')()
+            if status_msg:
+                return {"type": "warning", "message": status_msg}
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.2. TRA CỨU TRI THỨC TỰ ĐỘNG TỪ BỘ NHỚ GARA ĐÃ HỌC (< 0.003s)
@@ -4343,6 +4356,21 @@ def process_ai_command(user_text, session_id="default_user"):
         res_learned = knowledge_base.query_learned_knowledge(clean, raw)
         if res_learned:
             return res_learned
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.3.5. TRÍ TUỆ SUY LUẬN & PHÂN TÍCH CHUYÊN SÂU GEMINI (DEEP REASONING)
+    # Khi người dùng hỏi so sánh, phân tích, tại sao, tư vấn phương án, đánh giá...
+    # ═════════════════════════════════════════════════════════════════════
+    is_reasoning = any(k in clean for k in [
+        'so sanh', 'phan tich', 'giai thich', 'tai sao', 'vi sao', 'ly do', 'nen chon',
+        'co nen', 'uu diem', 'nhuoc diem', 'khac nhau the nao', 'khac gi nhau',
+        'danh gia', 'kinh nghiem', 'chia se', 'loai nao tot hon', 'tu van giup',
+        'tu van cho toi', 'phuong an nao'
+    ])
+    if is_reasoning and GEMINI_AVAILABLE and gemini_engine:
+        res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
+        if res_gemini and res_gemini.get('message'):
+            return res_gemini
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.4. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
@@ -4424,6 +4452,9 @@ def process_ai_command(user_text, session_id="default_user"):
         res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
         if res_gemini and res_gemini.get('message'):
             return res_gemini
+        status_msg = getattr(gemini_engine, 'get_key_status_message', lambda: '')()
+        if status_msg and any(k in clean for k in ['gemini', 'thong minh', 'sao ko', 'sao khong', 'sao chua']):
+            return {"type": "warning", "message": status_msg}
 
     # 12. Chủ động hỏi lại người dùng để làm rõ ý và phục vụ chính xác
     return ask_clarification(raw, clean, session_id)
