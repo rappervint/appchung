@@ -469,6 +469,28 @@ def get_cycle_dates(year, month):
 # BỘ NHỚ HỘI THOẠI HỎI ĐÁP TỪNG BƯỚC (WIZARD CONVERSATIONAL STATE)
 # ─────────────────────────────────────────────────────────────────────────────
 WIZARD_SESSIONS = {}
+LAST_CONSULTED_TOPIC = {}
+
+def detect_consulted_product(text_clean: str) -> str:
+    """Nhận diện sản phẩm đang được nhắc tới trong câu hỏi / câu lệnh"""
+    PROD_MAP = [
+        ('a510', 'a510'), ('70mai a510', 'a510'),
+        ('a200', 'a200'), ('70mai a200', 'a200'),
+        ('a210', 'a210'), ('70mai a210', 'a210'),
+        ('m310', 'm310'), ('70mai m310', 'm310'),
+        ('a800se', 'a800se'), ('a800', 'a800se'),
+        ('vietmap m1', 'm1'), ('cam m1', 'm1'), ('m1', 'm1'),
+        ('vietmap m2', 'm2'), ('m2', 'm2'),
+        ('f10 turbo', 'f10'), ('bi gam f10', 'f10'), ('den f10', 'f10'), ('f10', 'f10'),
+        ('naoevo s3', 's3'), ('bi gam s3', 's3'), ('s3', 's3'),
+        ('san 5d', 'san 5d'), ('tham 5d', 'san 5d'), ('lot san 5d', 'san 5d'),
+        ('bs10', 'bs10'), ('icar d4', 'd4'),
+        ('s150', 'winca s150'), ('b10lite', 'bravo b10')
+    ]
+    for pattern, key in PROD_MAP:
+        if re.search(r'\b' + re.escape(pattern) + r'\b', text_clean):
+            return key
+    return ""
 
 def handle_wizard_step(user_text, session_id):
     """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
@@ -4489,8 +4511,42 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
 
 
 def process_ai_command(user_text, session_id="default_user"):
-    """Bọc bộ xử lý lệnh để tự động duy trì lịch sử hội thoại liên tục cho Gemini."""
-    res = _process_ai_command_internal(user_text, session_id=session_id)
+    """Bọc bộ xử lý lệnh để tự động duy trì lịch sử hội thoại liên tục cho Gemini và bảo toàn ngữ cảnh sản phẩm."""
+    if not user_text:
+        return _process_ai_command_internal(user_text, session_id=session_id)
+
+    raw = user_text.strip()
+    clean = remove_accents(raw).lower()
+
+    # 1. BẢO VỆ NGỮ CẢNH HỘI THOẠI:
+    # Nếu người dùng nói "sửa giá lại thành...", "đổi giá thành...", "sửa lại thành..."
+    # mà không ghi tên sản phẩm, nhưng câu liền trước vừa tra cứu / nói về một sản phẩm (ví dụ A510):
+    is_price_edit_intent = any(k in clean for k in ['sua gia', 'sua lai gia', 'doi gia', 'cap nhat gia', 'chinh gia']) or \
+                           (any(k in clean for k in ['sua lai', 'doi lai', 'chinh lai']) and any(k in clean for k in ['thanh', 'la', 'gia', 'vnd', 'dong', 'k', 'tr']))
+    has_order_indicator = bool(re.search(r'\b(?:don|don hang|ma don|#\d+)\b', clean))
+
+    if is_price_edit_intent and not has_order_indicator:
+        prod_in_query = detect_consulted_product(clean)
+        if not prod_in_query and session_id in LAST_CONSULTED_TOPIC:
+            last_item = LAST_CONSULTED_TOPIC[session_id]
+            last_key = last_item.get('key', '')
+            if last_key:
+                raw = f"sửa lại giá {last_key} {raw}"
+                clean = remove_accents(raw).lower()
+
+    # 2. Thực thi xử lý câu lệnh
+    res = _process_ai_command_internal(raw, session_id=session_id)
+
+    # 3. Ghi nhớ sản phẩm vừa tra cứu / phản hồi vào bộ nhớ ngữ cảnh của session
+    detected_prod = detect_consulted_product(clean)
+    if not detected_prod and res and isinstance(res, dict) and res.get('message'):
+        res_clean = remove_accents(res['message']).lower()
+        detected_prod = detect_consulted_product(res_clean)
+
+    if detected_prod:
+        LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
+
+    # 4. Lưu vào lịch sử hội thoại đa lượt của Gemini
     if res and isinstance(res, dict) and res.get('message') and gemini_engine:
         try:
             gemini_engine.append_to_history(session_id, user_text, res['message'])
