@@ -41,11 +41,12 @@ def remove_accents(input_str):
 def parse_vietnamese_currency(text: str) -> tuple:
     """
     Nhận diện và chuẩn hóa mọi cách nói tiền tệ của người Việt:
+    - '4500', 'giá 4500' -> ('4.500.000 đ', 4500000)
     - '3tr5', '3tr500', '3 triệu 5', '3 triệu rưỡi' -> ('3.500.000 đ', 3500000)
     - '1tr8', '1 triệu 8' -> ('1.800.000 đ', 1800000)
-    - '4tr2', '4.2tr' -> ('4.200.000 đ', 4200000)
-    - '350k', '350 ngàn' -> ('350.000 đ', 350000)
-    - '3.500.000', '3500000' -> ('3.500.000 đ', 3500000)
+    - '4tr2', '4.2tr', '4.5tr' -> ('4.500.000 đ', 4500000)
+    - '350k', '350 ngàn', '350' -> ('350.000 đ', 350000)
+    - '3.500.000', '3500000', '4.500.000 đ' -> ('4.500.000 đ', 4500000)
     Trả về: (formatted_str, numeric_value)
     """
     if not text:
@@ -54,7 +55,7 @@ def parse_vietnamese_currency(text: str) -> tuple:
     s = text.lower().strip()
     s_no_acc = remove_accents(s)
 
-    # 1. Dạng triệu có phần thập phân hoặc số lẻ: "3tr5", "3tr500", "3 triệu 5", "3trieu5"
+    # 1. Dạng triệu có phần thập phân hoặc số lẻ: "3tr5", "3tr500", "3 triệu 5", "3trieu5", "4tr5"
     m_tr_split = re.search(r'\b(\d+)\s*(?:tr|trieu|triệu)\s*(\d{1,3})\b', s)
     if m_tr_split:
         trieu = int(m_tr_split.group(1))
@@ -74,7 +75,7 @@ def parse_vietnamese_currency(text: str) -> tuple:
         total = int(m_ruoi.group(1)) * 1000000 + 500000
         return f"{total:,}".replace(',', '.') + " đ", total
 
-    # 3. Dạng thập phân triệu: "3.5tr", "3,5tr", "3.5 triệu", "3,5 trieu"
+    # 3. Dạng thập phân triệu: "3.5tr", "3,5tr", "3.5 triệu", "3,5 trieu", "4.5tr"
     m_tr_dec = re.search(r'\b(\d+)[.,](\d+)\s*(?:tr|trieu|triệu)\b', s)
     if m_tr_dec:
         val = float(f"{m_tr_dec.group(1)}.{m_tr_dec.group(2)}")
@@ -87,23 +88,46 @@ def parse_vietnamese_currency(text: str) -> tuple:
         total = int(m_tr_round.group(1)) * 1000000
         return f"{total:,}".replace(',', '.') + " đ", total
 
-    # 5. Dạng nghìn k: "350k", "350 nghìn", "350 ngàn", "3400k"
-    m_k = re.search(r'\b(\d+)\s*(?:k|nghin|nghìn|ngan|ngàn)\b', s)
+    # 5. Dạng nghìn k: "350k", "350 nghìn", "350 ngàn", "3400k", "4500k", "3900k"
+    m_k = re.search(r'\b(\d+(?:[.,]\d+)?)\s*(?:k|nghin|nghìn|ngan|ngàn)\b', s)
     if m_k:
-        total = int(m_k.group(1)) * 1000
+        val = float(m_k.group(1).replace(',', '.'))
+        total = int(round(val * 1000))
         return f"{total:,}".replace(',', '.') + " đ", total
 
-    # 6. Dạng số có dấu chấm hàng nghìn: "3.500.000", "3.400.000 đ"
+    # 6. Dạng số có dấu chấm hàng nghìn: "3.500.000", "4.500.000 đ", "350.000"
     m_dot = re.search(r'\b(\d{1,3}(?:\.\d{3})+)\s*(?:đ|vnd|dong|đồng)?\b', s)
     if m_dot:
         raw_num = m_dot.group(1).replace('.', '')
         total = int(raw_num)
         return f"{total:,}".replace(',', '.') + " đ", total
 
-    # 7. Dạng số nguyên lớn thuần túy: "3500000"
+    # 7. Dạng số nguyên lớn thuần túy: "3500000", "4500000" (>= 100.000)
     m_raw = re.search(r'\b(\d{6,9})\s*(?:đ|vnd|dong|đồng)?\b', s)
     if m_raw:
         total = int(m_raw.group(1))
+        return f"{total:,}".replace(',', '.') + " đ", total
+
+    # 8. Dạng sau từ khóa giá/thành/là: "giá 4500", "thành 4500", "giá 3900", "giá 350", "gia 1500"
+    m_kw = re.search(r'(?:giá|gia|thành|thanh|là|la|tính|tinh|khoảng|khoang|tầm|tam|chi\s*phí|chi\s*phi|tiền|tien)\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(?:đ|vnd|dong|đồng)?\b', s)
+    if m_kw:
+        val_str = m_kw.group(1).replace(',', '.')
+        val = float(val_str)
+        if val >= 100 and val < 100000:
+            total = int(val * 1000)
+            return f"{total:,}".replace(',', '.') + " đ", total
+        elif val >= 100000:
+            total = int(val)
+            return f"{total:,}".replace(',', '.') + " đ", total
+        elif val > 0 and val < 50:
+            total = int(val * 1000000)
+            return f"{total:,}".replace(',', '.') + " đ", total
+
+    # 9. Dạng số độc lập ở đuôi câu: ví dụ "f10 new 4500"
+    m_tail = re.search(r'\s+(\d{3,5})\s*(?:đ|vnd)?$', s)
+    if m_tail:
+        val = int(m_tail.group(1))
+        total = val * 1000
         return f"{total:,}".replace(',', '.') + " đ", total
 
     return "", 0
@@ -176,15 +200,55 @@ CATALOG_SPECS = {
         'warranty': '12 tháng chính hãng toàn quốc.',
         'keywords': ['vietmap m1', 'cam m1', 'camera m1', 'm1', 'speedmap m1']
     },
+    'f10_new': {
+        'clean_key': 'f10 new',
+        'formal_title': 'BI GẦM LED AOZOOM F10 NEW 2.0 (CHÍNH HÃNG)',
+        'topic': 'Bi Gầm LED Aozoom F10 New 2.0',
+        'default_price': '3.900.000 đ',
+        'specs_desc': 'Ánh sáng bám đường siêu mạnh, nhiệt màu 5500K trắng ấm bám đường, mặt cắt chống chói xe đối diện, chống nước IP68 tuyệt đối',
+        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
+        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
+        'keywords': ['f10 new 2.0', 'f10 new 20', 'f10 new', 'f10 2.0', 'f10 20', 'bi gam f10 new', 'den f10 new']
+    },
+    'f10_3mau': {
+        'clean_key': 'f10 ba mau',
+        'formal_title': 'BI GẦM LED AOZOOM F10 BA MÀU (3 CHẾ ĐỘ NHIỆT MÀU)',
+        'topic': 'Bi Gầm LED Aozoom F10 Ba Màu',
+        'default_price': '4.500.000 đ',
+        'specs_desc': '3 chế độ màu linh hoạt (3000K vàng đậm phá sương/mưa lớn, 4300K vàng nắng bám đường, 5500K trắng thời trang)',
+        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
+        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
+        'keywords': ['f10 ba mau', 'f10 3 mau', 'f10 pha suong', 'f10 3 che do', 'bi gam f10 3 mau']
+    },
+    'f10_turbo': {
+        'clean_key': 'f10 turbo',
+        'formal_title': 'BI GẦM LED AOZOOM F10 TURBO V2 (CÔNG SUẤT KHỦNG)',
+        'topic': 'Bi Gầm LED Aozoom F10 Turbo V2',
+        'default_price': '5.100.000 đ',
+        'specs_desc': 'Công suất khủng 65W có nhân LED trợ pha laser độc lập, chiếu xa vượt trội lên đến 800m',
+        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
+        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
+        'keywords': ['f10 turbo', 'f10 turbo v2', 'turbo v2', 'bi gam f10 turbo']
+    },
+    'f10_hyper': {
+        'clean_key': 'f10 hyper',
+        'formal_title': 'BI GẦM LED AOZOOM F10 HYPER 2.0 / PRO V2',
+        'topic': 'Bi Gầm LED Aozoom F10 Hyper 2.0',
+        'default_price': '5.500.000 đ',
+        'specs_desc': 'Dòng cao cấp nhất F10 Series, gom sáng cực đỉnh, đường cắt siêu nét, siêu bền',
+        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
+        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
+        'keywords': ['f10 hyper', 'f10 heyper', 'f10 pro v2', 'f10 pro', 'hyper 2.0']
+    },
     'f10': {
         'clean_key': 'f10',
         'formal_title': 'BI GẦM LED AOZOOM F10 SERIES (CHÍNH HÃNG)',
         'topic': 'Bi Gầm LED Aozoom F10',
         'default_price': '3.900.000 đ',
         'specs_desc': 'Ánh sáng bám đường siêu mạnh, mặt cắt thẳng chống chói xe đối diện, chống nước IP68 tuyệt đối',
-        'note': 'F10 New: 3.9tr | F10 3 Màu (phá sương): 4.2tr | F10 Turbo V2 (trợ pha laser): 5.1tr.',
+        'note': 'F10 New: 3.9tr | F10 3 Màu: 4.5tr | F10 Turbo: 5.1tr | F10 Hyper: 5.5tr.',
         'warranty': '3 năm (36 tháng) chính hãng đổi mới, tặng dưỡng zin theo từng dòng xe.',
-        'keywords': ['f10', 'bi gam f10', 'den f10', 'f10 new', 'f10 turbo', 'aozoom f10']
+        'keywords': ['f10', 'bi gam f10', 'den f10', 'aozoom f10']
     },
     's3': {
         'clean_key': 's3',
@@ -210,13 +274,24 @@ CATALOG_SPECS = {
 
 
 def find_catalog_product(text_clean: str):
-    """Tìm sản phẩm catalog khớp trong văn bản"""
+    """Tìm sản phẩm catalog khớp trong văn bản - ưu tiên từ khóa dài và cụ thể nhất trước"""
+    if not text_clean:
+        return None
+
+    all_kw_specs = []
     for key, spec in CATALOG_SPECS.items():
-        if key in text_clean:
+        for kw in spec.get('keywords', []):
+            all_kw_specs.append((kw, spec))
+        all_kw_specs.append((spec.get('clean_key', key), spec))
+
+    # Sắp xếp các từ khóa theo độ dài giảm dần (từ khóa cụ thể nhất được ưu tiên trước)
+    all_kw_specs.sort(key=lambda x: len(x[0]), reverse=True)
+
+    for kw, spec in all_kw_specs:
+        pattern = r'\b' + re.escape(kw) + r'\b'
+        if re.search(pattern, text_clean):
             return spec
-        for kw in spec['keywords']:
-            if kw in text_clean:
-                return spec
+
     return None
 
 
@@ -317,6 +392,16 @@ def prepare_learning_preview(raw_text: str) -> dict:
     clean_topic = remove_accents(topic).lower()
 
     catalog_item = find_catalog_product(clean_topic) or find_catalog_product(clean_content)
+
+    # BẢO VỆ AN TOÀN: Nếu người dùng ra lệnh sửa giá/đổi giá mà AI không bắt được giá tiền,
+    # TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ Ý LẤY GIÁ MẶC ĐỊNH thay thế! Phải hỏi lại người dùng!
+    is_price_edit_intent = any(k in remove_accents(raw_text).lower() for k in ['sua lai gia', 'sua gia lai', 'sua gia', 'doi gia', 'chinh gia', 'cap nhat gia']) or bool(re.search(r'\b(?:gia|giá)\b', raw_text, re.IGNORECASE))
+    if is_price_edit_intent and not price_display:
+        t_name = (catalog_item['topic'] if catalog_item else topic) or 'sản phẩm'
+        return {
+            "type": "clarify",
+            "message": f"⚠️ Em chưa nhận diện được mức giá mới cho **{t_name}**.\nAnh vui lòng nhập rõ mức giá (Ví dụ: `sửa lại f10 new giá 4500`, `giá 4tr5`, `giá 4.500.000`... nhé)!"
+        }
 
     if catalog_item:
         formal_topic = catalog_item['topic']
@@ -465,14 +550,14 @@ def analyze_and_learn(raw_text: str) -> dict:
         conn.commit()
         conn.close()
 
-        # Đồng bộ cập nhật giá vào Kho Hàng nếu có sản phẩm tương ứng trong banhang.db
+        # Đồng bộ cập nhật giá vào Kho Hàng nếu có sản phẩm tương ứng trong tiem_lap_do.db
         try:
-            db_banhang = os.path.join(BASE_DIR, 'banhang.db')
+            db_banhang = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
             if os.path.exists(db_banhang) and price_num > 0:
                 conn_bh = sqlite3.connect(db_banhang)
                 c_bh = conn_bh.cursor()
-                c_bh.execute("UPDATE products SET price=? WHERE name LIKE ? OR code LIKE ?", 
-                             (price_num, f"%{clean_catalog_key}%", f"%{clean_catalog_key}%"))
+                c_bh.execute("UPDATE products SET price=? WHERE UPPER(name) LIKE ? OR UPPER(code) LIKE ?", 
+                             (price_num, f"%{clean_catalog_key.upper()}%", f"%{clean_catalog_key.upper()}%"))
                 conn_bh.commit()
                 conn_bh.close()
         except Exception:
@@ -579,6 +664,13 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
         return None
 
     clean = clean_text.strip().lower()
+
+    # BẢO VỆ AN TOÀN: Nếu người dùng đang ra lệnh ghi đơn hàng (có biển số xe, sđt hoặc từ khóa nhập đơn):
+    # Tuyệt đối không chặn lại mà để luồng xử lý đơn hàng Báo Cáo Đèn tiếp nhận!
+    has_order_action = bool(re.search(r'\b(nhap don|len don|ghi don|don den)\b', clean))
+    has_lamp_install = bool(re.search(r'\b(lap|gan|thay|do|nhap)\b', clean)) and any(k in clean for k in ['den', 'bi', 'f10', 's3', 's6', 's8', 's9', 'v20', 'm10', 'm20', 'm30', 'm40', 'turbo', 'hyper']) and (bool(re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5})\b', raw_text.upper())) or bool(re.search(r'\b(0[35789]\d{8})\b', raw_text)))
+    if has_order_action or has_lamp_install:
+        return None
     clean_no_gia = clean.replace('gia', '').replace('bao nhieu', '').replace('nhieu tien', '').strip()
 
     conn = sqlite3.connect(DB_KNOWLEDGE)

@@ -717,6 +717,17 @@ def len_don_bao_cao_den_nhanh(
                 p_k = dprice
                 is_default_price = True
             break
+    # Ưu tiên kiểm tra giá chủ gara đã sửa / dạy trong bộ não tri thức gara_memory
+    if is_default_price or p_k <= 0:
+        try:
+            from ai_assistant import get_lamp_price_from_memory
+            mem_price = get_lamp_price_from_memory(matched_name or ten_den)
+            if mem_price > 0:
+                p_k = mem_price
+                is_default_price = True
+        except Exception:
+            pass
+
     if p_k <= 0:
         p_k = 3500
         is_default_price = True

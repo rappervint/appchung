@@ -472,6 +472,32 @@ def clean_customer_name(name_raw, found_car=""):
     name = re.sub(r'^[-\s/–]+', '', name).strip()
     return name.title() if name else ""
 
+def get_lamp_price_from_memory(lamp_name: str) -> int:
+    """Tra cứu xem chủ gara đã từng sửa giá cho mẫu đèn này trong gara_memory chưa (trả về k, vd: 4500)"""
+    if not lamp_name:
+        return 0
+    try:
+        import knowledge_base
+        if not os.path.exists(knowledge_base.DB_KNOWLEDGE):
+            return 0
+        conn = sqlite3.connect(knowledge_base.DB_KNOWLEDGE, timeout=5)
+        c = conn.cursor()
+        clean = knowledge_base.remove_accents(lamp_name).lower()
+        c.execute("""
+            SELECT price_info FROM gara_memory 
+            WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
+            ORDER BY id DESC LIMIT 1
+        """, (clean, f"%{clean}%", f"%{clean}%"))
+        row = c.fetchone()
+        conn.close()
+        if row and row[0]:
+            p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
+            if p_num > 0:
+                return int(p_num / 1000)
+    except Exception:
+        pass
+    return 0
+
 def lookup_customer_and_car_by_identifier(identifier: str):
     """
     Tra cứu thông tin khách hàng và dòng xe dựa vào Biển số xe hoặc Số điện thoại.
@@ -1572,6 +1598,11 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
 
         if not matched_name:
             matched_name = raw_name.upper()
+
+        # Kiểm tra xem chủ gara có từng sửa giá riêng cho mẫu đèn này không trong bộ não tri thức
+        mem_price = get_lamp_price_from_memory(matched_name or raw_name)
+        if mem_price > 0:
+            matched_default = mem_price
 
         if price_k == 0:
             price_k = matched_default * qty
