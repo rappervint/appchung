@@ -29,6 +29,36 @@ DB_BANHANG = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
 DB_DEN = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
 DB_THUCHI = os.path.join(BASE_DIR, 'app_thuchi', 'finance.db')
 
+# Catalog đèn và giá niêm yết chuẩn tại gara (k = nghìn đồng)
+LAMP_CATALOG = [
+    (r'\bv20\s*base\b', 'V20 BASE', 6500),
+    (r'\bv20\s*ultra\b|\bv20l\b|\bv20\b', 'BI LED V20', 5850),
+    (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'XLIGHT S3 PRO', 1500),
+    (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'NAOEVO S3', 1500),
+    (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'NAOEVO S6 PRO', 2000),
+    (r'\b(?:xlight|naoevo)?\s*s6\b|\bs6\b', 'NAOEVO S6', 1800),
+    (r'\b(?:xlight|naoevo)?\s*s8\s*pro\b|\bs8\s*pro\b', 'NAOEVO S8 PRO', 2800),
+    (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'NAOEVO S8', 2500),
+    (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'NAOEVO S9 PRO', 3000),
+    (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'NAOEVO S9', 2800),
+    (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 5500),
+    (r'\bf10\s*turbo\b', 'F10 TURBO', 5100),
+    (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 5500),
+    (r'\bf10\s*new\s*2\.?0\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b', 'F10 NEW 2.0', 3900),
+    (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 4500),
+    (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 2500),
+    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 3100),
+    (r'\bm30\s*ultra\b|\bm30\b', 'M30 ULTRA', 5500),
+    (r'\bm40\s*ultra\b|\bm40\b', 'M40 ULTRA', 6500),
+    (r'\btitan\s*gold\b', 'TITAN GOLD', 6750),
+    (r'\btitan\s*black\b', 'TITAN BLACK', 5500),
+    (r'\btitan\s*platinum\b', 'TITAN PLATINUM', 8500),
+    (r'\bg1\s*turbo\b', 'G1 TURBO', 6200),
+    (r'\bxlight\s*301\b|\b301\b', 'XLIGHT 301', 4500),
+    (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 6000),
+    (r'\bcb150\b', 'CB150', 3800),
+]
+
 CONFIG_FILE = os.path.join(BASE_DIR, 'gemini_config.json')
 
 def load_gemini_config():
@@ -661,45 +691,92 @@ def ghi_so_thu_chi(
 
 def len_don_bao_cao_den_nhanh(
     ten_den: str,
-    gia_tien_k: int,
-    khach_hang: str = "KHÁCH LẺ",
-    dong_xe: str = "Chưa rõ dòng xe",
+    bien_so_xe: str = "",
+    so_dien_thoai: str = "",
+    khach_hang: str = "",
+    dong_xe: str = "",
+    gia_tien_k: int = 0,
     so_luong: int = 1,
     ngay: str = ""
 ) -> str:
     """Lên đơn nhanh vào Sổ Báo Cáo Doanh Thu Đèn khi khách hàng chốt đơn lắp đèn.
-
-    Args:
-        ten_den: Tên sản phẩm đèn (ví dụ: 'F10 NEW 2.0', 'F10 TURBO', 'S3', 'M40 ULTRA').
-        gia_tien_k: Giá thu thực tế theo đơn vị nghìn đồng (ví dụ 3900 cho 3.9 triệu, 5100 cho 5.1 triệu).
-        khach_hang: Tên khách hàng (ví dụ 'Anh Cường', 'Anh Hùng', hoặc 'KHÁCH LẺ').
-        dong_xe: Dòng xe của khách (ví dụ 'ACCENT', 'VIOS', 'VF3').
-        so_luong: Số lượng bộ đèn (mặc định 1).
-        ngay: Ngày lắp đặt (YYYY-MM-DD), nếu trống lấy hôm nay.
+    Tự động lấy giá niêm yết nếu không nhập giá, tự động tra cứu khách hàng & xe từ biển số / SĐT.
     """
     if not os.path.exists(DB_DEN):
         return "⚠️ Không tìm thấy cơ sở dữ liệu Báo Cáo Đèn."
 
-    order_date = ngay if ngay else datetime.now().strftime("%Y-%m-%d")
+    # 1. Tự động lấy giá niêm yết nếu giá <= 0
     p_k = int(gia_tien_k / 1000) if gia_tien_k > 50000 else int(gia_tien_k)
+    matched_name = ten_den.strip().upper()
+    is_default_price = False
+
+    for pat, cname, dprice in LAMP_CATALOG:
+        if re.search(pat, ten_den, re.IGNORECASE):
+            matched_name = cname
+            if p_k <= 0:
+                p_k = dprice
+                is_default_price = True
+            break
+    if p_k <= 0:
+        p_k = 3500
+        is_default_price = True
+
+    # 2. Tự động tra cứu khách hàng và xe từ biển số hoặc SĐT
+    identifier = bien_so_xe.strip() or so_dien_thoai.strip()
+    auto_found = False
+    if identifier:
+        try:
+            from ai_assistant import lookup_customer_and_car_by_identifier
+            cust_info = lookup_customer_and_car_by_identifier(identifier)
+            if cust_info.get("found"):
+                auto_found = True
+                if not khach_hang or khach_hang.upper() in ["KHÁCH LẺ", "CHƯA RÕ", ""]:
+                    khach_hang = cust_info.get("customer_name") or khach_hang
+                if not dong_xe or dong_xe.upper() in ["CHƯA RÕ DÒNG XE", "CHƯA RÕ", ""]:
+                    dong_xe = cust_info.get("car_model") or dong_xe
+                if not so_dien_thoai and cust_info.get("phone"):
+                    so_dien_thoai = cust_info.get("phone")
+            else:
+                # Không tìm thấy thông tin từ biển số / SĐT (xe mới)
+                if not khach_hang or khach_hang.upper() in ["KHÁCH LẺ", "CHƯA RÕ", ""]:
+                    return (
+                        f"MISSING_INFO: Xe mang biển số / SĐT '{identifier}' chưa có thông tin trong hồ sơ gara (đây là xe/khách mới đến lần đầu).\n"
+                        f"Đèn lắp: {matched_name} (Giá niêm yết: {p_k*1000:,.0f} đ).\n"
+                        f"👉 Hãy dừng lại và hỏi người dùng Tên khách hàng và Dòng xe để bổ sung vào đơn đèn!"
+                    )
+        except Exception as e_lk:
+            pass
+
+    if not khach_hang:
+        khach_hang = "KHÁCH LẺ"
+    if not dong_xe:
+        dong_xe = "Chưa rõ dòng xe"
+
+    order_date = ngay if ngay else datetime.now().strftime("%Y-%m-%d")
 
     conn = sqlite3.connect(DB_DEN)
     c = conn.cursor()
+    cust_record = f"{khach_hang} ({bien_so_xe})" if (bien_so_xe and bien_so_xe not in khach_hang) else khach_hang
     c.execute(
         "INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (order_date, ten_den.strip().upper(), khach_hang.strip(), dong_xe.strip().upper(), so_luong, p_k, "AI_GEMINI_DIRECT")
+        (order_date, matched_name, cust_record, dong_xe.strip().upper(), so_luong, p_k, "AI_GEMINI_DIRECT")
     )
     new_id = c.lastrowid
     conn.commit()
     conn.close()
 
+    default_note = " *(Giá niêm yết tự động)*" if is_default_price else ""
+    tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else ""
     return (
         f"💡 **ĐÃ GHI NHẬN ĐƠN BÁO CÁO ĐÈN THÀNH CÔNG!**\n"
         f"─────────────────────────────────────────\n"
         f"• Mã đơn: **#{new_id}**\n"
-        f"• Khách hàng: **{khach_hang}** | Xe: **{dong_xe.upper()}**\n"
-        f"• Đèn lắp: **{ten_den.upper()}** (SL: {so_luong})\n"
-        f"• Doanh thu: **{p_k * 1000:,.0f} đ** ({p_k:,}k)\n"
+        f"• Khách hàng: **{khach_hang}**{tag_auto}\n"
+        + (f"• Biển số xe: **{bien_so_xe}**\n" if bien_so_xe else "")
+        + (f"• Số điện thoại: **{so_dien_thoai}**\n" if so_dien_thoai else "")
+        + f"• Dòng xe: **{dong_xe.upper()}**\n"
+        f"• Đèn lắp: **{matched_name}** (SL: {so_luong})\n"
+        f"• Doanh thu: **{p_k * 1000:,.0f} đ** ({p_k:,}k){default_note}\n"
         f"• Ngày ghi: **{order_date}**\n"
         f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)"
     )
@@ -799,8 +876,15 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 10. GHI NHỚ TRI THỨC GARA: Khi người dùng muốn dạy AI ghi nhớ kiến thức/bảng giá mới ('ghi nhớ...', 'nhớ...'), hãy gọi `ghi_nho_tri_thuc_gara`.
 11. SỬA ĐỔI QUY ĐỊNH SẢN PHẨM: Khi người dùng muốn sửa lại quy định, quà tặng, thẻ nhớ của sản phẩm ('sửa lại a510 chưa bao gồm thẻ nhớ', 'chỉnh lại...'), hãy gọi `sua_quy_dinh_san_pham`.
 12. TRA CỨU TRI THỨC GARA: Khi khách hoặc người dùng hỏi về sản phẩm đã được dạy (như 'sàn 5d', 'a510 quy định mới...'), hãy gọi `tra_cuu_tri_thuc_gara`.
-9. LÊN ĐƠN BÁO CÁO ĐÈN: Khi người dùng chốt bán hoặc lắp đèn cụ thể cho khách/xe kèm giá tiền (ví dụ: "anh Cường accent f10 new 3900"), hãy gọi `len_don_bao_cao_den_nhanh`.
-   ⚠️ LƯU Ý BẢO VỆ: Nếu người dùng CHỈ gõ tên đèn để hỏi giá hoặc tư vấn (như "f10", "f10 turbo", "đèn gầm"), TUYỆT ĐỐI KHÔNG LÊN ĐƠN, mà hãy trả lời tư vấn & báo giá chi tiết!
+9. LÊN ĐƠN BÁO CÁO ĐÈN THÔNG MINH TỪ BIỂN SỐ XE / SĐT:
+   - Khi người dùng ra lệnh lắp đèn hoặc nhập đơn đèn (ví dụ: "nhập đơn f10 new 63A-187.30", "lắp s3 0921889919", "lắp f10 xe 63A-187.30"):
+     ➔ Bạn CHỈ CẦN gọi hàm `len_don_bao_cao_den_nhanh` với `ten_den` và `bien_so_xe` (hoặc `so_dien_thoai`).
+     ➔ Hàm sẽ TỰ ĐỘNG lấy giá niêm yết và TỰ ĐỘNG tra cứu thông tin khách hàng, dòng xe từ lịch sử gara!
+   - ⚠️ ĐẶC BIỆT KHI KHÔNG TÌM THẤY TÊN TỪ SỐ XE / SĐT (MISSING_INFO):
+     ➔ Nếu hàm trả về `MISSING_INFO` (xe mới chưa có hồ sơ và người dùng chưa nói tên khách):
+     ➔ Bạn PHẢI DỪNG LẠI và hỏi người dùng Tên khách hàng và Dòng xe để điền vào đơn!
+     ➔ Tuyệt đối không tự bịa thông tin hay gán 'KHÁCH LẺ' khi xe chưa có tên khách!
+   - ⚠️ LƯU Ý BẢO VỆ: Nếu người dùng CHỈ gõ tên đèn để hỏi giá hoặc tư vấn (như "f10", "f10 turbo", "đèn gầm"), TUYỆT ĐỐI KHÔNG LÊN ĐƠN, mà hãy trả lời tư vấn & báo giá chi tiết!
 
 ╔══════════════════════════════════════════════════════════════════════╗
 ║               KIẾN THỨC NGHIỆP VỤ & BÁO GIÁ GARA CHÍNH HÃNG          ║
@@ -1027,18 +1111,20 @@ REST_TOOLS_DECLARATIONS = [
     },
     {
         "name": "len_don_bao_cao_den_nhanh",
-        "description": "Lên đơn nhanh vào Sổ Báo Cáo Doanh Thu Đèn khi khách hàng chốt đơn lắp đèn",
+        "description": "Lên đơn nhanh vào Sổ Báo Cáo Doanh Thu Đèn khi khách hàng chốt đơn lắp đèn. Tự động lấy giá niêm yết và tra cứu khách hàng/dòng xe theo biển số xe hoặc SĐT",
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "ten_den": {"type": "STRING", "description": "Tên sản phẩm đèn (F10 New, F10 Turbo, S3...)"},
-                "gia_tien_k": {"type": "INTEGER", "description": "Giá thu thực tế theo k (ví dụ: 3900 cho 3.9tr, 5100 cho 5.1tr)"},
-                "khach_hang": {"type": "STRING", "description": "Tên khách hàng"},
+                "ten_den": {"type": "STRING", "description": "Tên sản phẩm đèn (F10 New, F10 Turbo, S3, V20...)"},
+                "bien_so_xe": {"type": "STRING", "description": "Biển số xe (ví dụ: 63A-187.30, 66A-489.85)"},
+                "so_dien_thoai": {"type": "STRING", "description": "Số điện thoại khách hàng nếu có"},
+                "khach_hang": {"type": "STRING", "description": "Tên khách hàng nếu có"},
                 "dong_xe": {"type": "STRING", "description": "Dòng xe (Accent, Vios, VF3...)"},
+                "gia_tien_k": {"type": "INTEGER", "description": "Giá thu thực tế theo k (ví dụ: 3900 cho 3.9tr, truyền 0 để tự lấy giá niêm yết)"},
                 "so_luong": {"type": "INTEGER", "description": "Số lượng bộ đèn (mặc định 1)"},
                 "ngay": {"type": "STRING", "description": "Ngày lắp đặt YYYY-MM-DD"}
             },
-            "required": ["ten_den", "gia_tien_k"]
+            "required": ["ten_den"]
         }
     },
     {

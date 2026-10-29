@@ -445,8 +445,152 @@ CAR_MODELS_LIST = [
     'ACCENT', 'ELANTRA', 'RANGER', 'CAMRY', 'MAZDA 3', 'MAZDA 2', 'MORNING', 'ERTIGA', 'CUSTIN',
     'VIOS', 'CITY', 'KONA', 'CROSS', 'HILUX', 'RAIZE', 'CRETA', 'SELTOS', 'SONET', 'MPV7',
     'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'CX5', 'CX8', 'BRV', 'CRV', 'MG5', 'I10', 'XL7', 'K3',
-    'SOLUTO', 'ATTRAGE', 'VELOZ', 'AVANZA', 'ALTIS', 'RUSH', 'WIGO', 'ALMERA', 'CIVIC', 'ACCORD'
+    'SOLUTO', 'ATTRAGE', 'VELOZ', 'AVANZA', 'ALTIS', 'RUSH', 'WIGO', 'ALMERA', 'CIVIC', 'ACCORD',
+    'LUX A', 'LUX SA', 'FADIL', 'TRITON', 'NAVARA', 'BT50', 'PAJERO', 'SWIFT', 'TRAILBLAZER', 'COLORADO',
+    'CRUZE', 'SPARK', 'LACETTI', 'CAPTIVA', 'ORLANDO', 'PEUGEOT 2008', 'PEUGEOT 3008', 'PEUGEOT 5008',
+    'PEUGEOT', 'ZS', 'HS', 'DMAX', 'MUX', 'C200', 'C300'
 ]
+
+def extract_car_from_text(text):
+    """Bóc tách chính xác dòng xe từ văn bản hoặc chuỗi tên khách"""
+    if not text:
+        return ""
+    for c in CAR_MODELS_LIST:
+        pattern = r'\b' + re.escape(c) + r'\b'
+        if re.search(pattern, text, re.IGNORECASE):
+            return c
+    return ""
+
+def clean_customer_name(name_raw, found_car=""):
+    """Làm sạch tên khách hàng, loại bỏ dòng xe hoặc ký tự thừa nếu bị dính vào tên"""
+    if not name_raw:
+        return ""
+    name = name_raw.strip()
+    if found_car:
+        name = re.sub(r'[-\s/–(]*' + re.escape(found_car) + r'[\s/–)]*', ' ', name, flags=re.IGNORECASE)
+    name = re.sub(r'[-\s/–]+$', '', name).strip()
+    name = re.sub(r'^[-\s/–]+', '', name).strip()
+    return name.title() if name else ""
+
+def lookup_customer_and_car_by_identifier(identifier: str):
+    """
+    Tra cứu thông tin khách hàng và dòng xe dựa vào Biển số xe hoặc Số điện thoại.
+    Tìm kiếm thông minh trong cả 2 cơ sở dữ liệu:
+    1. app_banhang/tiem_lap_do.db (Lịch sử lắp đồ & dịch vụ gara hơn 8.500 đơn)
+    2. app_baocao_den/doanhthu_den.db (Lịch sử nâng cấp đèn)
+    """
+    if not identifier:
+        return {"found": False, "customer_name": "", "car_model": "", "phone": "", "license_plate": "", "source": ""}
+
+    ident = identifier.strip()
+    clean_p = clean_plate_raw(ident)
+    is_phone = bool(re.search(r'\b(0[35789]\d{8})\b', ident))
+    phone_clean = re.sub(r'\D', '', ident) if is_phone else ""
+
+    result = {
+        "found": False,
+        "customer_name": "",
+        "car_model": "",
+        "phone": "",
+        "license_plate": "",
+        "source": ""
+    }
+
+    # 1. Tra cứu trong app_banhang/tiem_lap_do.db
+    if os.path.exists(DB_BANHANG):
+        try:
+            conn = sqlite3.connect(DB_BANHANG, timeout=5)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+
+            rows = []
+            if is_phone:
+                c.execute("""
+                    SELECT id, customer_name, phone, license_plate
+                    FROM orders
+                    WHERE phone LIKE ?
+                    ORDER BY id DESC LIMIT 5
+                """, (f"%{phone_clean}%",))
+                rows = c.fetchall()
+            elif clean_p and len(clean_p) >= 4:
+                c.execute("""
+                    SELECT id, customer_name, phone, license_plate
+                    FROM orders
+                    WHERE REPLACE(REPLACE(REPLACE(REPLACE(UPPER(license_plate), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                    ORDER BY id DESC LIMIT 5
+                """, (f"%{clean_p}%",))
+                rows = c.fetchall()
+
+            for r in rows:
+                c_name = (r['customer_name'] or '').strip()
+                c_plate = (r['license_plate'] or '').strip()
+                c_phone = (r['phone'] or '').strip()
+
+                found_car = extract_car_from_text(c_name)
+                if not found_car:
+                    c.execute("SELECT item_name FROM order_items WHERE order_id = ?", (r['id'],))
+                    items = c.fetchall()
+                    for it in items:
+                        c_in_item = extract_car_from_text(it['item_name'])
+                        if c_in_item:
+                            found_car = c_in_item
+                            break
+
+                cleaned_name = clean_customer_name(c_name, found_car)
+                if cleaned_name or found_car:
+                    result["found"] = True
+                    result["customer_name"] = cleaned_name
+                    result["car_model"] = found_car
+                    result["phone"] = c_phone
+                    result["license_plate"] = c_plate or ident
+                    result["source"] = "tiem_lap_do"
+                    conn.close()
+                    return result
+
+            conn.close()
+        except Exception:
+            pass
+
+    # 2. Tra cứu trong app_baocao_den/doanhthu_den.db
+    if os.path.exists(DB_DEN):
+        try:
+            conn = sqlite3.connect(DB_DEN, timeout=5)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+
+            query_cond = f"%{clean_p}%" if clean_p else f"%{ident}%"
+            c.execute("""
+                SELECT id, customer_name, car_model
+                FROM orders
+                WHERE REPLACE(REPLACE(REPLACE(REPLACE(UPPER(customer_name), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                   OR REPLACE(REPLACE(REPLACE(REPLACE(UPPER(car_model), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                ORDER BY id DESC LIMIT 5
+            """, (query_cond, query_cond))
+            rows = c.fetchall()
+
+            for r in rows:
+                c_name = (r['customer_name'] or '').strip()
+                c_car = (r['car_model'] or '').strip()
+                found_car = extract_car_from_text(c_car) or extract_car_from_text(c_name) or c_car
+                cleaned_name = clean_customer_name(c_name, found_car)
+
+                if clean_p and clean_plate_raw(cleaned_name) == clean_p:
+                    cleaned_name = ""
+
+                if cleaned_name or found_car:
+                    result["found"] = True
+                    result["customer_name"] = cleaned_name
+                    result["car_model"] = found_car
+                    result["license_plate"] = ident
+                    result["source"] = "doanhthu_den"
+                    conn.close()
+                    return result
+
+            conn.close()
+        except Exception:
+            pass
+
+    return result
 
 def get_current_cycle():
     """Chu kỳ báo cáo đèn 9 đến 8 hàng tháng"""
@@ -563,11 +707,12 @@ def commit_baocao_den_order(payload):
         conn = sqlite3.connect(DB_DEN, timeout=10)
         c = conn.cursor()
         saved_ids = []
+        cust_record = f"{cust_name} ({plate})" if (plate and plate not in cust_name) else cust_name
         for it in items:
             c.execute("""
                 INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
                 VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
-            """, (order_date, it['product_name'], cust_name, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
+            """, (order_date, it['product_name'], cust_record, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
             saved_ids.append(c.lastrowid)
         conn.commit()
         conn.close()
@@ -703,6 +848,89 @@ def handle_wizard_step(user_text, session_id):
         else:
             del WIZARD_SESSIONS[session_id]
             return None
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FLOW BỔ SUNG THÔNG TIN CÒN THIẾU KHI XE MỚI / CHƯA CÓ TRONG HỆ THỐNG GARA
+    # ═════════════════════════════════════════════════════════════════════════
+    if flow == 'lamp_fill_missing':
+        pending = session.get('pending_payload', {})
+        items = pending.get('items', [])
+        plate = pending.get('plate', '')
+        phone = pending.get('phone', '')
+        order_date = pending.get('order_date', datetime.now().strftime('%Y-%m-%d'))
+        discount_k = pending.get('discount_k', 0)
+        total_base_k = pending.get('total_base_k', 0)
+        total_final_k = pending.get('total_final_k', 0)
+        found_car = pending.get('found_car', '')
+
+        # Bóc tách dòng xe từ câu trả lời của người dùng nếu có
+        user_ans = user_text.strip()
+        ans_car = ''
+        for c in CAR_MODELS_LIST:
+            m_c = re.search(r'(?:cho\s+xe\s+|xe\s+)?\b' + re.escape(c) + r'\b', user_ans, re.IGNORECASE)
+            if m_c:
+                ans_car = c
+                user_ans = user_ans[:m_c.start()] + ' ' + user_ans[m_c.end():]
+                break
+
+        if ans_car:
+            found_car = ans_car
+
+        # Phần còn lại là tên khách hàng
+        cust_name = re.sub(r'^(?:tên\s*là|ten\s*la|khách\s*là|khach\s*la|tên|ten|khách|khach)\s*', '', user_ans, flags=re.IGNORECASE).strip()
+        cust_name = re.sub(r'[-\s/–]+$', '', cust_name).strip()
+        cust_name = re.sub(r'^[-\s/–]+', '', cust_name).strip()
+        cust_name = cust_name.title() if cust_name else "KHÁCH LẺ"
+
+        # Định dạng các món đèn
+        item_lines = []
+        for i, it in enumerate(items, 1):
+            qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
+            default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
+            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
+            if it.get('discount_k', 0) > 0:
+                final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
+            else:
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
+
+        items_text = "\n".join(item_lines)
+        total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
+
+        confirm_msg = (
+            f"❓ **XÁC NHẬN TẠO ĐƠN BÁO CÁO ĐÈN:**\n"
+            f"───────────────────────────────────────\n"
+            f"• 👤 **Khách hàng:** **{cust_name}**\n"
+            f"• 🚗 **Dòng xe:** **{found_car or 'Chưa rõ dòng xe'}**\n"
+            + (f"• 🚘 **Biển số:** **{plate}**\n" if plate else "")
+            + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
+            + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
+            + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
+            + f"• 📅 **Ngày lắp:** **{order_date}**\n"
+            f"───────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
+            f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        )
+
+        WIZARD_SESSIONS[session_id] = {
+            'flow': 'confirm_action',
+            'action_type': 'baocao_den',
+            'payload': {
+                'items': items,
+                'cust_name': cust_name,
+                'found_car': found_car,
+                'plate': plate,
+                'phone': phone,
+                'order_date': order_date,
+                'discount_k': discount_k,
+                'total_base_k': total_base_k,
+                'total_final_k': total_final_k
+            }
+        }
+        return {
+            "type": "clarify",
+            "message": confirm_msg
+        }
 
     # ══════════════════════════════════════════
     # FLOW 0: HỎI LẠI NĂM KHI THIẾU THÔNG TIN (BÁO CÁO ĐÈN)
@@ -1226,13 +1454,21 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     if plate:
         text = text.replace(m_plate.group(0), ' ')
 
+    # 1.1 Số điện thoại (bóc tách và xóa khỏi text để không bị hiểu nhầm thành giá tiền)
+    phone = extract_phone(text)
+    if phone:
+        text = text.replace(phone, ' ')
+
+    # 1.2 Bỏ các tiền tố lệnh như "nhập đơn", "lên đơn", "ghi đơn", "đơn đèn" khỏi text
+    text = re.sub(r'\b(?:nhập\s*đơn|nhap\s*don|lên\s*đơn|len\s*don|ghi\s*đơn|ghi\s*don|đơn\s*đèn|don\s*den)\b', ' ', text, flags=re.IGNORECASE)
+
     # 2. Ngày ghi nhận
     order_date, text = extract_date(text)
 
     # 3. Dòng xe
     found_car = ''
     for c in CAR_MODELS_LIST:
-        m_c = re.search(r'(?:cho\s+xe\s+|xe\s+)?\b' + c + r'\b', text, re.IGNORECASE)
+        m_c = re.search(r'(?:cho\s+xe\s+|xe\s+)?\b' + re.escape(c) + r'\b', text, re.IGNORECASE)
         if m_c:
             found_car = c
             text = text[:m_c.start()] + ' ' + text[m_c.end():]
@@ -1281,7 +1517,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     cust_candidates = []
 
     for chunk in chunks:
-        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do|cho)\s+', '', chunk, flags=re.IGNORECASE).strip()
+        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do|cho|nhập|nhap|lên|len|ghi)\s+', '', chunk, flags=re.IGNORECASE).strip()
         if not c:
             continue
 
@@ -1302,7 +1538,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
             prefix_char = c[:m_p.start()].strip()
             # Nếu tiền tố chỉ có 1 chữ cái (như 'f' trong 'f10', hay 's' trong 's3') thì số này là đuôi mã sản phẩm, không phải giá tiền!
             is_lamp_code_suffix = len(prefix_char) <= 1 and prefix_char.isalpha()
-            if not is_lamp_code_suffix:
+            if not is_lamp_code_suffix and val < 10000000:
                 if unit in ['tr', 'trieu', 'triệu']:
                     price_k = int(val * 1000)
                 elif unit in ['k', 'nghin', 'ngàn']:
@@ -1326,10 +1562,12 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 matched_name = cname
                 matched_default = dprice
                 leftover = raw_name[:m_l.start()] + ' ' + raw_name[m_l.end():]
-                clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe)\b', ' ', leftover, flags=re.IGNORECASE)
+                clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi)\b', ' ', leftover, flags=re.IGNORECASE)
                 clean_left = ' '.join(clean_left.split()).strip()
                 if clean_left and len(clean_left) >= 2:
-                    cust_candidates.append(clean_left)
+                    clean_norm = remove_accents(clean_left).lower()
+                    if clean_norm not in {'nhap don', 'nhap', 'don', 'len don', 'ghi don', 'don den', 'gia', 'xe', 'lap', 'gan'}:
+                        cust_candidates.append(clean_left)
                 break
 
         if not matched_name:
@@ -1352,14 +1590,22 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     cust_name = cust_special
     if not cust_name and cust_candidates:
         cust_name = cust_candidates[0].strip().title()
-    if not cust_name:
-        cust_name = plate if plate else (found_car if found_car else 'KHÁCH LẺ')
 
-    cust_name = re.sub(r'\bThay\b', 'Thầy', cust_name, flags=re.IGNORECASE)
-    cust_name = re.sub(r'\bChi\b', 'Chị', cust_name, flags=re.IGNORECASE)
-    cust_name = re.sub(r'\bChu\b', 'Chú', cust_name, flags=re.IGNORECASE)
-    cust_name = re.sub(r'\bBac\b', 'Bác', cust_name, flags=re.IGNORECASE)
-    cust_name = re.sub(r'\bEm\b', 'Em', cust_name, flags=re.IGNORECASE)
+    # Tự động tra cứu thông tin khách hàng và dòng xe từ Biển số hoặc Số điện thoại
+    auto_detected_cust = False
+    phone = extract_phone(raw_text)
+    if plate or phone:
+        lookup_res = lookup_customer_and_car_by_identifier(plate or phone)
+        if lookup_res.get('found'):
+            if not cust_name or cust_name in ['KHÁCH LẺ', plate]:
+                c_found = lookup_res.get('customer_name')
+                if c_found:
+                    cust_name = c_found
+                    auto_detected_cust = True
+            if not found_car:
+                found_car = lookup_res.get('car_model') or ''
+            if not phone and lookup_res.get('phone'):
+                phone = lookup_res['phone']
 
     total_base_k = sum(it['base_price_k'] for it in items)
     if disc_is_pct:
@@ -1377,6 +1623,50 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
 
     total_final_k = sum(it['final_price_k'] for it in items)
 
+    # Nếu không tìm thấy tên từ số xe (hoặc số điện thoại) và người dùng chưa cung cấp tên khách:
+    if not cust_name and (plate or phone) and not cust_special:
+        id_label = f"Biển số `{plate}`" if plate else f"SĐT `{phone}`"
+        matched_item_names = ", ".join(f"**{it['product_name']}**" for it in items)
+        clarify_msg = (
+            f"🔍 **CHƯA CÓ THÔNG TIN KHÁCH HÀNG:**\n"
+            f"───────────────────────────────────────\n"
+            f"• 🚘 {id_label} chưa có hồ sơ trong gara (khách mới đến lần đầu).\n"
+            f"• 📦 Đèn lắp: {matched_item_names}\n"
+            f"• 💰 Doanh thu: **{total_final_k*1000:,.0f} đ** ({total_final_k:,}k)\n"
+            f"───────────────────────────────────────\n"
+            f"👉 Anh/chị vui lòng cho em xin **Tên khách hàng** và **Dòng xe** để em điền vào đơn nhé!\n"
+            f"*(Ví dụ gõ: `Anh Tuấn Vios` hoặc `Chị Mai Accent` | Gõ `hủy` để bỏ qua)*"
+        )
+        WIZARD_SESSIONS[session_id] = {
+            'flow': 'lamp_fill_missing',
+            'action_type': 'baocao_den',
+            'pending_payload': {
+                'items': items,
+                'plate': plate,
+                'phone': phone,
+                'order_date': order_date,
+                'discount_k': discount_k,
+                'disc_is_pct': disc_is_pct,
+                'disc_pct_val': disc_pct_val,
+                'found_car': found_car,
+                'total_base_k': total_base_k,
+                'total_final_k': total_final_k
+            }
+        }
+        return {
+            "type": "clarify",
+            "message": clarify_msg
+        }
+
+    if not cust_name:
+        cust_name = plate if plate else (found_car if found_car else 'KHÁCH LẺ')
+
+    cust_name = re.sub(r'\bThay\b', 'Thầy', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bChi\b', 'Chị', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bChu\b', 'Chú', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bBac\b', 'Bác', cust_name, flags=re.IGNORECASE)
+    cust_name = re.sub(r'\bEm\b', 'Em', cust_name, flags=re.IGNORECASE)
+
     item_lines = []
     for i, it in enumerate(items, 1):
         qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
@@ -1391,12 +1681,14 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     items_text = "\n".join(item_lines)
     total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
 
+    cust_tag = " *(Hồ sơ tự nhận diện)*" if auto_detected_cust else ""
     confirm_msg = (
         f"❓ **XÁC NHẬN TẠO ĐƠN BÁO CÁO ĐÈN:**\n"
         f"───────────────────────────────────────\n"
-        f"• 👤 **Khách hàng:** **{cust_name}**\n"
+        f"• 👤 **Khách hàng:** **{cust_name}**{cust_tag}\n"
         f"• 🚗 **Dòng xe:** **{found_car or 'Chưa rõ dòng xe'}**\n"
         + (f"• 🚘 **Biển số:** **{plate}**\n" if plate else "")
+        + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
         + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
         + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
         + f"• 📅 **Ngày lắp:** **{order_date}**\n"
@@ -1413,6 +1705,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
             'cust_name': cust_name,
             'found_car': found_car,
             'plate': plate,
+            'phone': phone,
             'order_date': order_date,
             'discount_k': discount_k,
             'total_base_k': total_base_k,
