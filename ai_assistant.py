@@ -44,6 +44,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_BANHANG = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
 DB_DEN = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
 DB_THUCHI = os.path.join(BASE_DIR, 'app_thuchi', 'finance.db')
+DB_KNOWLEDGE = os.path.join(BASE_DIR, 'gara_knowledge.db')
 
 try:
     import gemini_engine
@@ -90,7 +91,7 @@ def extract_date(text):
         return d_str, clean
 
     # Ngày DD/MM/YYYY hoặc DD/MM/YY hoặc DD/MM hoặc DD-MM-YYYY
-    m = re.search(r'(?:ngay|ngày)?\s*\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b', text, re.IGNORECASE)
+    m = re.search(r'(?:vào\s+|vao\s+)?(?:ngay|ngày)?\s*\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b', text, re.IGNORECASE)
     if m:
         try:
             day = int(m.group(1))
@@ -429,6 +430,9 @@ LAMP_CATALOG = [
     (r'\btitan\s*gold\b', 'TITAN GOLD', 0),
     (r'\btitan\s*black\b', 'TITAN BLACK', 0),
     (r'\btitan\s*platinum\b', 'TITAN PLATINUM', 0),
+    (r'\b(?:titan\s*)?f1\s*turbo\s*s\b', 'TITAN F1 TURBO S', 0),
+    (r'\b(?:titan\s*)?f1\s*turbo\b', 'TITAN F1 TURBO', 0),
+    (r'\b(?:titan\s*)?f1\s*gt\b', 'TITAN F1 GT', 0),
     (r'\bg1\s*turbo\b', 'G1 TURBO', 0),
     (r'\bxlight\s*301\b|\b301\b', 'XLIGHT 301', 0),
     (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 0),
@@ -1116,8 +1120,8 @@ def handle_wizard_step(user_text, session_id):
             + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
             + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
             + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
-            + f"• 📅 **Ngày lắp:** **{order_date}** *(Hôm nay theo đồng hồ hệ thống)*\n"
-            f"───────────────────────────────────────\n"
+            + f"• 📅 **Ngày lắp:** **{order_date}**" + (" *(Hôm nay)*" if order_date == datetime.now().strftime('%Y-%m-%d') else "") + "\n"
+            + f"───────────────────────────────────────\n"
             f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
             f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
         )
@@ -1662,7 +1666,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     - Hỗ trợ các khách hàng đặc biệt: 'mua về', 'xe đi xét', 'thầy đức', 'chú ba'
     - Hỗ trợ combo nhiều món & tự động phân bổ chiết khấu / giảm giá
     """
-    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam|m10|m20|f150|cb150)\b', clean_text))
+    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam|m10|m20|f150|cb150|f1)\b', clean_text))
     if not is_den:
         return None
 
@@ -1685,10 +1689,10 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     text = raw_text.strip()
 
     # 1. Biển số xe
-    m_plate = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{1,2})?)\b', text.upper())
-    plate = m_plate.group(1).strip() if m_plate else ''
-    if plate:
-        text = text.replace(m_plate.group(0), ' ')
+    m_plate = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{1,2})?)\b', text, re.IGNORECASE)
+    plate = m_plate.group(1).strip().upper() if m_plate else ''
+    if m_plate:
+        text = text[:m_plate.start()] + ' ' + text[m_plate.end():]
 
     # 1.1 Số điện thoại (bóc tách và xóa khỏi text để không bị hiểu nhầm thành giá tiền)
     phone = extract_phone(text)
@@ -1821,11 +1825,15 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 target_for_price = target_for_price[:m_p.start()] + ' ' + target_for_price[m_p.end():]
 
         # 3. BƯỚC 3: TÁCH TÊN KHÁCH HOẶC TÊN ĐÈN NẾU CHƯA MATCH CATALOG
-        clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi|giá|gia)\b', ' ', target_for_price, flags=re.IGNORECASE)
+        clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi|giá|gia|vào|vao|ngày|ngay)\b', ' ', target_for_price, flags=re.IGNORECASE)
         clean_left = ' '.join(clean_left.split()).strip()
 
         if not matched_name:
-            matched_name = clean_left.upper() if clean_left else c.upper()
+            prods_found = search_product_in_catalog(clean_left or c)
+            if prods_found:
+                matched_name = prods_found[0]['name']
+            else:
+                matched_name = clean_left.upper() if clean_left else c.upper()
         else:
             if clean_left and len(clean_left) >= 2:
                 clean_norm = remove_accents(clean_left).lower()
@@ -1986,8 +1994,8 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
         + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
         + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
-        + f"• 📅 **Ngày lắp:** **{order_date}** *(Hôm nay theo đồng hồ hệ thống)*\n"
-        f"───────────────────────────────────────\n"
+        + f"• 📅 **Ngày lắp:** **{order_date}**" + (" *(Hôm nay)*" if order_date == datetime.now().strftime('%Y-%m-%d') else "") + "\n"
+        + f"───────────────────────────────────────\n"
         f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
         f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
     )
@@ -3049,12 +3057,19 @@ def handle_revenue_and_store_stats(raw_text, clean_text, session_id="default_use
     # ═════════════════════════════════════════════════════════════════════
     # B. KIỂM TRA Ý ĐỊNH BÁO CÁO / THỐNG KÊ DOANH THU HOẶC ĐƠN HÀNG
     # ═════════════════════════════════════════════════════════════════════
-    is_stat_query = bool(re.search(r'\b(doanh\s*thu|doanh\s*so|tong\s*thu|bao\s*cao|tong\s*ket|ban\s*duoc|kiem\s*duoc|may\s*don|bao\s*nhieu\s*don|so\s*don|don\s*hang)\b', clean_text)) or \
+    # BẢO VỆ: Nếu là lệnh tạo đơn, nhập đơn, lắp đặt đèn... TUYỆT ĐỐI KHÔNG BÁO CÁO DOANH THU!
+    is_order_intent = bool(re.search(r'\b(?:nhap\s*don|len\s*don|ghi\s*don|don\s*den|lap|gan|thay|do)\b', clean_text))
+    has_stat_word = any(k in clean_text for k in ['doanh thu', 'doanh so', 'tong thu', 'bao cao', 'tong ket', 'may don', 'bao nhieu don', 'so don', 'ton quy', 'so du'])
+    if is_order_intent and not has_stat_word:
+        return None
+
+    is_stat_query = bool(re.search(r'\b(doanh\s*thu|doanh\s*so|tong\s*thu|bao\s*cao|tong\s*ket|ban\s*duoc|kiem\s*duoc|may\s*don|bao\s*nhieu\s*don|so\s*don)\b', clean_text)) or \
                     ('ban' in clean_text and 'bao nhieu' in clean_text) or ('doanh thu' in clean_text)
 
-    ts = parse_time_scope(raw_text)
-    if not is_stat_query and ts['period'] == 'unknown':
+    if not is_stat_query:
         return None
+
+    ts = parse_time_scope(raw_text)
 
     # B1. HÔM NAY / HÔM QUA
     if ts['period'] in ('today', 'yesterday'):
