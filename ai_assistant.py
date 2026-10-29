@@ -939,7 +939,7 @@ def handle_wizard_step(user_text, session_id):
         total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
 
         confirm_msg = (
-            f"❓ **XÁC NHẬN TẠO ĐƠN BÁO CÁO ĐÈN:**\n"
+            f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
             f"───────────────────────────────────────\n"
             f"• 👤 **Khách hàng:** **{cust_name}**\n"
             f"• 🚗 **Dòng xe:** **{found_car or 'Chưa rõ dòng xe'}**\n"
@@ -947,10 +947,10 @@ def handle_wizard_step(user_text, session_id):
             + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
             + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
             + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
-            + f"• 📅 **Ngày lắp:** **{order_date}**\n"
+            + f"• 📅 **Ngày lắp:** **{order_date}** *(Hôm nay theo đồng hồ hệ thống)*\n"
             f"───────────────────────────────────────\n"
             f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
-            f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
         )
 
         WIZARD_SESSIONS[session_id] = {
@@ -1594,18 +1594,48 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
             qty = int(m_qty.group(1))
             c = c[:m_qty.start()] + ' ' + c[m_qty.end():]
 
-        m_p = re.search(r'(?:giá|gia)?\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|nghin|ngàn)?(?:\s*đ|\s*vnd)?$', c, re.IGNORECASE)
+        # 1. BƯỚC 1: NHẬN DIỆN TÊN ĐÈN TRƯỚC HẾT TRONG LAMP_CATALOG (Tránh nhầm số version 2.0, 3.0 thành giá tiền)
+        matched_name = ''
+        matched_default = 0
+        leftover = c
+
+        # Sắp xếp theo độ dài tên chuẩn hóa giảm dần để match F10 NEW 2.0 trước F10
+        sorted_catalog = sorted(LAMP_CATALOG, key=lambda x: len(x[1]), reverse=True)
+        for pat, cname, _ in sorted_catalog:
+            m_l = re.search(pat, c, re.IGNORECASE)
+            if m_l:
+                matched_name = cname
+                # Tách cụm tên đèn ra, phần còn lại mới tìm giá tiền & tên khách
+                leftover = c[:m_l.start()] + ' ' + c[m_l.end():]
+                break
+
+        # 2. BƯỚC 2: TÌM GIÁ TIỀN TRONG PHẦN CÒN LẠI (Hoặc toàn bộ c nếu chưa khớp tên đèn catalog)
+        target_for_price = (leftover if matched_name else c).strip()
         price_k = 0
-        raw_name = c
         is_default_price = False
+
+        m_p = re.search(r'(?:giá|gia)?\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|nghin|ngàn)?(?:\s*đ|\s*vnd)?$', target_for_price, re.IGNORECASE)
         if m_p:
             num_str = m_p.group(1).replace(',', '.')
             unit = (m_p.group(2) or '').lower()
             val = float(num_str)
-            prefix_char = c[:m_p.start()].strip()
-            # Nếu tiền tố chỉ có 1 chữ cái (như 'f' trong 'f10', hay 's' trong 's3') thì số này là đuôi mã sản phẩm, không phải giá tiền!
-            is_lamp_code_suffix = len(prefix_char) <= 1 and prefix_char.isalpha()
-            if not is_lamp_code_suffix and val < 10000000:
+            has_kw = bool(re.search(r'\b(giá|gia)\b', m_p.group(0), re.IGNORECASE))
+            has_unit = bool(unit)
+
+            # BẢO VỆ TUYỆT ĐỐI:
+            # Nếu KHÔNG CÓ đơn vị (unit) và KHÔNG CÓ từ "giá":
+            # - Không nhận số thập phân nhỏ (như 2.0, 3.0, 1.5...) làm tiền triệu!
+            # - Chỉ nhận số nguyên >= 50 (như 350, 1500, 3900, 4500)
+            is_valid_price = False
+            if has_unit or has_kw:
+                is_valid_price = True
+            elif '.' in num_str or ',' in num_str:
+                if val >= 100000:
+                    is_valid_price = True
+            elif val >= 50:
+                is_valid_price = True
+
+            if is_valid_price and val < 10000000:
                 if unit in ['tr', 'trieu', 'triệu']:
                     price_k = int(val * 1000)
                 elif unit in ['k', 'nghin', 'ngàn']:
@@ -1614,33 +1644,28 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                     price_k = int(val / 1000)
                 elif val >= 100:
                     price_k = int(val)
-                elif val > 0 and val < 50:
+                elif has_kw and val > 0 and val < 50:
                     price_k = int(val * 1000)
                 else:
                     price_k = int(val)
-                raw_name = prefix_char
-                raw_name = re.sub(r'\b(giá|gia)\b\s*$', '', raw_name, flags=re.IGNORECASE).strip()
+                # Xóa phần giá tiền khỏi target_for_price
+                target_for_price = target_for_price[:m_p.start()] + ' ' + target_for_price[m_p.end():]
 
-        matched_name = ''
-        matched_default = 0
-        for pat, cname, dprice in LAMP_CATALOG:
-            m_l = re.search(pat, raw_name, re.IGNORECASE)
-            if m_l:
-                matched_name = cname
-                leftover = raw_name[:m_l.start()] + ' ' + raw_name[m_l.end():]
-                clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi)\b', ' ', leftover, flags=re.IGNORECASE)
-                clean_left = ' '.join(clean_left.split()).strip()
-                if clean_left and len(clean_left) >= 2:
-                    clean_norm = remove_accents(clean_left).lower()
-                    if clean_norm not in {'nhap don', 'nhap', 'don', 'len don', 'ghi don', 'don den', 'gia', 'xe', 'lap', 'gan'}:
-                        cust_candidates.append(clean_left)
-                break
+        # 3. BƯỚC 3: TÁCH TÊN KHÁCH HOẶC TÊN ĐÈN NẾU CHƯA MATCH CATALOG
+        clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi|giá|gia)\b', ' ', target_for_price, flags=re.IGNORECASE)
+        clean_left = ' '.join(clean_left.split()).strip()
 
         if not matched_name:
-            matched_name = raw_name.upper()
+            matched_name = clean_left.upper() if clean_left else c.upper()
+        else:
+            if clean_left and len(clean_left) >= 2:
+                clean_norm = remove_accents(clean_left).lower()
+                is_num_or_money = bool(re.match(r'^\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|d|đ|vnd)?$', clean_norm))
+                if not is_num_or_money and clean_norm not in {'nhap don', 'nhap', 'don', 'len don', 'ghi don', 'don den', 'gia', 'xe', 'lap', 'gan'}:
+                    cust_candidates.append(clean_left)
 
-        # Kiểm tra xem sản phẩm đã có giá trong tri thức hoặc kho hàng chưa
-        mem_price = get_lamp_price_from_memory(matched_name or raw_name)
+        # 4. BƯỚC 4: TRA CỨU GIÁ TRONG HỆ THỐNG GARA (TRI THỨC HOẶC KHO HÀNG)
+        mem_price = get_lamp_price_from_memory(matched_name or c)
         if mem_price > 0:
             matched_default = mem_price
 
@@ -1784,7 +1809,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
 
     cust_tag = " *(Hồ sơ tự nhận diện)*" if auto_detected_cust else ""
     confirm_msg = (
-        f"❓ **XÁC NHẬN TẠO ĐƠN BÁO CÁO ĐÈN:**\n"
+        f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
         f"───────────────────────────────────────\n"
         f"• 👤 **Khách hàng:** **{cust_name}**{cust_tag}\n"
         f"• 🚗 **Dòng xe:** **{found_car or 'Chưa rõ dòng xe'}**\n"
@@ -1792,10 +1817,10 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
         + f"• 📦 **Sản phẩm lắp đặt:**\n{items_text}\n"
         + f"• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n"
-        + f"• 📅 **Ngày lắp:** **{order_date}**\n"
+        + f"• 📅 **Ngày lắp:** **{order_date}** *(Hôm nay theo đồng hồ hệ thống)*\n"
         f"───────────────────────────────────────\n"
         f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
-        f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
     )
 
     WIZARD_SESSIONS[session_id] = {
@@ -2156,7 +2181,7 @@ def handle_thuchi(raw_text, clean_text, session_id='default_user'):
         f"• 📅 **Ngày phát sinh:** **{date_str}**\n"
         f"───────────────────────────\n"
         f"👉 Anh có chắc chắn muốn **LƯU KHOẢN NÀY VÀO SỔ QUỸ** không?\n\n"
-        f"*(Bấm **[✅ OK / Lưu]** hoặc gõ **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
     )
 
     WIZARD_SESSIONS[session_id] = {
