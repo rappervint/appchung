@@ -206,16 +206,25 @@ def is_learning_command(clean_text: str) -> bool:
     """Kiểm tra xem câu lệnh có phải là lệnh dạy học / ghi nhớ / sửa lại giá / quy định không"""
     clean = clean_text.strip().lower()
 
+    # BẢO VỆ: Nếu câu lệnh có mã đơn hàng cụ thể (#729, don 729), đây là sửa đơn hàng chứ không phải dạy học
+    if bool(re.search(r'\b(?:ma\s*don|don\s*#?\d+|#\d+)\b', clean)):
+        return False
+
+    # Lệnh sửa giá / đổi giá / chỉnh giá / cập nhật giá sản phẩm
+    if bool(re.search(r'\b(?:sua|doi|chinh|cap nhat)\s*(?:lai\s*)?(?:gia|thong tin|quy dinh)\b', clean)) or \
+       bool(re.search(r'\b(?:sua|doi|chinh|cap nhat)\s+(?:lai\s+)?[a-z0-9\.\,\s\-]+\s+(?:thanh|gia|la)\s+[0-9k\.\,]+', clean)):
+        return True
+
     # Nhận diện các câu lệnh sửa giá / quy định sản phẩm cụ thể
-    if any(k in clean for k in ['sua lai gia', 'sua gia lai', 'sua lai', 'chinh lai', 'cap nhat lai gia', 'doi lai gia', 'doi gia thanh', 'sua gia thanh']):
+    if any(k in clean for k in ['sua lai gia', 'sua gia lai', 'sua lai', 'chinh lai', 'cap nhat lai gia', 'doi lai gia', 'doi gia thanh', 'sua gia thanh', 'sua gia', 'doi gia']):
         return True
 
     patterns = [
         r'^(?:ghi\s*nho|nho|hoc|day\s*ai|quy\s*tac|ghi\s*chu|luu\s*y)\s*[:,\-]?\s*',
         r'^(?:ghi\s*nho|nho|hoc|day\s*ai|quy\s*tac|ghi\s*chu|luu\s*y)\s+(?:cho\s+toi|giup\s+toi|rang|la)?\s*',
         r'^(?:nho\s+ky|nho\s+ro|ghi\s+nho\s+ky)\s*[:,\-]?\s*',
-        r'^(?:sua\s*lai|chinh\s*lai|cap\s*nhat\s*lai|doi\s*lai|thay\s*doi)\s*(?:la|cho|thong\s*tin|quy\s*dinh|san\s*pham|gia)?\s*[:,\-]?\s*',
-        r'\b(?:sua\s*lai|chinh\s*lai|cap\s*nhat\s*lai|doi\s*lai)\s+[a-z0-9]+\s+'
+        r'^(?:sua|chinh|cap\s*nhat|doi|thay\s*doi)\s*(?:lai\s*)?(?:la|cho|thong\s*tin|quy\s*dinh|san\s*pham|gia)?\s*[:,\-]?\s*',
+        r'\b(?:sua|chinh|cap\s*nhat|doi)\s*(?:lai\s*)?[a-z0-9]+\s+'
     ]
     for pat in patterns:
         if re.search(pat, clean):
@@ -230,7 +239,7 @@ def extract_learning_content(raw_text: str) -> str:
         r'^(?:ghi\s*nhớ|nhớ|học|dạy\s*ai|quy\s*tắc|ghi\s*chú|lưu\s*ý)\s*[:,\-]?\s*',
         r'^(?:ghi\s*nhớ|nhớ|học|dạy\s*ai|quy\s*tắc|ghi\s*chú|lưu\s*ý)\s+(?:cho\s+tôi|giúp\s+tôi|rằng|là)?\s*',
         r'^(?:nhớ\s+kỹ|nhớ\s+rõ|ghi\s+nhớ\s+kỹ)\s*[:,\-]?\s*',
-        r'^(?:sửa\s*lại\s*giá|sửa\s*giá\s*lại|sửa\s*lại|chỉnh\s*lại|cập\s*nhật\s*lại|đổi\s*lại|thay\s*đổi)\s*(?:là|cho|thông\s*tin|quy\s*định|sản\s*phẩm|giá)?\s*[:,\-]?\s*',
+        r'^(?:sửa\s*(?:lại\s*)?giá|sửa\s*giá\s*lại|đổi\s*(?:lại\s*)?giá|đổi\s*giá\s*lại|chỉnh\s*(?:lại\s*)?giá|chỉnh\s*giá\s*lại|cập\s*nhật\s*(?:lại\s*)?giá|sửa\s*lại|chỉnh\s*lại|cập\s*nhật\s*lại|đổi\s*lại|thay\s*đổi|sửa|đổi|chỉnh)\s*(?:là|cho|thông\s*tin|quy\s*định|sản\s*phẩm|giá)?\s*[:,\-]?\s*',
     ]
     for pat in patterns:
         raw = re.sub(pat, '', raw, flags=re.IGNORECASE).strip()
@@ -246,7 +255,7 @@ def prepare_learning_preview(raw_text: str) -> dict:
     clean_content = remove_accents(content).lower()
     price_display, price_num = parse_vietnamese_currency(content)
 
-    split_words = r'^(.*?)(?:\s+(?:là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
+    split_words = r'^(.*?)(?:\s+(?:thành|thanh|là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
     topic_raw = ""
     m_topic = re.search(split_words, content, re.IGNORECASE)
     if m_topic and len(m_topic.group(1).strip()) >= 2:
@@ -345,7 +354,7 @@ def analyze_and_learn(raw_text: str) -> dict:
     price_display, price_num = parse_vietnamese_currency(content)
 
     # 2. BÓC TÁCH CHỦ ĐỀ SẢN PHẨM / DỊCH VỤ
-    split_words = r'^(.*?)(?:\s+(?:là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
+    split_words = r'^(.*?)(?:\s+(?:thành|thanh|là|la|giá|gia|chi\s*phí|chi\s*phi|tính|tinh|khoảng|khoang|tầm|tam|bảo\s*hành|bao\s*hanh|chưa\s*bao\s*gồm|chua\s*bao\s*gom|không\s*bao\s*gồm|khong\s*bao\s*gom|chưa\s*gồm|chua\s*gom|không\s*gồm|khong\s*gom|không\s*tặng|khong\s*tang|chưa\s*có|chua\s*co|không\s*có|khong\s*co|chỉ\s*có|chi\s*co|bao\s*gồm|bao\s*gom|đã\s*có|da\s*co|tặng\s*kèm|tang\s*kem|tặng|tang)\s+|\s*[:=]\s*)'
     topic_raw = ""
     m_topic = re.search(split_words, content, re.IGNORECASE)
     if m_topic and len(m_topic.group(1).strip()) >= 2:
@@ -497,6 +506,24 @@ def analyze_and_learn(raw_text: str) -> dict:
 
     conn.commit()
     conn.close()
+
+    # Đồng bộ cập nhật giá mới vào bảng products của app_banhang nếu có sản phẩm khớp
+    if price_num > 0:
+        try:
+            db_bh = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
+            if os.path.exists(db_bh):
+                conn_bh = sqlite3.connect(db_bh, timeout=5)
+                c_bh = conn_bh.cursor()
+                raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', clean_topic.upper()) if t]
+                meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA', 'GIA', 'SAN', 'PHAM']]
+                if meaningful_tokens:
+                    clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful_tokens])
+                    params = [f"%{t}%" for t in meaningful_tokens]
+                    c_bh.execute(f"UPDATE products SET price=? WHERE {clauses}", [float(price_num)] + params)
+                    conn_bh.commit()
+                conn_bh.close()
+        except Exception:
+            pass
 
     return {
         "type": "success",

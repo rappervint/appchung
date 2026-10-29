@@ -302,6 +302,27 @@ def cap_nhat_kho_hang(
     rows = c.fetchall()
 
     if not rows:
+        # Thử tìm kiếm theo tokens thông minh (hỗ trợ 'F10 New 2.0' khớp 'Bi gầm F10 2.0 NEW')
+        raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', kw.upper()) if t]
+        meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA']]
+        if meaningful_tokens:
+            clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful_tokens])
+            params = [f"%{t}%" for t in meaningful_tokens]
+            c.execute(f"SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE {clauses} LIMIT 5", params)
+            rows = c.fetchall()
+
+    if not rows:
+        # Nếu kho hàng phụ kiện không có sản phẩm này nhưng người dùng đang cập nhật giá (ví dụ đèn hoặc dịch vụ):
+        # Tự động ghi nhớ vào bộ não tri thức gara_memory để không bao giờ bị báo "Không tìm thấy"!
+        if gia_ban_moi > 0:
+            conn.close()
+            try:
+                import knowledge_base
+                p_val = gia_ban_moi if gia_ban_moi > 10000 else gia_ban_moi * 1000
+                res_learn = knowledge_base.analyze_and_learn(f"sửa lại giá {kw} thành {int(p_val)}")
+                return res_learn.get("message", f"Đã ghi nhận giá mới cho {kw}: {p_val:,.0f} đ vào bộ não gara.")
+            except Exception as e:
+                return f"Đã cập nhật giá mới {gia_ban_moi:,.0f} đ cho {kw}."
         conn.close()
         return f"⚠️ Không tìm thấy sản phẩm nào khớp với từ khóa **'{kw}'** trong kho hàng."
 
@@ -342,6 +363,16 @@ def cap_nhat_kho_hang(
     c.execute(f"UPDATE products SET {', '.join(fields)} WHERE id=?", vals)
     conn.commit()
     conn.close()
+
+    # Đồng bộ giá mới vào bộ não tri thức gara_memory
+    if gia_ban_moi > 0:
+        try:
+            import knowledge_base
+            knowledge_base.analyze_and_learn(f"sửa lại giá {name} thành {int(p_val)}")
+            if kw.upper() != name.upper():
+                knowledge_base.analyze_and_learn(f"sửa lại giá {kw} thành {int(p_val)}")
+        except Exception:
+            pass
 
     return (
         f"📦 **ĐÃ CẬP NHẬT KHO HÀNG THÀNH CÔNG!**\n"

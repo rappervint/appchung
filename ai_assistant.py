@@ -3979,6 +3979,18 @@ def handle_gara_consultation(raw_text, clean_text):
     is_f10_query = bool(re.search(r'\b(f10|f10\s*turbo|f10\s*new|f10\s*pro|f10\s*hyper|bi\s*gam\s*f10|den\s*gam\s*f10|den\s*f10)\b', clean_text)) and \
                    not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text))
     if is_f10_query:
+        p_new = get_lamp_price_from_memory("F10 NEW 2.0") or 3900
+        p_3m = get_lamp_price_from_memory("F10 BA MÀU") or 4200
+        p_tb = get_lamp_price_from_memory("F10 TURBO") or 5100
+        p_hp = get_lamp_price_from_memory("F10 HYPER") or 5500
+        p_pro = get_lamp_price_from_memory("F10 PRO") or 5500
+
+        p_new_txt = f"{p_new*1000:,.0f} đ"
+        p_3m_txt = f"{p_3m*1000:,.0f} đ"
+        p_tb_txt = f"{p_tb*1000:,.0f} đ"
+        p_hp_txt = f"{p_hp*1000:,.0f} đ"
+        p_pro_txt = f"{p_pro*1000:,.0f} đ"
+
         return {
             "type": "success",
             "module": "dichvu",
@@ -3986,15 +3998,15 @@ def handle_gara_consultation(raw_text, clean_text):
                 "💡 **BÁO GIÁ BI GẦM F10 SERIES (CHÍNH HÃNG - BÁN CHẠY SỐ 1):**\n"
                 "─────────────────────────────────────────\n"
                 "Bi gầm LED F10 là dòng bi gầm quốc dân tăng sáng gấp 5-7 lần đèn halogen zin, gom cắt chuẩn không chói mắt:\n\n"
-                "• **Bi gầm F10 New 2.0 (Bản tiêu chuẩn):** **3.900.000 đ**\n"
+                f"• **Bi gầm F10 New 2.0 (Bản tiêu chuẩn):** **{p_new_txt}**\n"
                 "  - Công suất 35W/40W, ánh sáng trắng ấm bám đường cực tốt.\n"
-                "• **Bi gầm F10 Ba Màu (3000K / 4300K / 5500K):** **4.200.000 đ - 4.500.000 đ**\n"
+                f"• **Bi gầm F10 Ba Màu (3000K / 4300K / 5500K):** **{p_3m_txt}**\n"
                 "  - Đổi màu linh hoạt bằng công tắc gầm zin: Vàng đậm (phá sương/mưa bão) - Vàng nắng (hỗn hợp) - Trắng (đi phố).\n"
-                "• **Bi gầm F10 Turbo V2 (Mới nhất - Công suất khủng):** **5.100.000 đ - 6.000.000 đ**\n"
+                f"• **Bi gầm F10 Turbo V2 (Mới nhất - Công suất khủng):** **{p_tb_txt}**\n"
                 "  - Tích hợp tâm pha trợ lực cực xa, độ phủ rộng ngang đỉnh cao.\n"
-                "• **Bi gầm F10 Hyper 2.0 (5000K):** **5.500.000 đ**\n"
+                f"• **Bi gầm F10 Hyper 2.0 (5000K):** **{p_hp_txt}**\n"
                 "  - Nhiệt màu 5000K chuẩn mịn mắt, mặt cắt sắc nét, bám đường mưa tuyệt hảo.\n"
-                "• **Bi gầm F10 Pro V2 (3 màu cao cấp):** **5.500.000 đ**\n"
+                f"• **Bi gầm F10 Pro V2 (3 màu cao cấp):** **{p_pro_txt}**\n"
                 "─────────────────────────────────────────\n"
                 "🎁 **Ưu đãi & Chính sách lắp đặt tại Trần Bình Auto:**\n"
                 "• Tặng kèm pát zin theo từng dòng xe, cắm giắc chuyển đổi không cắt trích dây zin.\n"
@@ -4007,6 +4019,18 @@ def handle_gara_consultation(raw_text, clean_text):
     is_general_fog_light = bool(re.search(r'\b(den\s*gam|bi\s*gam|do\s*den|do\s*bi|cac\s*loai\s*bi\s*gam|cac\s*loai\s*den\s*gam|tu\s*van\s*den\s*gam|tu\s*van\s*bi\s*gam|gia\s*den\s*gam|gia\s*bi\s*gam|den\s*gam\s*loai\s*nao)\b', clean_text)) or \
                            (bool(re.search(r'\b(s3|s6|s8|s9|naoevo|v20|m30|m40)\b', clean_text)) and not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text)))
     if is_general_fog_light:
+        p_s3 = get_lamp_price_from_memory("S3") or 1500
+        p_new = get_lamp_price_from_memory("F10 NEW 2.0") or 3900
+        p_3m = get_lamp_price_from_memory("F10 BA MÀU") or 4200
+        p_tb = get_lamp_price_from_memory("F10 TURBO") or 5100
+        p_v20 = get_lamp_price_from_memory("V20") or 5850
+
+        p_s3_txt = f"{p_s3*1000:,.0f} đ"
+        p_new_txt = f"{p_new*1000:,.0f} đ"
+        p_3m_txt = f"{p_3m*1000:,.0f} đ"
+        p_tb_txt = f"{p_tb*1000:,.0f} đ"
+        p_v20_txt = f"{p_v20*1000:,.0f} đ"
+
         return {
             "type": "success",
             "module": "dichvu",
@@ -4015,17 +4039,17 @@ def handle_gara_consultation(raw_text, clean_text):
                 "─────────────────────────────────────────\n"
                 "Gara có đầy đủ các phân khúc Bi gầm LED chính hãng tăng sáng từ 4 - 7 lần, bao đăng kiểm:\n\n"
                 "🌟 **1. PHÂN KHÚC TIẾT KIỆM (1.5tr - 3.0tr) - DÒNG NAOEVO S-SERIES:**\n"
-                "• **Naoevo S3:** **1.500.000 đ** *(Ngon bổ rẻ, tăng sáng gấp 3 lần halogen)*\n"
+                f"• **Naoevo S3:** **{p_s3_txt}** *(Ngon bổ rẻ, tăng sáng gấp 3 lần halogen)*\n"
                 "• **Naoevo S6 / S6 Pro:** **1.800.000 đ - 2.000.000 đ**\n"
                 "• **Naoevo S8 / S9 Pro:** **2.500.000 đ - 3.000.000 đ**\n\n"
                 "🌟 **2. PHÂN KHÚC QUỐC DÂN BÁN CHẠY NHẤT (3.9tr - 5.5tr) - BI GẦM F10:**\n"
-                "• **F10 New 2.0:** **3.900.000 đ** (Gom sáng nét, bám đường)\n"
-                "• **F10 Ba Màu (3000K/4300K/5500K):** **4.200.000 đ - 4.500.000 đ** *(Chuyên đi mưa phá sương)*\n"
-                "• **F10 Turbo V2:** **5.100.000 đ - 6.000.000 đ** *(Công suất khủng có trợ pha)*\n"
+                f"• **F10 New 2.0:** **{p_new_txt}** (Gom sáng nét, bám đường)\n"
+                f"• **F10 Ba Màu (3000K/4300K/5500K):** **{p_3m_txt}** *(Chuyên đi mưa phá sương)*\n"
+                f"• **F10 Turbo V2:** **{p_tb_txt}** *(Công suất khủng có trợ pha)*\n"
                 "• **F10 Hyper / F10 Pro V2:** **5.500.000 đ**\n\n"
                 "🌟 **3. PHÂN KHÚC CAO CẤP & BI PHA LED:**\n"
+                f"• **Bi LED Pha V20 Ultra / V20 Base:** **{p_v20_txt}**\n"
                 "• **Bi gầm M30 Ultra / M40 Ultra:** **5.500.000 đ - 6.500.000 đ**\n"
-                "• **Bi LED Pha V20 Ultra / V20 Base:** **5.850.000 đ - 6.500.000 đ**\n"
                 "• **Titan Gold / Titan Black:** **5.500.000 đ - 6.750.000 đ**\n"
                 "─────────────────────────────────────────\n"
                 "🎁 Lắp đặt pát zin 100%, cắm giắc chuyên dụng, bảo hành 2 năm 1 đổi 1.\n"
