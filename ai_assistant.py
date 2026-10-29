@@ -473,41 +473,122 @@ def clean_customer_name(name_raw, found_car=""):
     return name.title() if name else ""
 
 def get_lamp_price_from_memory(lamp_name: str) -> int:
-    """Tra cứu xem chủ gara đã lưu giá cho mẫu đèn/sản phẩm này chưa (ưu tiên gara_memory, rồi đến bảng products)"""
+    """
+    Tra cứu thông minh mức giá bán của sản phẩm/đèn từ 3 nguồn dữ liệu thực tế của gara:
+    1. Tri thức & Quy định đã học (gara_knowledge.db -> gara_memory)
+    2. Lịch sử đơn hàng thực tế đã lắp tại gara (app_baocao_den/doanhthu_den.db -> orders)
+    3. Kho hàng phụ kiện, đồ chơi (app_banhang/tiem_lap_do.db -> products)
+    Tuyệt đối không tự suy diễn nếu không có trong dữ liệu!
+    """
     if not lamp_name:
         return 0
-    # 1. Tra cứu trong gara_memory (tri thức chủ gara đã dạy)
+
+    norm_name = lamp_name.strip()
+    norm_upper = norm_name.upper()
+
+    variants = [norm_upper]
+    if '3 MÀU' in norm_upper:
+        variants.extend([norm_upper.replace('3 MÀU', 'BA MÀU'), norm_upper.replace('3 MÀU', '(3 MÀU)')])
+    elif 'BA MÀU' in norm_upper:
+        variants.extend([norm_upper.replace('BA MÀU', '3 MÀU'), norm_upper.replace('BA MÀU', '(3 MÀU)')])
+    if '3 MAU' in norm_upper:
+        variants.extend([norm_upper.replace('3 MAU', 'BA MAU'), norm_upper.replace('3 MAU', '(3 MAU)')])
+    elif 'BA MAU' in norm_upper:
+        variants.extend([norm_upper.replace('BA MAU', '3 MAU'), norm_upper.replace('BA MAU', '(3 MAU)')])
+    variants = list(dict.fromkeys(variants))
+
+    # 1. Tra cứu trong gara_memory (tri thức chủ gara đã dạy / quy định)
     try:
         import knowledge_base
-        if os.path.exists(knowledge_base.DB_KNOWLEDGE):
-            conn = sqlite3.connect(knowledge_base.DB_KNOWLEDGE, timeout=5)
+        db_k = os.path.join(BASE_DIR, 'gara_knowledge.db')
+        if os.path.exists(db_k):
+            conn = sqlite3.connect(db_k, timeout=5)
             c = conn.cursor()
-            clean = knowledge_base.remove_accents(lamp_name).lower()
-            c.execute("""
-                SELECT price_info FROM gara_memory 
-                WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
-                ORDER BY id DESC LIMIT 1
-            """, (clean, f"%{clean}%", f"%{clean}%"))
-            row = c.fetchone()
+            for v in variants:
+                clean = knowledge_base.remove_accents(v).lower()
+                c.execute("""
+                    SELECT price_info FROM gara_memory 
+                    WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
+                    ORDER BY id DESC LIMIT 1
+                """, (clean, f"%{clean}%", f"%{clean}%"))
+                row = c.fetchone()
+                if row and row[0]:
+                    p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
+                    if p_num > 0:
+                        conn.close()
+                        return int(p_num / 1000)
             conn.close()
-            if row and row[0]:
-                p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
-                if p_num > 0:
-                    return int(p_num / 1000)
     except Exception:
         pass
 
-    # 2. Tra cứu trong kho hàng products (tiem_lap_do.db)
+    # 2. Tra cứu trong lịch sử đơn hàng Báo Cáo Doanh Thu Đèn (doanhthu_den.db)
+    # Lấy giá thực tế của đơn hàng gần nhất mà gara đã từng lắp cho sản phẩm này
+    try:
+        db_den = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
+        if os.path.exists(db_den):
+            conn_d = sqlite3.connect(db_den, timeout=5)
+            c_d = conn_d.cursor()
+
+            for v in variants:
+                # 2.1 Thử tìm khớp trực tiếp LIKE
+                c_d.execute("""
+                    SELECT price_k FROM orders 
+                    WHERE UPPER(product_name) = ? OR UPPER(product_name) LIKE ?
+                    ORDER BY id DESC LIMIT 1
+                """, (v, f"%{v}%"))
+                row_d = c_d.fetchone()
+                if row_d and row_d[0] and row_d[0] > 0:
+                    conn_d.close()
+                    return int(row_d[0])
+
+                # 2.2 Thử tìm theo tokens (xử lý 2.0 vs 2,0 hoặc các từ đặc trưng)
+                raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', v) if t]
+                meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA', 'BO', 'CAP']]
+                if meaningful_tokens:
+                    clauses = " AND ".join(["UPPER(product_name) LIKE ?" for _ in meaningful_tokens])
+                    params = [f"%{t}%" for t in meaningful_tokens]
+                    c_d.execute(f"""
+                        SELECT price_k FROM orders 
+                        WHERE {clauses}
+                        ORDER BY id DESC LIMIT 1
+                    """, params)
+                    row_t = c_d.fetchone()
+                    if row_t and row_t[0] and row_t[0] > 0:
+                        conn_d.close()
+                        return int(row_t[0])
+
+            conn_d.close()
+    except Exception:
+        pass
+
+    # 3. Tra cứu trong kho hàng phụ kiện products (tiem_lap_do.db)
     try:
         db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
         if os.path.exists(db_p):
             conn_p = sqlite3.connect(db_p, timeout=5)
             c_p = conn_p.cursor()
-            c_p.execute("SELECT price FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{lamp_name.upper()}%",))
-            row_p = c_p.fetchone()
+
+            for v in variants:
+                # 3.1 Thử tìm trực tiếp LIKE
+                c_p.execute("SELECT price FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{v}%",))
+                row_p = c_p.fetchone()
+                if row_p and row_p[0] and row_p[0] > 0:
+                    conn_p.close()
+                    return int(row_p[0] / 1000)
+
+                # 3.2 Thử tìm theo tokens
+                raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', v) if t]
+                meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA', 'BO', 'CAP', 'CAMERA', 'CAM']]
+                if meaningful_tokens:
+                    clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful_tokens])
+                    params = [f"%{t}%" for t in meaningful_tokens]
+                    c_p.execute(f"SELECT price FROM products WHERE {clauses} ORDER BY id DESC LIMIT 1", params)
+                    row_tp = c_p.fetchone()
+                    if row_tp and row_tp[0] and row_tp[0] > 0:
+                        conn_p.close()
+                        return int(row_tp[0] / 1000)
+
             conn_p.close()
-            if row_p and row_p[0] and row_p[0] > 0:
-                return int(row_p[0] / 1000)
     except Exception:
         pass
 
@@ -5089,14 +5170,15 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
             return res
 
     # 6. Tra cứu bảo hành / đơn hàng theo biển số, SĐT hoặc tên khách có đại từ nhân xưng
+    is_order_creation = bool(re.search(r'\b(?:nhap don|len don|ghi don|don den|lap|gan|thay|do)\b', clean))
     has_lamp_keyword = any(k in clean for k in ['v20', 'f10', 's3', 's6', 's8', 's9', 'm30', 'm40', 'turbo', 'hyper', 'titan', 'naoevo', '301', 'f150', 'cb150'])
-    if (extract_license_plate(raw) or extract_phone(raw) or extract_customer_search_intent(raw) or any(k in clean for k in ['bao hanh', 'tra cuu', 'tim xe', 'check xe'])) and not has_lamp_keyword:
+    if not is_order_creation and (extract_license_plate(raw) or extract_phone(raw) or extract_customer_search_intent(raw) or any(k in clean for k in ['bao hanh', 'tra cuu', 'tim xe', 'check xe'])) and not has_lamp_keyword:
         res = handle_search_warranty_and_orders(raw, clean)
         if res:
             return res
 
-    # 7. Nhập Đơn Báo Cáo Đèn (ƯU TIÊN CAO khi có mã đèn hoặc hành động lắp đặt)
-    if has_lamp_keyword or (any(k in clean for k in ['lap', 'gan', 'do', 'thay', 'ban']) and any(k in clean for k in ['den', 'bi', 'bong', 'pha', 'gam'])):
+    # 7. Nhập Đơn Báo Cáo Đèn (ƯU TIÊN CAO khi có mã đèn hoặc hành động nhập đơn / lắp đặt)
+    if is_order_creation or has_lamp_keyword or (any(k in clean for k in ['lap', 'gan', 'do', 'thay', 'ban', 'nhap', 'len', 'ghi']) and any(k in clean for k in ['den', 'bi', 'bong', 'pha', 'gam', 'don'])):
         res = handle_baocao_den(raw, clean, session_id=session_id)
         if res:
             return res
