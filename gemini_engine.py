@@ -105,6 +105,101 @@ def is_admin_or_edit_intent(clean_text: str) -> bool:
 # Lưu trữ Client và phiên chat của Gemini theo session_id để giữ ngữ cảnh hội thoại
 GEMINI_CLIENT = None
 GEMINI_SESSIONS = {}
+CURRENT_ACTIVE_SESSION_ID = "default_user"
+CURRENT_USER_MESSAGE = ""
+
+def set_current_session(session_id: str, user_message: str = ""):
+    global CURRENT_ACTIVE_SESSION_ID, CURRENT_USER_MESSAGE
+    CURRENT_ACTIVE_SESSION_ID = session_id or "default_user"
+    if user_message:
+        CURRENT_USER_MESSAGE = user_message
+
+def find_product_in_inventory(kw: str, context_text: str = ""):
+    """Tra cứu sản phẩm cực kỳ thông minh trong kho hàng (tiem_lap_do.db).
+    Khớp mã SP, tên chính xác, tìm kiếm mở rộng, và so khớp tổ hợp từ lóng (F10 New 2.0 <-> F10 2.0 NEW).
+    """
+    if not os.path.exists(DB_BANHANG):
+        return None
+    try:
+        conn = sqlite3.connect(DB_BANHANG, timeout=5)
+        c = conn.cursor()
+        c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products")
+        all_rows = c.fetchall()
+        conn.close()
+    except Exception:
+        return None
+
+    if not all_rows:
+        return None
+
+    kw_clean = kw.strip()
+    if not kw_clean and not context_text:
+        return None
+
+    # 1. Khớp mã sản phẩm chính xác
+    if kw_clean:
+        for r in all_rows:
+            if r[1].upper() == kw_clean.upper():
+                return r
+
+    # 2. Khớp chuỗi con trong tên
+    if kw_clean:
+        for r in all_rows:
+            if kw_clean.lower() in r[2].lower():
+                return r
+
+    # 3. Sử dụng search_product_in_catalog của ai_assistant
+    if kw_clean:
+        try:
+            from ai_assistant import search_product_in_catalog
+            prods = search_product_in_catalog(kw_clean)
+            if prods:
+                tp = prods[0]
+                for r in all_rows:
+                    if r[0] == tp['id']:
+                        return r
+        except Exception:
+            pass
+
+    # 4. So khớp độ tương đồng tập từ (Token Overlap)
+    def score_overlap(text, target):
+        t_tokens = set(re.findall(r'[a-zA-Z0-9]+', text.lower()))
+        r_tokens = set(re.findall(r'[a-zA-Z0-9]+', target.lower()))
+        return len(t_tokens.intersection(r_tokens))
+
+    best_r = None
+    best_score = 0
+    if kw_clean:
+        for r in all_rows:
+            sc = score_overlap(kw_clean, r[2])
+            if sc > best_score:
+                best_score = sc
+                best_r = r
+
+        if best_score >= 2:
+            return best_r
+
+    # 5. Thử tìm trên toàn bộ câu lệnh của người dùng nếu có
+    if context_text and context_text != kw:
+        try:
+            from ai_assistant import search_product_in_catalog
+            prods = search_product_in_catalog(context_text)
+            if prods:
+                tp = prods[0]
+                for r in all_rows:
+                    if r[0] == tp['id']:
+                        return r
+        except Exception:
+            pass
+        for r in all_rows:
+            sc = score_overlap(context_text, r[2])
+            if sc > best_score:
+                best_score = sc
+                best_r = r
+        if best_score >= 2:
+            return best_r
+
+    return best_r if best_score >= 1 else None
 
 def get_gemini_client():
     global GEMINI_CLIENT
@@ -127,7 +222,8 @@ def sua_don_hang(
     dong_xe_moi: str = "",
     ten_san_pham_moi: str = "",
     gia_tien_moi: float = 0,
-    ngay_moi: str = ""
+    ngay_moi: str = "",
+    confirmed: bool = False
 ) -> str:
     """Chỉnh sửa thông tin đơn hàng đã có trong hệ thống (cả đơn Bán Hàng/Lắp Đồ và đơn Báo Cáo Doanh Thu Đèn).
 
@@ -141,6 +237,7 @@ def sua_don_hang(
         ten_san_pham_moi: Tên sản phẩm / đèn mới (nếu muốn đổi món hàng).
         gia_tien_moi: Giá tiền / tổng tiền mới (VNĐ cho bán hàng, hoặc nghìn đồng nếu là đơn đèn).
         ngay_moi: Ngày lắp đặt hoặc ngày ghi nhận mới (định dạng YYYY-MM-DD).
+        confirmed: Cờ xác nhận người dùng đã đồng ý thực thi sửa đổi.
     """
     updated_info = []
 
@@ -156,26 +253,69 @@ def sua_don_hang(
             if ten_khach_moi:
                 fields_to_update.append("customer_name=?")
                 vals.append(ten_khach_moi.strip())
-                updated_info.append(f"Khách hàng: **{ten_khach_moi}**")
+                updated_info.append(f"Khách hàng: **{row[3]}** ➔ **{ten_khach_moi}**")
             if dong_xe_moi:
                 fields_to_update.append("car_model=?")
                 vals.append(dong_xe_moi.strip().upper())
-                updated_info.append(f"Dòng xe: **{dong_xe_moi.upper()}**")
+                updated_info.append(f"Dòng xe: **{row[4]}** ➔ **{dong_xe_moi.upper()}**")
             if ten_san_pham_moi:
                 fields_to_update.append("product_name=?")
                 vals.append(ten_san_pham_moi.strip().upper())
-                updated_info.append(f"Tên đèn/sản phẩm: **{ten_san_pham_moi.upper()}**")
+                updated_info.append(f"Tên đèn/sản phẩm: **{row[2]}** ➔ **{ten_san_pham_moi.upper()}**")
             if gia_tien_moi > 0:
                 p_k = int(gia_tien_moi / 1000) if gia_tien_moi > 50000 else int(gia_tien_moi)
                 fields_to_update.append("price_k=?")
                 vals.append(p_k)
-                updated_info.append(f"Đơn giá đèn: **{p_k:,}k** ({p_k * 1000:,} đ)")
+                updated_info.append(f"Đơn giá đèn: **{row[6]:,}k** ➔ **{p_k:,}k** ({p_k * 1000:,} đ)")
             if ngay_moi:
+                clean_ngay = ngay_moi.strip()
+                try:
+                    from ai_assistant import extract_date
+                    d_p, _ = extract_date(ngay_moi)
+                    if d_p:
+                        clean_ngay = d_p
+                except Exception:
+                    pass
                 fields_to_update.append("order_date=?")
-                vals.append(ngay_moi.strip())
-                updated_info.append(f"Ngày ghi nhận: **{ngay_moi}**")
+                vals.append(clean_ngay)
+                updated_info.append(f"Ngày ghi nhận: **{row[1]}** ➔ **{clean_ngay}**")
 
             if fields_to_update:
+                if not confirmed:
+                    conn.close()
+                    try:
+                        from ai_assistant import WIZARD_SESSIONS
+                        WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                            'flow': 'confirm_action',
+                            'action_type': 'admin_edit_order',
+                            'payload': {
+                                'kwargs': {
+                                    'ma_don_hang': ma_don_hang,
+                                    'loai_don': 'den',
+                                    'ten_khach_moi': ten_khach_moi,
+                                    'sdt_moi': sdt_moi,
+                                    'bien_so_moi': bien_so_moi,
+                                    'dong_xe_moi': dong_xe_moi,
+                                    'ten_san_pham_moi': ten_san_pham_moi,
+                                    'gia_tien_moi': gia_tien_moi,
+                                    'ngay_moi': ngay_moi,
+                                    'confirmed': True
+                                }
+                            }
+                        }
+                    except Exception as e:
+                        print(f"[GeminiEngine] Lỗi đăng ký confirm sửa đơn đèn: {e}")
+
+                    return (
+                        f"❓ **XÁC NHẬN SỬA ĐƠN BÁO CÁO ĐÈN #{ma_don_hang}:**\n"
+                        f"─────────────────────────────────────────\n"
+                        f"• 📋 **Đơn gốc:** {row[3]} - {row[4]} (Đèn: {row[2]})\n"
+                        + "\n".join([f"• {u}" for u in updated_info]) + "\n"
+                        f"─────────────────────────────────────────\n"
+                        f"👉 Anh có chắc chắn muốn lưu thông tin sửa đổi này vào đơn hàng không?\n\n"
+                        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+                    )
+
                 vals.append(ma_don_hang)
                 c.execute(f"UPDATE orders SET {', '.join(fields_to_update)} WHERE id=?", vals)
                 conn.commit()
@@ -200,32 +340,76 @@ def sua_don_hang(
             if ten_khach_moi:
                 fields_to_update.append("customer_name=?")
                 vals.append(ten_khach_moi.strip().upper())
-                updated_info.append(f"Tên khách hàng: **{ten_khach_moi.upper()}**")
+                updated_info.append(f"Tên khách hàng: **{row[1]}** ➔ **{ten_khach_moi.upper()}**")
             if sdt_moi:
                 clean_phone = re.sub(r'[^0-9]', '', sdt_moi)
                 fields_to_update.append("phone=?")
                 vals.append(clean_phone)
-                updated_info.append(f"Số điện thoại: **{clean_phone}**")
+                updated_info.append(f"Số điện thoại: **{row[2]}** ➔ **{clean_phone}**")
             if bien_so_moi:
                 clean_plate = bien_so_moi.strip().upper()
                 fields_to_update.append("license_plate=?")
                 vals.append(clean_plate)
-                updated_info.append(f"Biển số xe: **{clean_plate}**")
+                updated_info.append(f"Biển số xe: **{row[3]}** ➔ **{clean_plate}**")
             if ngay_moi:
+                clean_ngay = ngay_moi.strip()
+                try:
+                    from ai_assistant import extract_date
+                    d_p, _ = extract_date(ngay_moi)
+                    if d_p:
+                        clean_ngay = d_p
+                except Exception:
+                    pass
                 fields_to_update.append("install_date=?")
-                vals.append(ngay_moi.strip())
-                updated_info.append(f"Ngày lắp đặt: **{ngay_moi}**")
+                vals.append(clean_ngay)
+                updated_info.append(f"Ngày lắp đặt: **{row[4]}** ➔ **{clean_ngay}**")
             if gia_tien_moi > 0:
                 p_val = gia_tien_moi if gia_tien_moi > 10000 else gia_tien_moi * 1000
                 fields_to_update.append("total_price=?")
                 vals.append(p_val)
-                updated_info.append(f"Tổng tiền đơn hàng: **{p_val:,.0f} đ**")
+                updated_info.append(f"Tổng tiền đơn hàng: **{row[5]:,.0f} đ** ➔ **{p_val:,.0f} đ**")
 
             if ten_san_pham_moi:
-                c.execute("UPDATE order_items SET item_name=? WHERE order_id=?", (ten_san_pham_moi.strip(), ma_don_hang))
-                updated_info.append(f"Sản phẩm / Món lắp: **{ten_san_pham_moi}**")
+                updated_info.append(f"Đổi sản phẩm sang: **{ten_san_pham_moi}**")
 
             if fields_to_update or ten_san_pham_moi:
+                if not confirmed:
+                    conn.close()
+                    try:
+                        from ai_assistant import WIZARD_SESSIONS
+                        WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                            'flow': 'confirm_action',
+                            'action_type': 'admin_edit_order',
+                            'payload': {
+                                'kwargs': {
+                                    'ma_don_hang': ma_don_hang,
+                                    'loai_don': 'banhang',
+                                    'ten_khach_moi': ten_khach_moi,
+                                    'sdt_moi': sdt_moi,
+                                    'bien_so_moi': bien_so_moi,
+                                    'dong_xe_moi': dong_xe_moi,
+                                    'ten_san_pham_moi': ten_san_pham_moi,
+                                    'gia_tien_moi': gia_tien_moi,
+                                    'ngay_moi': ngay_moi,
+                                    'confirmed': True
+                                }
+                            }
+                        }
+                    except Exception as e:
+                        print(f"[GeminiEngine] Lỗi đăng ký confirm sửa đơn bán hàng: {e}")
+
+                    return (
+                        f"❓ **XÁC NHẬN SỬA ĐƠN BÁN HÀNG #{ma_don_hang}:**\n"
+                        f"─────────────────────────────────────────\n"
+                        f"• 📋 **Đơn gốc:** {row[1]} - Biển số: {row[3]} ({row[4]})\n"
+                        + "\n".join([f"• {u}" for u in updated_info]) + "\n"
+                        f"─────────────────────────────────────────\n"
+                        f"👉 Anh có chắc chắn muốn lưu thông tin sửa đổi này vào đơn hàng không?\n\n"
+                        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+                    )
+
+                if ten_san_pham_moi:
+                    c.execute("UPDATE order_items SET item_name=? WHERE order_id=?", (ten_san_pham_moi.strip(), ma_don_hang))
                 if fields_to_update:
                     vals.append(ma_don_hang)
                     c.execute(f"UPDATE orders SET {', '.join(fields_to_update)} WHERE id=?", vals)
@@ -242,20 +426,50 @@ def sua_don_hang(
     return f"⚠️ Không tìm thấy đơn hàng mã #{ma_don_hang} trong hệ thống Bán Hàng hoặc Báo Cáo Đèn. Bạn kiểm tra lại mã đơn giúp em nhé!"
 
 
-def xoa_don_hang(ma_don_hang: int, loai_don: str = "auto") -> str:
+def xoa_don_hang(ma_don_hang: int, loai_don: str = "auto", confirmed: bool = False) -> str:
     """Xóa hoặc hủy một đơn hàng khỏi hệ thống (cả Bán Hàng và Báo Cáo Đèn).
 
     Args:
         ma_don_hang: Mã số đơn hàng cần xóa (ví dụ: 747, 8585).
         loai_don: 'auto', 'den' hoặc 'banhang'.
+        confirmed: Cờ xác nhận người dùng đã đồng ý xóa.
     """
     # 1. Thử xóa bên Báo Cáo Đèn
     if loai_don in ("auto", "den") and os.path.exists(DB_DEN):
         conn = sqlite3.connect(DB_DEN)
         c = conn.cursor()
-        c.execute("SELECT id, product_name, customer_name, car_model, price_k FROM orders WHERE id=?", (ma_don_hang,))
+        c.execute("SELECT id, product_name, customer_name, car_model, price_k, order_date FROM orders WHERE id=?", (ma_don_hang,))
         row = c.fetchone()
         if row:
+            if not confirmed:
+                conn.close()
+                try:
+                    from ai_assistant import WIZARD_SESSIONS
+                    WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                        'flow': 'confirm_action',
+                        'action_type': 'admin_delete_order',
+                        'payload': {
+                            'order_id': ma_don_hang,
+                            'loai_don': 'den',
+                            'confirmed': True
+                        }
+                    }
+                except Exception as e:
+                    print(f"[GeminiEngine] Lỗi đăng ký confirm xóa đơn đèn: {e}")
+
+                return (
+                    f"⚠️ **XÁC NHẬN XÓA ĐƠN BÁO CÁO ĐÈN #{ma_don_hang}:**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• 📋 **Phân hệ:** Báo Cáo Doanh Thu Đèn\n"
+                    f"• 💡 **Sản phẩm:** {row[1]} ({row[4]}k)\n"
+                    f"• 👤 **Khách hàng:** {row[2]} ({row[3]})\n"
+                    f"• 📅 **Ngày lắp:** {row[5]}\n"
+                    f"─────────────────────────────────────────\n"
+                    f"🚨 **CẢNH BÁO BẢO TOÀN DỮ LIỆU:** Thao tác này sẽ gỡ bỏ đơn hàng vĩnh viễn khỏi sổ sách!\n\n"
+                    f"👉 Anh có chắc chắn muốn XÓA đơn hàng này không?\n\n"
+                    f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để xóa | Bấm **[🛑 Hủy]** để giữ lại đơn)*"
+                )
+
             c.execute("DELETE FROM orders WHERE id=?", (ma_don_hang,))
             conn.commit()
             conn.close()
@@ -266,9 +480,38 @@ def xoa_don_hang(ma_don_hang: int, loai_don: str = "auto") -> str:
     if loai_don in ("auto", "banhang") and os.path.exists(DB_BANHANG):
         conn = sqlite3.connect(DB_BANHANG)
         c = conn.cursor()
-        c.execute("SELECT id, customer_name, license_plate, total_price FROM orders WHERE id=?", (ma_don_hang,))
+        c.execute("SELECT id, customer_name, license_plate, total_price, install_date FROM orders WHERE id=?", (ma_don_hang,))
         row = c.fetchone()
         if row:
+            if not confirmed:
+                conn.close()
+                try:
+                    from ai_assistant import WIZARD_SESSIONS
+                    WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                        'flow': 'confirm_action',
+                        'action_type': 'admin_delete_order',
+                        'payload': {
+                            'order_id': ma_don_hang,
+                            'loai_don': 'banhang',
+                            'confirmed': True
+                        }
+                    }
+                except Exception as e:
+                    print(f"[GeminiEngine] Lỗi đăng ký confirm xóa đơn bán hàng: {e}")
+
+                return (
+                    f"⚠️ **XÁC NHẬN XÓA ĐƠN BÁN HÀNG #{ma_don_hang}:**\n"
+                    f"─────────────────────────────────────────\n"
+                    f"• 📋 **Phân hệ:** Bán Hàng & Lắp Đồ Phụ Kiện\n"
+                    f"• 👤 **Khách hàng:** {row[1]} - Biển số: {row[2]}\n"
+                    f"• 💰 **Tổng tiền:** {row[3]:,.0f} đ\n"
+                    f"• 📅 **Ngày lắp:** {row[4]}\n"
+                    f"─────────────────────────────────────────\n"
+                    f"🚨 **CẢNH BÁO BẢO TOÀN DỮ LIỆU:** Thao tác này sẽ gỡ bỏ đơn hàng vĩnh viễn khỏi hệ thống bán hàng!\n\n"
+                    f"👉 Anh có chắc chắn muốn XÓA đơn hàng này không?\n\n"
+                    f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để xóa | Bấm **[🛑 Hủy]** để giữ lại đơn)*"
+                )
+
             c.execute("DELETE FROM order_items WHERE order_id=?", (ma_don_hang,))
             c.execute("DELETE FROM orders WHERE id=?", (ma_don_hang,))
             conn.commit()
@@ -284,7 +527,8 @@ def cap_nhat_kho_hang(
     ton_kho_moi: int = -999,
     gia_ban_moi: float = 0,
     gia_von_moi: float = 0,
-    thoi_han_bao_hanh_thang: int = -999
+    thoi_han_bao_hanh_thang: int = -999,
+    confirmed: bool = False
 ) -> str:
     """Cập nhật số lượng tồn kho, giá bán, giá vốn hoặc thời hạn bảo hành của sản phẩm trong kho.
 
@@ -294,6 +538,7 @@ def cap_nhat_kho_hang(
         gia_ban_moi: Giá bán lẻ mới (VNĐ).
         gia_von_moi: Giá vốn nhập vào mới (VNĐ).
         thoi_han_bao_hanh_thang: Thời gian bảo hành tính theo tháng (ví dụ: 12, 24).
+        confirmed: Cờ xác nhận người dùng đã đồng ý thực thi sửa đổi kho.
     """
     if not os.path.exists(DB_BANHANG):
         return "⚠️ Không tìm thấy cơ sở dữ liệu kho hàng."
@@ -302,24 +547,10 @@ def cap_nhat_kho_hang(
     c = conn.cursor()
 
     kw = ma_hoac_ten_sp.strip()
-    c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE UPPER(code)=UPPER(?) OR UPPER(name) LIKE UPPER(?) LIMIT 5", (kw, f"%{kw}%"))
-    rows = c.fetchall()
-
-    if not rows:
-        try:
-            from ai_assistant import search_product_in_catalog
-            prods = search_product_in_catalog(kw)
-            if prods:
-                tp = prods[0]
-                rows = [(tp['id'], tp['code'], tp['name'], tp['price'], tp['cost_price'], tp['stock'], tp['warranty_months'])]
-        except Exception:
-            pass
-
-    if not rows:
-        conn.close()
+    target_prod = find_product_in_inventory(kw, CURRENT_USER_MESSAGE)
+    if not target_prod:
         return f"⚠️ Không tìm thấy sản phẩm nào khớp với từ khóa **'{kw}'** trong kho hàng."
 
-    target_prod = rows[0]
     prod_id, code, name, old_price, old_cost, old_stock, old_warranty = target_prod
 
     fields = []
@@ -352,6 +583,38 @@ def cap_nhat_kho_hang(
         conn.close()
         return f"📦 **THÔNG TIN SẢN PHẨM HIỆN TẠI:**\n• Mã: **{code}** | Tên: **{name}**\n• Tồn kho: **{old_stock}**\n• Giá bán: **{old_price:,.0f} đ** | Giá vốn: **{old_cost:,.0f} đ**\n• Bảo hành: **{old_warranty} tháng**\n👉 Bạn muốn cập nhật số lượng tồn kho hay điều chỉnh giá bán nào ạ?"
 
+    if not confirmed:
+        conn.close()
+        try:
+            from ai_assistant import WIZARD_SESSIONS
+            WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_update_stock',
+                'payload': {
+                    'kwargs': {
+                        'ma_hoac_ten_sp': code,
+                        'ton_kho_moi': ton_kho_moi,
+                        'gia_ban_moi': gia_ban_moi,
+                        'gia_von_moi': gia_von_moi,
+                        'thoi_han_bao_hanh_thang': thoi_han_bao_hanh_thang,
+                        'confirmed': True
+                    }
+                }
+            }
+        except Exception as e:
+            print(f"[GeminiEngine] Lỗi đăng ký confirm kho: {e}")
+
+        return (
+            f"❓ **XÁC NHẬN CẬP NHẬT DỮ LIỆU KHO HÀNG:**\n"
+            f"─────────────────────────────────────────\n"
+            f"• 📦 **Sản phẩm:** **{name}** (Mã: `{code}`)\n"
+            + "\n".join([f"• {ch}" for ch in changes]) + "\n"
+            f"• 📊 **Tồn kho hiện tại:** {old_stock} | **Bảo hành:** {old_warranty} tháng\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn lưu các thay đổi này vào phần mềm Bán Hàng không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        )
+
     vals.append(prod_id)
     c.execute(f"UPDATE products SET {', '.join(fields)} WHERE id=?", vals)
     conn.commit()
@@ -370,7 +633,8 @@ def cap_nhat_thong_tin_khach_hang(
     dinh_danh_cu: str,
     ten_moi: str = "",
     sdt_moi: str = "",
-    bien_so_moi: str = ""
+    bien_so_moi: str = "",
+    confirmed: bool = False
 ) -> str:
     """Cập nhật thông tin khách hàng (Tên, Số điện thoại, Biển số xe) đồng bộ trên tất cả đơn hàng đã lưu.
 
@@ -379,9 +643,65 @@ def cap_nhat_thong_tin_khach_hang(
         ten_moi: Tên mới cần đổi.
         sdt_moi: Số điện thoại mới cần đổi.
         bien_so_moi: Biển số xe mới cần đổi.
+        confirmed: Cờ xác nhận người dùng đã đồng ý.
     """
     kw = dinh_danh_cu.strip().upper()
     total_updated = 0
+
+    # Kiểm tra số lượng đơn khớp trước
+    matches_bh = 0
+    if os.path.exists(DB_BANHANG):
+        conn = sqlite3.connect(DB_BANHANG)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM orders WHERE UPPER(license_plate) LIKE ? OR phone LIKE ? OR UPPER(customer_name) LIKE ?", (f"%{kw}%", f"%{kw}%", f"%{kw}%"))
+        matches_bh = c.fetchone()[0] or 0
+        conn.close()
+
+    matches_den = 0
+    if os.path.exists(DB_DEN):
+        conn = sqlite3.connect(DB_DEN)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM orders WHERE UPPER(customer_name) LIKE ?", (f"%{kw}%",))
+        matches_den = c.fetchone()[0] or 0
+        conn.close()
+
+    total_matches = matches_bh + matches_den
+    if total_matches == 0:
+        return f"⚠️ Không tìm thấy khách hàng nào khớp với định danh **'{dinh_danh_cu}'** để cập nhật."
+
+    changes = []
+    if ten_moi: changes.append(f"Tên khách mới: **{ten_moi.upper()}**")
+    if sdt_moi: changes.append(f"Số điện thoại mới: **{sdt_moi}**")
+    if bien_so_moi: changes.append(f"Biển số xe mới: **{bien_so_moi.upper()}**")
+
+    if not confirmed:
+        try:
+            from ai_assistant import WIZARD_SESSIONS
+            WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_update_customer',
+                'payload': {
+                    'kwargs': {
+                        'dinh_danh_cu': dinh_danh_cu,
+                        'ten_moi': ten_moi,
+                        'sdt_moi': sdt_moi,
+                        'bien_so_moi': bien_so_moi,
+                        'confirmed': True
+                    }
+                }
+            }
+        except Exception as e:
+            print(f"[GeminiEngine] Lỗi đăng ký confirm khách: {e}")
+
+        return (
+            f"❓ **XÁC NHẬN ĐỒNG BỘ THÔNG TIN KHÁCH HÀNG ({total_matches} đơn liên quan):**\n"
+            f"─────────────────────────────────────────\n"
+            f"• 🔍 **Hồ sơ tìm thấy:** `{dinh_danh_cu}` ({total_matches} đơn hàng)\n"
+            + "\n".join([f"• {ch}" for ch in changes]) + "\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn cập nhật đồng bộ cho {total_matches} đơn hàng này không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để cập nhật | Bấm **[🛑 Hủy]** để bỏ qua)*"
+        )
 
     # 1. Cập nhật trong Bán Hàng
     if os.path.exists(DB_BANHANG):
@@ -427,10 +747,13 @@ def cap_nhat_thong_tin_khach_hang(
         conn.commit()
         conn.close()
 
-    if total_updated == 0:
-        return f"⚠️ Không tìm thấy khách hàng nào khớp với định danh **'{dinh_danh_cu}'** để cập nhật."
-
-    changes = []
+    return (
+        f"👤 **ĐÃ CẬP NHẬT THÔNG TIN KHÁCH HÀNG THÀNH CÔNG!**\n"
+        f"─────────────────────────────────────────\n"
+        f"• Số đơn hàng đồng bộ: **{total_updated} đơn**\n"
+        + "\n".join([f"• {ch}" for ch in changes]) +
+        f"\n👉 Toàn bộ lịch sử bảo hành và doanh thu đã được liên kết đồng nhất."
+    )
     if ten_moi: changes.append(f"Tên khách: **{ten_moi.upper()}**")
     if sdt_moi: changes.append(f"Số điện thoại: **{sdt_moi}**")
     if bien_so_moi: changes.append(f"Biển số xe: **{bien_so_moi.upper()}**")
@@ -542,13 +865,9 @@ def tra_cuu_san_pham_kho_hang(tu_khoa: str) -> str:
     conn.close()
 
     if not rows:
-        try:
-            from ai_assistant import search_product_in_catalog
-            prods = search_product_in_catalog(tu_khoa)
-            if prods:
-                rows = [(p['code'], p['name'], '', p['price'], p['cost_price'], p['stock'], p['warranty_months']) for p in prods[:6]]
-        except Exception:
-            pass
+        tp = find_product_in_inventory(tu_khoa, CURRENT_USER_MESSAGE)
+        if tp:
+            rows = [(tp[1], tp[2], '', tp[3], tp[4], tp[5], tp[6])]
 
     if not rows:
         return f"📦 Không tìm thấy sản phẩm nào khớp với **'{tu_khoa}'** trong kho."
@@ -666,7 +985,8 @@ def ghi_so_thu_chi(
     loai: str,
     so_tien: int,
     noi_dung: str,
-    ngay: str = ""
+    ngay: str = "",
+    confirmed: bool = False
 ) -> str:
     """Ghi nhanh khoản chi hoặc thu vào sổ quỹ tài chính.
 
@@ -675,11 +995,70 @@ def ghi_so_thu_chi(
         so_tien: Số tiền VNĐ (ví dụ 100000, 350000).
         noi_dung: Lý do hoặc nội dung chi/thu (ví dụ 'mua đồ ăn trưa', 'mua băng keo', 'khách tip').
         ngay: Ngày phát sinh (YYYY-MM-DD), nếu để trống lấy ngày hôm nay.
+        confirmed: Cờ xác nhận người dùng đã đồng ý ghi sổ.
     """
     if not os.path.exists(DB_THUCHI):
         return "⚠️ Không tìm thấy cơ sở dữ liệu sổ thu chi."
 
-    now_date = ngay if ngay else datetime.now().strftime("%Y-%m-%d")
+    final_date = ""
+    if ngay:
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', ngay.strip()):
+            final_date = ngay.strip()
+        else:
+            try:
+                from ai_assistant import extract_date
+                d_p, _ = extract_date(ngay)
+                if d_p:
+                    final_date = d_p
+            except Exception:
+                pass
+
+    if not final_date and CURRENT_USER_MESSAGE:
+        try:
+            from ai_assistant import extract_date
+            d_p, _ = extract_date(CURRENT_USER_MESSAGE)
+            if d_p:
+                final_date = d_p
+        except Exception:
+            pass
+
+    if not final_date:
+        final_date = datetime.now().strftime("%Y-%m-%d")
+
+    now_date = final_date
+    clean_type = 'chi' if 'chi' in loai.lower() else 'thu'
+
+    if not confirmed:
+        try:
+            from ai_assistant import WIZARD_SESSIONS
+            WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                'flow': 'confirm_action',
+                'action_type': 'thuchi',
+                'payload': {
+                    'trans_type': clean_type,
+                    'amount': so_tien,
+                    'note': noi_dung,
+                    'date_str': now_date
+                }
+            }
+        except Exception as e:
+            print(f"[GeminiEngine] Lỗi đăng ký confirm thu chi: {e}")
+
+        amount_k_str = f"{so_tien//1000:,}k" if so_tien >= 1000 else f"{so_tien:,}đ"
+        type_label = "KHOẢN CHI TIỀN" if clean_type == 'chi' else "KHOẢN THU TIỀN"
+        type_icon = "💸" if clean_type == 'chi' else "💵"
+        return (
+            f"❓ **XÁC NHẬN GHI SỔ THU CHI ({type_label}):**\n"
+            f"─────────────────────────────────────────\n"
+            f"• {type_icon} **Phân loại:** **{type_label}**\n"
+            f"• 💰 **Số tiền:** **{so_tien:,.0f} đ** ({amount_k_str})\n"
+            f"• 📝 **Nội dung / Lý do:** **{noi_dung}**\n"
+            f"• 📅 **Ngày ghi nhận:** **{now_date}**\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn ghi {type_label.lower()} này vào Sổ Thu Chi không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào sổ | Nhắn **'hủy'** để bỏ qua)*"
+        )
+
     now_time = datetime.now().strftime("%H:%M:%S")
     created_at = f"{now_date} {now_time}"
 
@@ -689,7 +1068,6 @@ def ghi_so_thu_chi(
     p_row = c.fetchone()
     period_id = p_row[0] if p_row else 1
 
-    clean_type = 'chi' if 'chi' in loai.lower() else 'thu'
     c.execute(
         "INSERT INTO transactions (type, amount, created_at, note, period_id) VALUES (?, ?, ?, ?, ?)",
         (clean_type, so_tien, created_at, noi_dung.strip(), period_id)
@@ -719,7 +1097,8 @@ def len_don_bao_cao_den_nhanh(
     dong_xe: str = "",
     gia_tien_k: int = 0,
     so_luong: int = 1,
-    ngay: str = ""
+    ngay: str = "",
+    confirmed: bool = False
 ) -> str:
     """Lên đơn nhanh vào Sổ Báo Cáo Doanh Thu Đèn khi khách hàng chốt đơn lắp đèn.
     Tự động lấy giá niêm yết nếu không nhập giá, tự động tra cứu khách hàng & xe từ biển số / SĐT.
@@ -754,7 +1133,27 @@ def len_don_bao_cao_den_nhanh(
             f"👉 Hãy dừng lại và hỏi người dùng mức giá thực tế cho sản phẩm này, tuyệt đối không tự ý cho giá!"
         )
 
-    # 2. Tự động tra cứu khách hàng và xe từ biển số hoặc SĐT
+    # 2. Tự động bù thông tin xe / biển số từ ngữ cảnh câu nói nếu Gemini bỏ sót
+    if not bien_so_xe and CURRENT_USER_MESSAGE:
+        try:
+            from ai_assistant import extract_license_plate
+            m_p = extract_license_plate(CURRENT_USER_MESSAGE)
+            if m_p:
+                bien_so_xe = m_p
+        except Exception:
+            pass
+
+    if (not dong_xe or dong_xe in ["Chưa rõ dòng xe", ""]) and CURRENT_USER_MESSAGE:
+        try:
+            from ai_assistant import CAR_MODELS_LIST
+            for cm in CAR_MODELS_LIST:
+                if re.search(r'\b' + re.escape(cm) + r'\b', CURRENT_USER_MESSAGE, re.IGNORECASE):
+                    dong_xe = cm.upper()
+                    break
+        except Exception:
+            pass
+
+    # 3. Tự động tra cứu khách hàng và xe từ biển số hoặc SĐT
     identifier = bien_so_xe.strip() or so_dien_thoai.strip()
     auto_found = False
     if identifier:
@@ -785,11 +1184,75 @@ def len_don_bao_cao_den_nhanh(
     if not dong_xe:
         dong_xe = "Chưa rõ dòng xe"
 
-    order_date = ngay if ngay else datetime.now().strftime("%Y-%m-%d")
+    # 4. Chuẩn hóa ngày lắp đặt thông minh
+    final_date = ""
+    if ngay:
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', ngay.strip()):
+            final_date = ngay.strip()
+        else:
+            try:
+                from ai_assistant import extract_date
+                d_p, _ = extract_date(ngay)
+                if d_p:
+                    final_date = d_p
+            except Exception:
+                pass
+
+    if not final_date and CURRENT_USER_MESSAGE:
+        try:
+            from ai_assistant import extract_date
+            d_p, _ = extract_date(CURRENT_USER_MESSAGE)
+            if d_p:
+                final_date = d_p
+        except Exception:
+            pass
+
+    if not final_date:
+        final_date = datetime.now().strftime("%Y-%m-%d")
+
+    order_date = final_date
+    cust_record = f"{khach_hang} ({bien_so_xe})" if (bien_so_xe and bien_so_xe not in khach_hang) else khach_hang
+
+    if not confirmed:
+        try:
+            from ai_assistant import WIZARD_SESSIONS
+            WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                'flow': 'confirm_action',
+                'action_type': 'baocao_den',
+                'payload': {
+                    'items': [{'product_name': matched_name, 'quantity': so_luong, 'final_price_k': p_k}],
+                    'cust_name': cust_record,
+                    'found_car': dong_xe.strip().upper(),
+                    'plate': bien_so_xe,
+                    'phone': so_dien_thoai,
+                    'order_date': order_date,
+                    'discount_k': 0,
+                    'total_base_k': p_k * so_luong,
+                    'total_final_k': p_k * so_luong
+                }
+            }
+        except Exception as e:
+            print(f"[GeminiEngine] Lỗi đăng ký confirm đơn đèn: {e}")
+
+        default_note = " *(Giá niêm yết tự động)*" if is_default_price else ""
+        tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else ""
+        return (
+            f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+            f"───────────────────────────────────────\n"
+            f"• 👤 **Khách hàng:** **{khach_hang}**{tag_auto}\n"
+            f"• 🚗 **Dòng xe:** **{dong_xe.upper()}**\n"
+            + (f"• 🚘 **Biển số:** **{bien_so_xe}**\n" if bien_so_xe else "")
+            + (f"• 📞 **Số điện thoại:** **{so_dien_thoai}**\n" if so_dien_thoai else "")
+            + f"• 📦 **Sản phẩm lắp đặt:**\n  1. **{matched_name}**: **{p_k * 1000:,.0f} đ ({p_k:,}k)**{default_note}\n"
+            f"• 💰 **DOANH THU THỰC THU:** **{p_k * so_luong * 1000:,.0f} đ**\n"
+            f"• 📅 **Ngày lắp:** **{order_date}**" + (" *(Hôm nay)*" if order_date == datetime.now().strftime('%Y-%m-%d') else "") + "\n"
+            f"───────────────────────────────────────\n"
+            f"👉 Anh có chắc chắn muốn **LƯU ĐƠN HÀNG NÀY** vào hệ thống không?\n\n"
+            f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
+        )
 
     conn = sqlite3.connect(DB_DEN)
     c = conn.cursor()
-    cust_record = f"{khach_hang} ({bien_so_xe})" if (bien_so_xe and bien_so_xe not in khach_hang) else khach_hang
     c.execute(
         "INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (order_date, matched_name, cust_record, dong_xe.strip().upper(), so_luong, p_k, "AI_GEMINI_DIRECT")
@@ -927,6 +1390,26 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
     + Camera 360 rời cắm giắc zin màn hình gốc theo xe (giữ zin 100%): Camera 360 Owin (8.5tr - 16.1tr, mắt cam Sony ban đêm siêu nét, bản cho VF3 không CarPlay 8.5tr, có CarPlay 9.5tr), DCT T1/T2 Pro (12.8tr - 15.8tr).
     + Màn hình Android liền Cam 360 độ: Winca S170+ (10.5tr - 11.8tr - bán chạy), Gotech GC360 / GT2K 360 (12.9tr - 19.9tr).
   - ⛔ ĐẶC BIỆT: Gara ĐÃ NGỪNG KINH DOANH dòng Camera 360 TexPad!
+
+╔══════════════════════════════════════════════════════════════════════╗
+║        CÁC CẤM CHẾ BẢO VỆ DỮ LIỆU BẮT BUỘC DÀNH CHO GEMINI (SẮT ĐÁ)   ║
+╚══════════════════════════════════════════════════════════════════════╝
+1. NGUYÊN TẮC BẢO VỆ DỮ LIỆU TUYỆT ĐỐI - HỎI TRƯỚC LÀM SAU:
+   - Mọi hành vi làm thay đổi dữ liệu (Thêm đơn đèn, Sửa đơn hàng, Xóa đơn hàng, Cập nhật kho/giá, Đổi thông tin khách hàng, Ghi sổ thu chi) BẮT BUỘC PHẢI QUA BƯỚC HỎI XÁC NHẬN.
+   - Khi gọi các tool thao tác dữ liệu (`len_don_bao_cao_den_nhanh`, `sua_don_hang`, `xoa_don_hang`, `cap_nhat_kho_hang`, `cap_nhat_thong_tin_khach_hang`, `ghi_so_thu_chi`), hệ thống sẽ trả về phiếu xác nhận.
+   - TUYỆT ĐỐI KHÔNG tự ý báo "đã cập nhật thành công" hay "đã lưu" khi người dùng chưa bấm nút [✅ OK / Lưu] hoặc nhắn 'ok'!
+2. CẤM XÓA HAY GHI ĐÈ HÀNG LOẠT DỮ LIỆU LỊCH SỬ:
+   - Dữ liệu bán hàng, doanh thu đèn và sổ thu chi là tài sản kế toán quan trọng nhất của gara. Tuyệt đối cấm xóa hay ghi đè toàn bộ dữ liệu.
+   - Chỉ được sửa hoặc xóa đúng 1 đơn hàng cụ thể khi người dùng có chỉ định rõ ràng mã đơn (ví dụ: #750).
+3. CẤM BỊA ĐẶT THÔNG TIN / GIÁ CẢ / NGÀY THÁNG (NĂM 2026):
+   - Thời gian thực tế hiện tại là năm 2026 (Hôm nay: 29/10/2026).
+   - Khi câu lệnh có ngày tháng (ví dụ: "vào ngày 13/8/2026", "ngày 13/08", "hôm qua"), BẮT BUỘC PHẢI TRUYỀN ĐÚNG NGÀY ĐÓ vào tham số `ngay` (ví dụ: 2026-08-13). TUYỆT ĐỐI CẤM BỎ QUÊN NGÀY ĐỂ MẶC ĐỊNH LÀ HÔM NAY!
+   - Không được tự ý cho giá nếu hệ thống chưa có. Phải dừng lại hỏi người dùng.
+   - Không được tự ý bịa tên khách nếu xe mới chưa có lịch sử. Phải dừng lại hỏi người dùng.
+4. PHÂN BIỆT RÕ RÀNG GIỮA "TẠO ĐƠN ĐÈN" VÀ "BÁO CÁO DOANH THU":
+   - Khi câu nói có từ hành động: "lắp", "gắn", "thay", "độ", "lên cặp", "nhập đơn", "vào đơn", kể cả có kèm ngày tháng năm (ví dụ: "lắp f1 turbo s cho xe city 63a36001 vào ngày 13/8/2026"): ĐÂY LÀ HÀNH ĐỘNG TẠO ĐƠN HÀNG! PHẢI GỌI `len_don_bao_cao_den_nhanh`.
+   - TUYỆT ĐỐI CẤM gọi `thong_ke_doanh_thu` cho những câu lệnh tạo đơn này.
+   - Tool `thong_ke_doanh_thu` CHỈ ĐƯỢC GỌI khi người dùng rõ ràng HỎI XEM BÁO CÁO: "doanh thu tháng...", "thống kê tháng...", "hôm nay bán được bao nhiêu"...
 
 ╔══════════════════════════════════════════════════════════════════════╗
 ║        QUY TẮC BẢO VỆ GIÁ CẢ & CẤM SUY DIỄN THÔNG TIN (SẮT ĐÁ)        ║
@@ -1236,6 +1719,7 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
     mà không cần bất kỳ thư viện bên ngoài nào.
     """
     global LAST_KEY_ERROR
+    set_current_session(session_id, user_message=message)
     api_key = DEFAULT_API_KEY
     if not api_key:
         return None
@@ -1297,6 +1781,34 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
                             tool_result = f"Lỗi thực thi công cụ {fn_name}: {e_fn}"
                     else:
                         tool_result = f"Không tìm thấy công cụ {fn_name}"
+
+                    # ═════════════════════════════════════════════════════════════════
+                    # CẤM CHẾ BẢO VỆ DỮ LIỆU: BẮT BUỘC HỎI XÁC NHẬN - CHƯA ĐƯỢC PHÉP LƯU
+                    # Nếu công cụ trả về phiếu xác nhận (bắt đầu bằng ❓ hoặc ⚠️):
+                    # Trả về NGAY LẬP TỨC cho người dùng với type 'clarify' kèm nút [✅ OK / Lưu] | [🛑 Hủy]
+                    # TUYỆT ĐỐI KHÔNG gửi vòng 2 về Gemini để tránh Gemini tự tiện báo "đã lưu"
+                    # hoặc tự tiện xóa mất các nút hành động xác nhận!
+                    # ═════════════════════════════════════════════════════════════════
+                    if isinstance(tool_result, str) and (tool_result.startswith("❓") or tool_result.startswith("⚠️")):
+                        history.append(content)
+                        history.append({"role": "model", "parts": [{"text": tool_result}]})
+                        LAST_KEY_ERROR = None
+                        return {
+                            "type": "clarify",
+                            "module": "gemini_assistant",
+                            "message": tool_result
+                        }
+
+                    if isinstance(tool_result, str) and (tool_result.startswith("MISSING_PRICE:") or tool_result.startswith("MISSING_INFO:")):
+                        clean_msg = tool_result.split(":", 1)[1].strip()
+                        history.append(content)
+                        history.append({"role": "model", "parts": [{"text": clean_msg}]})
+                        LAST_KEY_ERROR = None
+                        return {
+                            "type": "clarify",
+                            "module": "gemini_assistant",
+                            "message": f"⚠️ {clean_msg}"
+                        }
 
                     # Gửi kết quả Tool về lại Gemini để tổng hợp câu trả lời hoàn chỉnh
                     history.append(content)
@@ -1386,6 +1898,7 @@ def ask_gemini(message: str, session_id: str = "default_user") -> dict:
     Hỗ trợ cả Google GenAI SDK (nếu có) lẫn Direct REST API (zero-dependency).
     """
     global LAST_KEY_ERROR
+    set_current_session(session_id, user_message=message)
 
     # 1. Thử qua Google GenAI SDK nếu có
     if GENAI_AVAILABLE:

@@ -90,6 +90,14 @@ def extract_date(text):
         clean = re.sub(r'\b(hom qua|hôm qua)\b', ' ', clean, flags=re.IGNORECASE)
         return d_str, clean
 
+    # ISO YYYY-MM-DD
+    m_iso = re.search(r'\b(202\d)[/-]([0-1]?\d)[/-]([0-3]?\d)\b', text)
+    if m_iso:
+        y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+        if 1 <= m <= 12 and 1 <= d <= 31:
+            clean = clean[:m_iso.start()] + ' ' + clean[m_iso.end():]
+            return f"{y:04d}-{m:02d}-{d:02d}", clean
+
     # Ngày DD/MM/YYYY hoặc DD/MM/YY hoặc DD/MM hoặc DD-MM-YYYY (hỗ trợ cả 'ngày13/08' viết dính liền không dấu cách)
     m = re.search(r'(?:vào\s+|vao\s+)?(?:ngay|ngày)?\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b', text, re.IGNORECASE)
     if m:
@@ -1012,23 +1020,34 @@ def execute_confirmed_action(action_type, payload, session_id="default_user"):
 
     elif action_type == 'admin_edit_order':
         kwargs = payload.get('kwargs', {})
+        kwargs['confirmed'] = True
         if gemini_engine:
             res_txt = gemini_engine.sua_don_hang(**kwargs)
-            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN SỬA ĐƠN THÀNH CÔNG!**\n\n{res_txt}"}
+            return {"type": "success", "message": res_txt}
         return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     elif action_type == 'admin_delete_order':
         order_id = payload.get('order_id')
+        loai_don = payload.get('loai_don', 'auto')
         if gemini_engine:
-            res_txt = gemini_engine.xoa_don_hang(order_id)
-            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN XÓA ĐƠN THÀNH CÔNG!**\n\n{res_txt}"}
+            res_txt = gemini_engine.xoa_don_hang(order_id, loai_don=loai_don, confirmed=True)
+            return {"type": "success", "message": res_txt}
         return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     elif action_type == 'admin_update_stock':
         kwargs = payload.get('kwargs', {})
+        kwargs['confirmed'] = True
         if gemini_engine:
             res_txt = gemini_engine.cap_nhat_kho_hang(**kwargs)
-            return {"type": "success", "message": f"✅ **ĐÃ XÁC NHẬN CẬP NHẬT KHO THÀNH CÔNG!**\n\n{res_txt}"}
+            return {"type": "success", "message": res_txt}
+        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+
+    elif action_type == 'admin_update_customer':
+        kwargs = payload.get('kwargs', {})
+        kwargs['confirmed'] = True
+        if gemini_engine:
+            res_txt = gemini_engine.cap_nhat_thong_tin_khach_hang(**kwargs)
+            return {"type": "success", "message": res_txt}
         return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     return {"type": "error", "message": "Không nhận diện được hành động cần thực thi."}
@@ -5477,6 +5496,9 @@ def process_ai_command(user_text, session_id="default_user"):
     clean = remove_accents(raw).lower()
 
     # 1. XỬ LÝ PHIÊN XÁC NHẬN HOẶC WIZARD ĐANG HOẠT ĐỘNG
+    if session_id not in WIZARD_SESSIONS and 'default_user' in WIZARD_SESSIONS:
+        WIZARD_SESSIONS[session_id] = WIZARD_SESSIONS['default_user']
+
     if session_id in WIZARD_SESSIONS:
         # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
         is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|sua gia|doi gia|bao gia)\b', clean))
