@@ -335,6 +335,34 @@
         
     </header>
 
+    <!-- TRUNG TÂM AN TOÀN & SAO LƯU DỮ LIỆU GARA -->
+    <div class="backup-control-panel mb-4 p-3 rounded-4 shadow-sm" style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.25); backdrop-filter: blur(12px);">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-2 rounded-3 text-center" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-shield-lock-fill fs-4"></i>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2">
+                        <h6 class="mb-0 fw-bold text-white">TRUNG TÂM BẢO VỆ & SAO LƯU DỮ LIỆU GARA</h6>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 px-2 py-0" style="font-size: 0.72rem;">An Toàn 100%</span>
+                    </div>
+                    <small class="text-white-50">Kho Hàng (2.780+ SP) • Sổ Thu Chi • Doanh Thu Đèn • Tri Thức AI</small>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="/api/backup/download" class="btn btn-outline-info btn-sm px-3 py-2 rounded-3 fw-bold shadow-sm d-flex align-items-center gap-2" style="border-width: 1.5px;">
+                    <i class="bi bi-cloud-arrow-down-fill fs-6"></i>
+                    <span>Sao Lưu Toàn Bộ Dữ Liệu (.zip)</span>
+                </a>
+                <button type="button" class="btn btn-primary btn-sm px-3 py-2 rounded-3 fw-bold shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#modalRestoreData">
+                    <i class="bi bi-cloud-arrow-up-fill fs-6"></i>
+                    <span>Nạp Lại Dữ Liệu (.bak / .zip / .db)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- App Cards Grid (Tự Động Render Theo Cấu Hình) -->
     <div class="apps-grid">
 
@@ -481,6 +509,114 @@
         </div>
     </div>
 </div>
+
+
+<!-- Modal Nạp Lại Dữ Liệu -->
+<div class="modal fade" id="modalRestoreData" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="background: #111827; border: 1px solid rgba(255, 255, 255, 0.15); color: #f8fafc;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2">
+                    <i class="bi bi-cloud-arrow-up-fill text-primary"></i>
+                    Nạp Lại & Đồng Bộ Dữ Liệu Gara
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formRestoreData" onsubmit="submitRestoreData(event)" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="alert alert-info border-info d-flex align-items-start gap-2 mb-3" style="background: rgba(14, 165, 233, 0.1); color: #7dd3fc;">
+                        <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+                        <div class="small">
+                            <strong>Hệ thống tự động sao lưu an toàn 100%:</strong> Trước khi nạp bất kỳ dữ liệu nào, hệ thống sẽ tự động tạo một bản sao lưu dự phòng (Snapshot) của toàn bộ dữ liệu hiện tại. Dữ liệu cũ của anh không bao giờ bị mất!
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-white small">Chọn file dữ liệu cần nạp:</label>
+                        <input type="file" name="backup_file" id="restoreFileInput" class="form-control" accept=".bak,.zip,.db" required onchange="handleFileSelect(this)">
+                        <div class="form-text text-white-50 small mt-2">
+                            <strong>Các định dạng được hỗ trợ:</strong>
+                            <br>• <strong>File .bak VPOS</strong> (như file <code>vpos-vpos-data-...auto.bak</code>): Tự động cập nhật chuẩn xác giá bán, giá vốn, tồn kho, khách hàng và hóa đơn vào phần mềm bán hàng.
+                            <br>• <strong>File .zip sao lưu</strong>: Khôi phục toàn bộ cả 4 phân hệ dữ liệu.
+                            <br>• <strong>File .db SQLite</strong>: <code>tiem_lap_do.db</code>, <code>finance.db</code> (Thu Chi), <code>doanhthu_den.db</code> (Doanh Thu Đèn).
+                        </div>
+                    </div>
+
+                    <div id="restorePreviewArea" style="display: none; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);" class="p-3 rounded-3 mb-3">
+                        <div class="small text-white-50 mb-1">Thông tin file được chọn:</div>
+                        <div class="fw-bold text-info" id="restoreFileName"></div>
+                        <div class="small text-white-50" id="restoreFileSize"></div>
+                    </div>
+
+                    <div class="alert alert-warning border-warning d-flex align-items-center gap-2 py-2 mb-0" style="background: rgba(234, 179, 8, 0.1); color: #fde047;">
+                        <i class="bi bi-shield-check fs-5"></i>
+                        <span class="small">Lịch sử thu chi và doanh thu đèn luôn được bảo vệ an toàn tối đa.</span>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4" id="btnSubmitRestore">
+                        <i class="bi bi-check-circle-fill me-1"></i> Bắt Đầu Nạp Dữ Liệu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleFileSelect(input) {
+        const file = input.files[0];
+        const preview = document.getElementById('restorePreviewArea');
+        if (file) {
+            document.getElementById('restoreFileName').innerText = file.name;
+            document.getElementById('restoreFileSize').innerText = 'Kích thước: ' + (file.size / 1024 / 1024).toFixed(2) + ' MB';
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    async function submitRestoreData(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitRestore');
+        const input = document.getElementById('restoreFileInput');
+        if (!input.files || !input.files[0]) {
+            alert('Vui lòng chọn file dữ liệu!');
+            return;
+        }
+
+        if (!confirm('Hệ thống sẽ tạo bản sao lưu snapshot tự động và bắt đầu nạp dữ liệu từ file này.\nBạn có chắc chắn muốn thực hiện không?')) {
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang nạp dữ liệu...';
+
+        const form = document.getElementById('formRestoreData');
+        const formData = new FormData(form);
+
+        try {
+            const res = await fetch('/api/backup/restore', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('🎉 ' + data.message);
+                window.location.reload();
+            } else {
+                alert('❌ Lỗi: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Bắt Đầu Nạp Dữ Liệu';
+            }
+        } catch (err) {
+            alert('❌ Lỗi kết nối khi nạp dữ liệu: ' + err);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Bắt Đầu Nạp Dữ Liệu';
+        }
+    }
+</script>
 
 <!-- Footer -->
 <footer class="hub-footer">

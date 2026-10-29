@@ -29,18 +29,18 @@ DB_BANHANG = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
 DB_DEN = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
 DB_THUCHI = os.path.join(BASE_DIR, 'app_thuchi', 'finance.db')
 
-# Danh mục nhận diện tên đèn chuẩn hóa (TUYỆT ĐỐI KHÔNG TỰ BỊA GIÁ MẶC ĐỊNH)
+# Danh mục nhận diện tên đèn chuẩn hóa (Tất cả giá lấy động 100% từ kho dữ liệu tiem_lap_do.db)
 LAMP_CATALOG = [
     (r'\bv20\s*base\b', 'V20 BASE', 0),
     (r'\bv20\s*ultra\b|\bv20l\b|\bv20\b', 'BI LED V20', 0),
-    (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'S3 PRO', 0),
-    (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'S3', 0),
-    (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'S6 PRO', 0),
-    (r'\b(?:xlight|naoevo)?\s*s6\b|\bs6\b', 'S6', 0),
-    (r'\b(?:xlight|naoevo)?\s*s8\s*pro\b|\bs8\s*pro\b', 'S8 PRO', 0),
-    (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'S8', 0),
-    (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'S9 PRO', 0),
-    (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'S9', 0),
+    (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'XLIGHT S3 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'NAOEVO S3', 0),
+    (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'NAOEVO S6 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s6\b|\bs6\b', 'NAOEVO S6', 0),
+    (r'\b(?:xlight|naoevo)?\s*s8\s*pro\b|\bs8\s*pro\b', 'NAOEVO S8 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'NAOEVO S8', 0),
+    (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'NAOEVO S9 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'NAOEVO S9', 0),
     (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 0),
     (r'\bf10\s*turbo\b', 'F10 TURBO', 0),
     (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 0),
@@ -58,6 +58,7 @@ LAMP_CATALOG = [
     (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 0),
     (r'\bcb150\b', 'CB150', 0),
 ]
+
 CONFIG_FILE = os.path.join(BASE_DIR, 'gemini_config.json')
 
 def load_gemini_config():
@@ -302,27 +303,16 @@ def cap_nhat_kho_hang(
     rows = c.fetchall()
 
     if not rows:
-        # Thử tìm kiếm theo tokens thông minh (hỗ trợ 'F10 New 2.0' khớp 'Bi gầm F10 2.0 NEW')
-        raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', kw.upper()) if t]
-        meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA']]
-        if meaningful_tokens:
-            clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful_tokens])
-            params = [f"%{t}%" for t in meaningful_tokens]
-            c.execute(f"SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE {clauses} LIMIT 5", params)
-            rows = c.fetchall()
+        try:
+            from ai_assistant import search_product_in_catalog
+            prods = search_product_in_catalog(kw)
+            if prods:
+                tp = prods[0]
+                rows = [(tp['id'], tp['code'], tp['name'], tp['price'], tp['cost_price'], tp['stock'], tp['warranty_months'])]
+        except Exception:
+            pass
 
     if not rows:
-        # Nếu kho hàng phụ kiện không có sản phẩm này nhưng người dùng đang cập nhật giá (ví dụ đèn hoặc dịch vụ):
-        # Tự động ghi nhớ vào bộ não tri thức gara_memory để không bao giờ bị báo "Không tìm thấy"!
-        if gia_ban_moi > 0:
-            conn.close()
-            try:
-                import knowledge_base
-                p_val = gia_ban_moi if gia_ban_moi > 10000 else gia_ban_moi * 1000
-                res_learn = knowledge_base.analyze_and_learn(f"sửa lại giá {kw} thành {int(p_val)}")
-                return res_learn.get("message", f"Đã ghi nhận giá mới cho {kw}: {p_val:,.0f} đ vào bộ não gara.")
-            except Exception as e:
-                return f"Đã cập nhật giá mới {gia_ban_moi:,.0f} đ cho {kw}."
         conn.close()
         return f"⚠️ Không tìm thấy sản phẩm nào khớp với từ khóa **'{kw}'** trong kho hàng."
 
@@ -363,16 +353,6 @@ def cap_nhat_kho_hang(
     c.execute(f"UPDATE products SET {', '.join(fields)} WHERE id=?", vals)
     conn.commit()
     conn.close()
-
-    # Đồng bộ giá mới vào bộ não tri thức gara_memory
-    if gia_ban_moi > 0:
-        try:
-            import knowledge_base
-            knowledge_base.analyze_and_learn(f"sửa lại giá {name} thành {int(p_val)}")
-            if kw.upper() != name.upper():
-                knowledge_base.analyze_and_learn(f"sửa lại giá {kw} thành {int(p_val)}")
-        except Exception:
-            pass
 
     return (
         f"📦 **ĐÃ CẬP NHẬT KHO HÀNG THÀNH CÔNG!**\n"
@@ -559,6 +539,15 @@ def tra_cuu_san_pham_kho_hang(tu_khoa: str) -> str:
     conn.close()
 
     if not rows:
+        try:
+            from ai_assistant import search_product_in_catalog
+            prods = search_product_in_catalog(tu_khoa)
+            if prods:
+                rows = [(p['code'], p['name'], '', p['price'], p['cost_price'], p['stock'], p['warranty_months']) for p in prods[:6]]
+        except Exception:
+            pass
+
+    if not rows:
         return f"📦 Không tìm thấy sản phẩm nào khớp với **'{tu_khoa}'** trong kho."
 
     res = f"📦 **THÔNG TIN SẢN PHẨM & TỒN KHO CHO '{tu_khoa}':**\n"
@@ -735,44 +724,31 @@ def len_don_bao_cao_den_nhanh(
     if not os.path.exists(DB_DEN):
         return "⚠️ Không tìm thấy cơ sở dữ liệu Báo Cáo Đèn."
 
-    # 1. Tự động lấy giá niêm yết nếu giá <= 0
+    # 1. Tự động lấy giá chuẩn xác từ kho hàng tiem_lap_do.db hoặc lịch sử gara
     p_k = int(gia_tien_k / 1000) if gia_tien_k > 50000 else int(gia_tien_k)
     matched_name = ten_den.strip().upper()
     is_default_price = False
 
-    for pat, cname, dprice in LAMP_CATALOG:
+    for pat, cname, _ in LAMP_CATALOG:
         if re.search(pat, ten_den, re.IGNORECASE):
             matched_name = cname
             break
 
-    # Tra cứu giá từ tri thức gara_memory hoặc kho hàng thực tế
     if p_k <= 0:
         try:
             from ai_assistant import get_lamp_price_from_memory
             mem_price = get_lamp_price_from_memory(matched_name or ten_den)
             if mem_price > 0:
                 p_k = mem_price
+                is_default_price = True
         except Exception:
             pass
 
-    if p_k <= 0:
-        try:
-            import sqlite3
-            db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
-            if os.path.exists(db_p):
-                c_p = sqlite3.connect(db_p).cursor()
-                c_p.execute("SELECT price FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{matched_name}%",))
-                row_p = c_p.fetchone()
-                if row_p and row_p[0] and row_p[0] > 0:
-                    p_k = int(row_p[0] / 1000)
-        except Exception:
-            pass
-
-    # NẾU VẪN KHÔNG CÓ GIÁ: BẮT BUỘC DỪNG LẠI HỎI NGƯỜI DÙNG, TUYỆT ĐỐI KHÔNG TỰ BỊA GIÁ!
+    # Nếu vẫn không có giá trong kho và lịch sử, BẮT BUỘC DỪNG LẠI HỎI GIÁ NGƯỜI DÙNG!
     if p_k <= 0:
         return (
-            f"MISSING_PRICE: Sản phẩm '{matched_name}' chưa có thông tin giá niêm yết trong hệ thống gara.\n"
-            f"👉 Vui lòng hỏi người dùng giá bán thực tế của sản phẩm '{matched_name}' trước khi lên đơn!"
+            f"MISSING_PRICE: Sản phẩm '{matched_name or ten_den}' chưa có giá trong hệ thống dữ liệu gara.\n"
+            f"👉 Hãy dừng lại và hỏi người dùng mức giá thực tế cho sản phẩm này, tuyệt đối không tự ý cho giá!"
         )
 
     # 2. Tự động tra cứu khách hàng và xe từ biển số hoặc SĐT
@@ -941,22 +917,48 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
    - ⚠️ LƯU Ý BẢO VỆ: Nếu người dùng CHỈ gõ tên đèn để hỏi giá hoặc tư vấn (như "f10", "f10 turbo", "đèn gầm"), TUYỆT ĐỐI KHÔNG LÊN ĐƠN, mà hãy trả lời tư vấn & báo giá chi tiết!
 
 ╔══════════════════════════════════════════════════════════════════════╗
+║               KIẾN THỨC NGHIỆP VỤ & BÁO GIÁ GARA CHÍNH HÃNG          ║
+╚══════════════════════════════════════════════════════════════════════╝
+• CAMERA 360 ĐỘ:
+  - Phân loại rõ ràng:
+    + Camera 360 rời cắm giắc zin màn hình gốc theo xe (giữ zin 100%): Camera 360 Owin (8.5tr - 16.1tr, mắt cam Sony ban đêm siêu nét, bản cho VF3 không CarPlay 8.5tr, có CarPlay 9.5tr), DCT T1/T2 Pro (12.8tr - 15.8tr).
+    + Màn hình Android liền Cam 360 độ: Winca S170+ (10.5tr - 11.8tr - bán chạy), Gotech GC360 / GT2K 360 (12.9tr - 19.9tr).
+  - ⛔ ĐẶC BIỆT: Gara ĐÃ NGỪNG KINH DOANH dòng Camera 360 TexPad!
+
+╔══════════════════════════════════════════════════════════════════════╗
 ║        QUY TẮC BẢO VỆ GIÁ CẢ & CẤM SUY DIỄN THÔNG TIN (SẮT ĐÁ)        ║
 ╚══════════════════════════════════════════════════════════════════════╝
 1. TUYỆT ĐỐI CẤM TỰ TIỆN CHO GIÁ HOẶC BỊA ĐẶT GIÁ SẢN PHẨM:
    - Thời gian thực tế hiện tại của hệ thống gara là năm 2026 (Hôm nay: 29/10/2026).
-   - Khi người dùng ra lệnh lên đơn / nhập đơn đèn mà không nói giá (ví dụ "nhập đơn f10 new 2.0 63A18730"): Bạn CHỈ CẦN gọi tool `len_don_bao_cao_den_nhanh`. Tool sẽ TỰ ĐỘNG tra cứu giá bán từ lịch sử đơn hàng thực tế của gara, kho hàng và tri thức gara, đồng thời TỰ ĐỘNG tra cứu khách hàng và dòng xe từ biển số / SĐT.
-   - NẾU SẢN PHẨM HOÀN TOÀN CHƯA CÓ TRONG HỆ THỐNG VÀ NGƯỜI DÙNG CHƯA NÓI GIÁ:
+   - Khi người dùng hỏi giá hoặc tra cứu sản phẩm (như "f10 2.0", "f10 new", "m1"): Bạn PHẢI gọi tool `tra_cuu_san_pham_kho_hang` để lấy giá và tồn kho thực tế từ cơ sở dữ liệu `tiem_lap_do.db`. TUYỆT ĐỐI KHÔNG BỊA GIÁ 3.9tr hay bất kỳ con số nào!
+   - Khi người dùng ra lệnh lên đơn / nhập đơn đèn mà không nói giá (ví dụ "nhập đơn f10 new 2.0 63A18730"): Bạn CHỈ CẦN gọi tool `len_don_bao_cao_den_nhanh`. Tool sẽ TỰ ĐỘNG tra cứu giá bán từ kho hàng và lịch sử đơn hàng, đồng thời TỰ ĐỘNG tra cứu khách hàng và dòng xe từ biển số / SĐT.
+   - NẾU SẢN PHẨM HOÀN TOÀN CHƯA CÓ TRONG HỆ THỐNG VÀ NGƯỜI DÙNG CHƯA NÓI GIÁ (hoặc tool trả về MISSING_PRICE):
      BẮT BUỘC DỪNG LẠI VÀ HỎI NGƯỜI DÙNG: "Dạ sản phẩm [Tên sản phẩm] hiện chưa có thông tin giá niêm yết trong hệ thống dữ liệu của gara. Anh/chị cho em xin mức giá thực tế để em cập nhật nhé!"
-   - NẾU BIỂN SỐ XE HOẶC SĐT CHƯA CÓ TRONG HỒ SƠ VÀ NGƯỜI DÙNG CHƯA NÓI TÊN KHÁCH:
+   - NẾU BIỂN SỐ XE HOẶC SĐT CHƯA CÓ TRONG HỒ SƠ VÀ NGƯỜI DÙNG CHƯA NÓI TÊN KHÁCH (tool trả về MISSING_INFO):
      BẮT BUỘC DỪNG LẠI VÀ HỎI TÊN KHÁCH HÀNG VÀ DÒNG XE. Tuyệt đối không tự suy diễn hoặc bịa tên khách!
 2. TUYỆT ĐỐI CẤM TỰ SUY DIỄN THƯƠNG HIỆU & THÔNG SỐ KỸ THUẬT:
-   - Nếu người dùng chỉ nói "F10", cấm tự gắn "Aozoom F10" nếu người dùng không nói chữ Aozoom.
-   - Không tự bịa thông số kỹ thuật (bảo hành 3 năm, chống nước IP68, quay đêm Sony Starvis...) nếu cơ sở dữ liệu gara không có thông tin này.
+   - Nếu người dùng chỉ nói "F10", cấm tự gắn "Aozoom F10" nếu trong cơ sở dữ liệu hoặc yêu cầu người dùng không nói chữ Aozoom.
+   - Không tự bịa thông số kỹ thuật (bảo hành 3 năm, chống nước IP68...) nếu cơ sở dữ liệu gara không có thông tin này.
    - Tuyệt đối trung thực 100% với dữ liệu thực tế tại gara Trần Bình Auto.
 3. PHÂN BIỆT RÕ LỆNH SỬA GIÁ SẢN PHẨM VÀ SỬA ĐƠN HÀNG:
-   - Khi người dùng nói "sửa giá lại thành...", "sửa lại giá [tên sản phẩm] giá [tiền]": ĐÂY LÀ LỆNH CẬP NHẬT GIÁ SẢN PHẨM / TRI THỨC.
+   - Khi người dùng nói "sửa giá lại thành...", "sửa giá f10 new 2.0 thành 4500", "sửa lại giá [tên sản phẩm] giá [tiền]": ĐÂY LÀ LỆNH CẬP NHẬT GIÁ SẢN PHẨM TRONG KHO. Bạn PHẢI gọi `cap_nhat_kho_hang` để cập nhật giá mới!
    - TUYỆT ĐỐI KHÔNG HỎI MÃ ĐƠN HÀNG khi người dùng không nhắc đến chữ "đơn"!
+
+• PHIM CÁCH NHIỆT CHỐNG NÓNG:
+  - 3M Crystalline Mỹ (200 lớp quang học): Kính lái CR50BLK (5.7tr), trọn gói Sedan (10.8tr - 14.8tr), SUV (12.5tr - 17.6tr).
+  - 3M Ceramic NR / IR: Kính lái dán lẻ 2.6tr, trọn gói Sedan 7.9tr - 9.0tr.
+  - CeraMAX Diamond (Men gốm sinh học BH 15 năm): Kính lái CeraMAX 50 (3.3tr, xuyên sáng 59.7%, cắt IR 99.1%), trọn gói 9.5tr - 11.3tr.
+  - Ntech Hàn Quốc (Kính lái CeraMAX + Sườn Ntech): 5.6tr - 6.5tr (Bán chạy nhất).
+  - Đăng kiểm: Gara dùng kính lái CR50BLK và CeraMAX 50 đạt chuẩn >50% VLT, bao đăng kiểm 100%.
+
+• GÓI PHỤ KIỆN ĐỘ XE VINFAST VF3:
+  - Cam 360 Owin cắm giắc zin màn hình gốc: 8.5tr (không CarPlay) / 9.5tr (có CarPlay).
+  - Màn hình Android WINCA liền Cam 360: 10.5tr. Màn WINCA đơn: 7.5tr.
+  - Cốp trước EasyCop: 5.5tr. Cửa hít X-Win: 9.5tr.
+  - Bi gầm F10 Turbo / S3: 3.9tr - 4.5tr. Mặt calang đèn tròn V4: 16tr. Bọc ghế da Nappa: 9.5tr.
+
+• LƯU Ý ĐẶC THÙ:
+  - Xe VinFast VF5 gara KHÔNG nhận bọc trần nilong.
 
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                     PHONG CÁCH PHẢN HỒI                              ║

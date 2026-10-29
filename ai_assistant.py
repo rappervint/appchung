@@ -474,10 +474,10 @@ def clean_customer_name(name_raw, found_car=""):
 
 def get_lamp_price_from_memory(lamp_name: str) -> int:
     """
-    Tra cứu thông minh mức giá bán của sản phẩm/đèn từ 3 nguồn dữ liệu thực tế của gara:
-    1. Tri thức & Quy định đã học (gara_knowledge.db -> gara_memory)
-    2. Lịch sử đơn hàng thực tế đã lắp tại gara (app_baocao_den/doanhthu_den.db -> orders)
-    3. Kho hàng phụ kiện, đồ chơi (app_banhang/tiem_lap_do.db -> products)
+    Tra cứu chuẩn xác mức giá bán của sản phẩm từ CƠ SỞ DỮ LIỆU GARA:
+    Ưu tiên số 1: Bảng products trong app_banhang/tiem_lap_do.db (Kho hàng bán hàng thực tế)
+    Ưu tiên số 2: Bảng gara_memory trong gara_knowledge.db (Quy định chủ gara dạy)
+    Ưu tiên số 3: Lịch sử đơn hàng gần nhất (doanhthu_den.db hoặc tiem_lap_do.db)
     Tuyệt đối không tự suy diễn nếu không có trong dữ liệu!
     """
     if not lamp_name:
@@ -497,102 +497,114 @@ def get_lamp_price_from_memory(lamp_name: str) -> int:
         variants.extend([norm_upper.replace('BA MAU', '3 MAU'), norm_upper.replace('BA MAU', '(3 MAU)')])
     variants = list(dict.fromkeys(variants))
 
-    # 1. Tra cứu trong gara_memory (tri thức chủ gara đã dạy / quy định)
+    # 1. ƯU TIÊN SỐ 1: BẢNG PRODUCTS TRONG TIEM_LAP_DO.DB (KHO HÀNG CHÍNH THỐNG)
     try:
-        import knowledge_base
-        db_k = os.path.join(BASE_DIR, 'gara_knowledge.db')
-        if os.path.exists(db_k):
-            conn = sqlite3.connect(db_k, timeout=5)
-            c = conn.cursor()
+        for v in variants:
+            prods = search_product_in_catalog(v)
+            if prods:
+                p_val = prods[0].get('price', 0)
+                if p_val and p_val > 0:
+                    return int(round(p_val / 1000))
+    except Exception:
+        pass
+
+    # 2. ƯU TIÊN SỐ 2: GARA_MEMORY (TRI THỨC QUY ĐỊNH GARA)
+    if os.path.exists(DB_KNOWLEDGE):
+        try:
+            import knowledge_base
+            conn_k = sqlite3.connect(DB_KNOWLEDGE, timeout=5)
+            c_k = conn_k.cursor()
             for v in variants:
                 clean = knowledge_base.remove_accents(v).lower()
-                c.execute("""
+                c_k.execute("""
                     SELECT price_info FROM gara_memory 
                     WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
                     ORDER BY id DESC LIMIT 1
                 """, (clean, f"%{clean}%", f"%{clean}%"))
-                row = c.fetchone()
-                if row and row[0]:
-                    p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
+                row_k = c_k.fetchone()
+                if row_k and row_k[0]:
+                    p_str, p_num = knowledge_base.parse_vietnamese_currency(row_k[0])
                     if p_num > 0:
-                        conn.close()
-                        return int(p_num / 1000)
-            conn.close()
-    except Exception:
-        pass
+                        conn_k.close()
+                        return int(round(p_num / 1000))
+            conn_k.close()
+        except Exception:
+            pass
 
-    # 2. Tra cứu trong lịch sử đơn hàng Báo Cáo Doanh Thu Đèn (doanhthu_den.db)
-    # Lấy giá thực tế của đơn hàng gần nhất mà gara đã từng lắp cho sản phẩm này
-    try:
-        db_den = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
-        if os.path.exists(db_den):
+    # 3. ƯU TIÊN SỐ 3: LỊCH SỬ ĐƠN HÀNG DOANHTHU_DEN.DB
+    db_den = os.path.join(BASE_DIR, 'app_baocao_den', 'doanhthu_den.db')
+    if os.path.exists(db_den):
+        try:
             conn_d = sqlite3.connect(db_den, timeout=5)
             c_d = conn_d.cursor()
-
             for v in variants:
-                # 2.1 Thử tìm khớp trực tiếp LIKE
-                c_d.execute("""
-                    SELECT price_k FROM orders 
-                    WHERE UPPER(product_name) = ? OR UPPER(product_name) LIKE ?
-                    ORDER BY id DESC LIMIT 1
-                """, (v, f"%{v}%"))
+                c_d.execute("SELECT price_k FROM orders WHERE UPPER(product_name)=? OR UPPER(product_name) LIKE ? ORDER BY id DESC LIMIT 1", (v, f"%{v}%"))
                 row_d = c_d.fetchone()
                 if row_d and row_d[0] and row_d[0] > 0:
                     conn_d.close()
                     return int(row_d[0])
-
-                # 2.2 Thử tìm theo tokens (xử lý 2.0 vs 2,0 hoặc các từ đặc trưng)
-                raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', v) if t]
-                meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA', 'BO', 'CAP']]
-                if meaningful_tokens:
-                    clauses = " AND ".join(["UPPER(product_name) LIKE ?" for _ in meaningful_tokens])
-                    params = [f"%{t}%" for t in meaningful_tokens]
-                    c_d.execute(f"""
-                        SELECT price_k FROM orders 
-                        WHERE {clauses}
-                        ORDER BY id DESC LIMIT 1
-                    """, params)
-                    row_t = c_d.fetchone()
-                    if row_t and row_t[0] and row_t[0] > 0:
-                        conn_d.close()
-                        return int(row_t[0])
-
             conn_d.close()
-    except Exception:
-        pass
-
-    # 3. Tra cứu trong kho hàng phụ kiện products (tiem_lap_do.db)
-    try:
-        db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
-        if os.path.exists(db_p):
-            conn_p = sqlite3.connect(db_p, timeout=5)
-            c_p = conn_p.cursor()
-
-            for v in variants:
-                # 3.1 Thử tìm trực tiếp LIKE
-                c_p.execute("SELECT price FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{v}%",))
-                row_p = c_p.fetchone()
-                if row_p and row_p[0] and row_p[0] > 0:
-                    conn_p.close()
-                    return int(row_p[0] / 1000)
-
-                # 3.2 Thử tìm theo tokens
-                raw_tokens = [t for t in re.split(r'[\s\.\,\-]+', v) if t]
-                meaningful_tokens = [t for t in raw_tokens if t not in ['BI', 'DEN', 'LED', 'GAM', 'PHA', 'BO', 'CAP', 'CAMERA', 'CAM']]
-                if meaningful_tokens:
-                    clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful_tokens])
-                    params = [f"%{t}%" for t in meaningful_tokens]
-                    c_p.execute(f"SELECT price FROM products WHERE {clauses} ORDER BY id DESC LIMIT 1", params)
-                    row_tp = c_p.fetchone()
-                    if row_tp and row_tp[0] and row_tp[0] > 0:
-                        conn_p.close()
-                        return int(row_tp[0] / 1000)
-
-            conn_p.close()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     return 0
+
+
+def search_product_in_catalog(query: str):
+    """
+    Tra cứu sản phẩm thông minh trong kho hàng (app_banhang/tiem_lap_do.db):
+    1. Tìm chính xác theo mã sản phẩm hoặc tên sản phẩm
+    2. Tìm kiếm LIKE theo cụm từ
+    3. Tìm kiếm theo tokens đặc trưng (giữ nguyên '2.0', 'v2', '360', '4k', bỏ qua từ đệm như 'bi', 'đèn', 'led', 'gầm')
+    """
+    if not query or not query.strip():
+        return []
+        
+    db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
+    if not os.path.exists(db_p):
+        return []
+        
+    conn = sqlite3.connect(db_p, timeout=5)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    q = query.strip()
+    
+    # 1. Tìm chính xác
+    c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE UPPER(code)=UPPER(?) OR UPPER(name)=UPPER(?)", (q, q))
+    rows = c.fetchall()
+    if rows:
+        conn.close()
+        return [dict(r) for r in rows]
+        
+    # 2. Tìm LIKE
+    c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE UPPER(code) LIKE ? OR UPPER(name) LIKE ?", (f"%{q}%", f"%{q}%"))
+    rows = c.fetchall()
+    if rows:
+        conn.close()
+        return [dict(r) for r in rows]
+        
+    # 3. Tìm theo tokens
+    raw_tokens = [t for t in re.split(r'[\s,]+', q.upper()) if t]
+    stop_words = {'BI', 'DEN', 'LED', 'GAM', 'PHA', 'BO', 'CAP', 'CHO', 'XE', 'GIA', 'SUA', 'LAI', 'THANH', 'DOI', 'CHINH', 'CAPNHAT'}
+    meaningful = [t for t in raw_tokens if t not in stop_words]
+    
+    if meaningful:
+        clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful])
+        params = [f"%{t}%" for t in meaningful]
+        # Ưu tiên sản phẩm có từ khóa đầu tiên ở gần đầu tên
+        c.execute(f"""
+            SELECT id, code, name, price, cost_price, stock, warranty_months 
+            FROM products 
+            WHERE {clauses}
+            ORDER BY (CASE WHEN UPPER(name) LIKE ? THEN 0 ELSE 1 END), id DESC
+        """, [f"%{meaningful[0]}%"] + params)
+        rows = c.fetchall()
+        if rows:
+            conn.close()
+            return [dict(r) for r in rows]
+
+    conn.close()
+    return []
 
 def lookup_customer_and_car_by_identifier(identifier: str):
     """
@@ -624,6 +636,42 @@ def lookup_customer_and_car_by_identifier(identifier: str):
             conn = sqlite3.connect(DB_BANHANG, timeout=5)
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
+
+            # 1.0 Tra cứu trong bảng customers (danh bạ khách hàng đồng bộ từ VPOS)
+            c_rows = []
+            if is_phone and phone_clean:
+                c.execute("""
+                    SELECT customer_code, customer_name, phone, phone2, address
+                    FROM customers
+                    WHERE phone LIKE ? OR phone2 LIKE ?
+                    LIMIT 1
+                """, (f"%{phone_clean}%", f"%{phone_clean}%"))
+                c_rows = c.fetchall()
+            elif clean_p and len(clean_p) >= 4:
+                c.execute("""
+                    SELECT customer_code, customer_name, phone, phone2, address
+                    FROM customers
+                    WHERE REPLACE(REPLACE(REPLACE(REPLACE(UPPER(customer_code), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                       OR REPLACE(REPLACE(REPLACE(REPLACE(UPPER(customer_name), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                    LIMIT 1
+                """, (f"%{clean_p}%", f"%{clean_p}%"))
+                c_rows = c.fetchall()
+
+            for cr in c_rows:
+                c_name = (cr['customer_name'] or '').strip()
+                c_plate = (cr['customer_code'] or '').strip()
+                c_phone = (cr['phone'] or cr['phone2'] or '').strip()
+                found_car = extract_car_from_text(c_name)
+                cleaned_name = clean_customer_name(c_name, found_car)
+                if cleaned_name or found_car:
+                    result["found"] = True
+                    result["customer_name"] = cleaned_name or c_name
+                    result["car_model"] = found_car
+                    result["phone"] = c_phone
+                    result["license_plate"] = c_plate if re.search(r'\d{2}[A-Z]', c_plate) else ident
+                    result["source"] = "customers_vpos"
+                    conn.close()
+                    return result
 
             rows = []
             if is_phone:
@@ -882,6 +930,46 @@ def commit_baocao_den_order(payload):
 
 def execute_confirmed_action(action_type, payload, session_id="default_user"):
     """Thực thi hành động sau khi người dùng đã xác nhận đồng ý"""
+    if action_type == 'update_product_price':
+        prod_id = payload.get('product_id')
+        new_price = payload.get('new_price', 0)
+        name = payload.get('name', '')
+        code = payload.get('code', '')
+        old_price = payload.get('old_price', 0)
+
+        conn_up = sqlite3.connect(DB_BANHANG)
+        c_up = conn_up.cursor()
+        c_up.execute("UPDATE products SET price = ? WHERE id = ?", (new_price, prod_id))
+        c_up.execute("SELECT stock FROM products WHERE id = ?", (prod_id,))
+        row_st = c_up.fetchone()
+        stock = row_st[0] if row_st else 0
+        conn_up.commit()
+        conn_up.close()
+
+        # Xóa các rule tri thức cũ có thể xung đột
+        try:
+            conn_k = sqlite3.connect(os.path.join(BASE_DIR, 'gara_knowledge.db'), timeout=5)
+            c_k = conn_k.cursor()
+            c_k.execute("DELETE FROM gara_memory WHERE clean_topic LIKE ? OR keywords LIKE ?", 
+                        (f"%{remove_accents(name).lower()}%", f"%{code.lower()}%"))
+            conn_k.commit()
+            conn_k.close()
+        except Exception:
+            pass
+
+        return {
+            "type": "success",
+            "message": (
+                f"✅ **ĐÃ CẬP NHẬT GIÁ THÀNH CÔNG VÀO PHẦN MỀM BÁN HÀNG!**\n"
+                f"─────────────────────────────────────────\n"
+                f"• 📦 **Sản phẩm:** **{name}** (Mã: `{code}`)\n"
+                f"• 💰 **Giá cũ:** {old_price:,.0f} đ ➔ **Giá mới: {new_price:,.0f} đ**\n"
+                f"• 📊 **Tồn kho hiện tại:** {stock}\n"
+                f"─────────────────────────────────────────\n"
+                f"👉 Mức giá mới đã có hiệu lực ngay lập tức trong toàn bộ phần mềm bán hàng và trợ lý AI!"
+            )
+        }
+
     if action_type == 'learn_knowledge':
         raw_text = payload.get('raw_text', '')
         if knowledge_base:
@@ -5007,6 +5095,62 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
         res = handle_wizard_step(raw, session_id)
         if res:
             return res
+
+    # ═════════════════════════════════════════════════════════════════════
+    # ═════════════════════════════════════════════════════════════════════
+    # 0.05. CẬP NHẬT / SỬA GIÁ SẢN PHẨM TRỰC TIẾP TRONG KHO (TIEM_LAP_DO.DB)
+    # LỆNH: "sửa giá f10 new 2.0 thành 4500", "sửa lại giá a510 giá 3tr5", "đổi giá..."
+    # ═════════════════════════════════════════════════════════════════════
+    is_price_edit_intent = (
+        any(k in clean for k in ['sua gia', 'sua lai gia', 'doi gia', 'cap nhat gia', 'chinh gia']) or         (any(k in clean for k in ['sua lai', 'doi lai', 'chinh lai', 'sua', 'doi', 'chinh', 'cap nhat']) and any(k in clean for k in ['thanh', 'la', 'gia', 'vnd', 'dong', 'k', 'tr', 'trieu', 'nghin', 'ngan']))
+    ) and not bool(re.search(r'\b(?:don|ma don|#\d+)\b', clean))
+
+    if is_price_edit_intent:
+        from knowledge_base import parse_vietnamese_currency
+        p_disp, p_val = parse_vietnamese_currency(raw)
+        if p_val > 0:
+            prod_txt = raw
+            for pat in [
+                r'^(?:sửa\s*(?:lại\s*)?giá|sửa\s*giá\s*lại|đổi\s*(?:lại\s*)?giá|đổi\s*giá\s*lại|chỉnh\s*(?:lại\s*)?giá|chỉnh\s*giá\s*lại|cập\s*nhật\s*(?:lại\s*)?giá|cập\s*nhật\s*giá\s*lại|sửa\s*lại|chỉnh\s*lại|cập\s*nhật\s*lại|đổi\s*lại|sửa|đổi|chỉnh|cập\s*nhật)\s*',
+            ]:
+                prod_txt = re.sub(pat, '', prod_txt, flags=re.IGNORECASE).strip()
+
+            for pat in [
+                r'\s+(?:thành|thanh|là|la|giá|gia|giá\s*bán|gia\s*ban)\s+.*$',
+                r'\s*[:=]\s*.*$',
+                r'\s+\d+(?:[.,]\d+)?\s*(?:tr|trieu|triệu|k|nghin|nghìn|vnd|đ|dong|đồng).*$',
+                r'\s+\d{3,7}\s*$',
+            ]:
+                prod_txt = re.sub(pat, '', prod_txt, flags=re.IGNORECASE).strip()
+
+            if prod_txt:
+                found_prods = search_product_in_catalog(prod_txt)
+                if found_prods:
+                    target_prod = found_prods[0]
+                    confirm_msg = (
+                        f"❓ **XÁC NHẬN CẬP NHẬT GIÁ SẢN PHẨM:**\n"
+                        f"─────────────────────────────────────────\n"
+                        f"• 📦 **Sản phẩm:** **{target_prod['name']}**\n"
+                        f"• 🏷️ **Mã sản phẩm:** `{target_prod['code']}`\n"
+                        f"• 💰 **Giá niêm yết hiện tại:** **{target_prod['price']:,.0f} đ**\n"
+                        f"• 🚀 **Mức giá cập nhật mới:** **{p_val:,.0f} đ**\n"
+                        f"• 📊 **Tồn kho hiện tại:** {target_prod['stock']}\n"
+                        f"─────────────────────────────────────────\n"
+                        f"👉 Anh có chắc chắn muốn lưu mức giá mới **{p_val:,.0f} đ** cho sản phẩm này vào hệ thống bán hàng không?\n\n"
+                        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'**, **'lưu'** để thực hiện | Bấm **[🛑 Hủy]** để bỏ qua)*"
+                    )
+                    WIZARD_SESSIONS[session_id] = {
+                        'flow': 'confirm_action',
+                        'action_type': 'update_product_price',
+                        'payload': {
+                            'product_id': target_prod['id'],
+                            'code': target_prod['code'],
+                            'name': target_prod['name'],
+                            'old_price': target_prod['price'],
+                            'new_price': p_val
+                        }
+                    }
+                    return {"type": "clarify", "message": confirm_msg}
 
     # ═════════════════════════════════════════════════════════════════════
     # 0.1. DẠY HỌC & GHI NHỚ TRI THỨC VÀO BỘ NÃO GARA (PERSISTENT MEMORY)

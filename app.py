@@ -10,6 +10,7 @@
 """
 
 import os
+import re
 import sys
 import json
 import socket
@@ -25,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 
 # Khởi tạo Flask Application chính
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
@@ -283,6 +284,55 @@ def api_ai_chat():
         return jsonify({
             'type': 'error',
             'message': f'Lỗi hệ thống trợ lý AI: {str(e)}'
+        }), 500
+
+# ═════════════════════════════════════════════════════════════════════
+# ── TRUNG TÂM SAO LƯU & NẠP LẠI DỮ LIỆU (BACKUP & RESTORE) ──
+# ═════════════════════════════════════════════════════════════════════
+@app.route('/api/backup/download', methods=['GET'])
+def api_backup_download():
+    """Tạo và tải về file Zip sao lưu toàn bộ 4 cơ sở dữ liệu của gara."""
+    try:
+        import backup_restore_manager
+        zip_path, zip_name = backup_restore_manager.create_full_backup_zip()
+        return send_file(zip_path, as_attachment=True, download_name=zip_name)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Lỗi tạo bản sao lưu: {str(e)}'
+        }), 500
+
+@app.route('/api/backup/restore', methods=['POST'])
+def api_backup_restore():
+    """Nạp lại dữ liệu từ file được tải lên (.bak VPOS, .zip, .db)."""
+    if 'backup_file' not in request.files:
+        return jsonify({'success': False, 'message': 'Vui lòng chọn file dữ liệu để nạp.'}), 400
+
+    file = request.files['backup_file']
+    if not file or file.filename == '':
+        return jsonify({'success': False, 'message': 'Chưa có file nào được chọn.'}), 400
+
+    try:
+        import backup_restore_manager
+        safe_fname = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename)
+        temp_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{safe_fname}"
+        temp_path = os.path.join(backup_restore_manager.BACKUP_DIR, temp_name)
+        file.save(temp_path)
+
+        res = backup_restore_manager.restore_uploaded_file(temp_path)
+
+        # Xóa file tạm
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
+
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Lỗi trong quá trình nạp dữ liệu: {str(e)}'
         }), 500
 
 application = app
