@@ -90,8 +90,8 @@ def extract_date(text):
         clean = re.sub(r'\b(hom qua|hôm qua)\b', ' ', clean, flags=re.IGNORECASE)
         return d_str, clean
 
-    # Ngày DD/MM/YYYY hoặc DD/MM/YY hoặc DD/MM hoặc DD-MM-YYYY
-    m = re.search(r'(?:vào\s+|vao\s+)?(?:ngay|ngày)?\s*\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b', text, re.IGNORECASE)
+    # Ngày DD/MM/YYYY hoặc DD/MM/YY hoặc DD/MM hoặc DD-MM-YYYY (hỗ trợ cả 'ngày13/08' viết dính liền không dấu cách)
+    m = re.search(r'(?:vào\s+|vao\s+)?(?:ngay|ngày)?\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b', text, re.IGNORECASE)
     if m:
         try:
             day = int(m.group(1))
@@ -5459,16 +5459,40 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
 
 
 def process_ai_command(user_text, session_id="default_user"):
-    """Bọc bộ xử lý lệnh để tự động duy trì lịch sử hội thoại liên tục cho Gemini và bảo toàn ngữ cảnh sản phẩm."""
+    """
+    BỘ ĐIỀU PHỐI AI TRUNG TÂM GARA:
+    1. Ưu tiên xử lý xác nhận wizard/bước phỏng vấn đang mở (OK / Lưu / Hủy).
+    2. Tự động nhận diện & nạp API Key Gemini mới nếu người dùng dán vào chat.
+    3. ƯU TIÊN TUYỆT ĐỐI GEMINI 3.5 FLASH (Google Generative AI):
+       - Hiểu ngôn ngữ tự nhiên, tiếng Việt khẩu ngữ, từ lóng, nói tắt, sai chính tả...
+       - Tự động gọi công cụ Function Calling (Lên đơn đèn, cập nhật kho, ghi sổ thu chi, thống kê...).
+       - Trả lời thông minh, chính xác, không ảo giác giá hay thương hiệu.
+    4. DỰ PHÒNG AN TOÀN (OFFLINE FAILOVER):
+       - Nếu Gemini tắt, mất mạng, hết quota hoặc lỗi model: tự động chuyển sang bộ máy quy tắc nội bộ (_process_ai_command_internal).
+    """
     if not user_text:
         return _process_ai_command_internal(user_text, session_id=session_id)
 
     raw = user_text.strip()
     clean = remove_accents(raw).lower()
 
-    # 1. BẢO VỆ NGỮ CẢNH HỘI THOẠI:
-    # Nếu người dùng nói "sửa giá lại thành...", "đổi giá thành...", "sửa lại thành..."
-    # mà không ghi tên sản phẩm, nhưng câu liền trước vừa tra cứu / nói về một sản phẩm (ví dụ A510):
+    # 1. XỬ LÝ PHIÊN XÁC NHẬN HOẶC WIZARD ĐANG HOẠT ĐỘNG
+    if session_id in WIZARD_SESSIONS:
+        # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
+        is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|sua gia|doi gia|bao gia)\b', clean))
+        if is_new_command_intent and clean not in ['ok', 'luu', 'huy', 'cancel', 'dung', 'co']:
+            del WIZARD_SESSIONS[session_id]
+        else:
+            w_res = handle_wizard_step(user_text, session_id)
+            if w_res:
+                return w_res
+
+    # 2. TỰ ĐỘNG NHẬN DIỆN VÀ LƯU API KEY GEMINI KHI DÁN TRỰC TIẾP
+    m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{40,65})\b', raw)
+    if m_key:
+        return parse_and_execute_admin_command(raw, clean, session_id)
+
+    # 3. BẢO VỆ NGỮ CẢNH HỘI THOẠI KHI SỬA GIÁ
     is_price_edit_intent = any(k in clean for k in ['sua gia', 'sua lai gia', 'doi gia', 'cap nhat gia', 'chinh gia']) or \
                            (any(k in clean for k in ['sua lai', 'doi lai', 'chinh lai']) and any(k in clean for k in ['thanh', 'la', 'gia', 'vnd', 'dong', 'k', 'tr']))
     has_order_indicator = bool(re.search(r'\b(?:don|don hang|ma don|#\d+)\b', clean))
@@ -5487,10 +5511,27 @@ def process_ai_command(user_text, session_id="default_user"):
                     raw = f"sửa lại giá {last_key} {raw}"
                 clean = remove_accents(raw).lower()
 
-    # 2. Thực thi xử lý câu lệnh
+    # 4. ƯU TIÊN TUYỆT ĐỐI: GEMINI 3.5 FLASH (Google Generative AI)
+    if GEMINI_AVAILABLE and gemini_engine:
+        cfg = gemini_engine.load_gemini_config()
+        if cfg.get('enabled', True) and cfg.get('api_key'):
+            try:
+                res_gemini = gemini_engine.ask_gemini(raw, session_id=session_id)
+                if res_gemini and isinstance(res_gemini, dict) and res_gemini.get('message'):
+                    detected_prod = detect_consulted_product(clean)
+                    if not detected_prod:
+                        res_clean = remove_accents(res_gemini['message']).lower()
+                        detected_prod = detect_consulted_product(res_clean)
+                    if detected_prod:
+                        LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
+                    return res_gemini
+            except Exception as e_gem:
+                print(f"[AIAssistant] Gemini gặp trục trặc, tự động chuyển về máy quy tắc nội bộ: {e_gem}")
+
+    # 5. BỘ DỰ PHÒNG NỘI BỘ (OFFLINE FAILOVER KHI MẤT MẠNG HOẶC CHƯA BẬT GEMINI)
     res = _process_ai_command_internal(raw, session_id=session_id)
 
-    # 3. Ghi nhớ sản phẩm vừa tra cứu / phản hồi vào bộ nhớ ngữ cảnh của session
+    # Ghi nhớ sản phẩm vừa tra cứu / phản hồi vào bộ nhớ ngữ cảnh của session
     detected_prod = detect_consulted_product(clean)
     if not detected_prod and res and isinstance(res, dict) and res.get('message'):
         res_clean = remove_accents(res['message']).lower()
@@ -5499,10 +5540,10 @@ def process_ai_command(user_text, session_id="default_user"):
     if detected_prod:
         LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
 
-    # 4. Lưu vào lịch sử hội thoại đa lượt của Gemini
+    # Lưu vào lịch sử hội thoại đa lượt của Gemini
     if res and isinstance(res, dict) and res.get('message') and gemini_engine:
         try:
             gemini_engine.append_to_history(session_id, user_text, res['message'])
-        except Exception as e:
+        except Exception:
             pass
     return res
