@@ -200,66 +200,7 @@ CATALOG_SPECS = {
         'warranty': '12 tháng chính hãng toàn quốc.',
         'keywords': ['vietmap m1', 'cam m1', 'camera m1', 'm1', 'speedmap m1']
     },
-    'f10_new': {
-        'clean_key': 'f10 new',
-        'formal_title': 'BI GẦM LED AOZOOM F10 NEW 2.0 (CHÍNH HÃNG)',
-        'topic': 'Bi Gầm LED Aozoom F10 New 2.0',
-        'default_price': '3.900.000 đ',
-        'specs_desc': 'Ánh sáng bám đường siêu mạnh, nhiệt màu 5500K trắng ấm bám đường, mặt cắt chống chói xe đối diện, chống nước IP68 tuyệt đối',
-        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
-        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
-        'keywords': ['f10 new 2.0', 'f10 new 20', 'f10 new', 'f10 2.0', 'f10 20', 'bi gam f10 new', 'den f10 new']
-    },
-    'f10_3mau': {
-        'clean_key': 'f10 ba mau',
-        'formal_title': 'BI GẦM LED AOZOOM F10 BA MÀU (3 CHẾ ĐỘ NHIỆT MÀU)',
-        'topic': 'Bi Gầm LED Aozoom F10 Ba Màu',
-        'default_price': '4.500.000 đ',
-        'specs_desc': '3 chế độ màu linh hoạt (3000K vàng đậm phá sương/mưa lớn, 4300K vàng nắng bám đường, 5500K trắng thời trang)',
-        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
-        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
-        'keywords': ['f10 ba mau', 'f10 3 mau', 'f10 pha suong', 'f10 3 che do', 'bi gam f10 3 mau']
-    },
-    'f10_turbo': {
-        'clean_key': 'f10 turbo',
-        'formal_title': 'BI GẦM LED AOZOOM F10 TURBO V2 (CÔNG SUẤT KHỦNG)',
-        'topic': 'Bi Gầm LED Aozoom F10 Turbo V2',
-        'default_price': '5.100.000 đ',
-        'specs_desc': 'Công suất khủng 65W có nhân LED trợ pha laser độc lập, chiếu xa vượt trội lên đến 800m',
-        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
-        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
-        'keywords': ['f10 turbo', 'f10 turbo v2', 'turbo v2', 'bi gam f10 turbo']
-    },
-    'f10_hyper': {
-        'clean_key': 'f10 hyper',
-        'formal_title': 'BI GẦM LED AOZOOM F10 HYPER 2.0 / PRO V2',
-        'topic': 'Bi Gầm LED Aozoom F10 Hyper 2.0',
-        'default_price': '5.500.000 đ',
-        'specs_desc': 'Dòng cao cấp nhất F10 Series, gom sáng cực đỉnh, đường cắt siêu nét, siêu bền',
-        'note': 'Bao trọn công lắp đặt giắc cắm zin, tặng kèm pat dưỡng zin theo từng dòng xe.',
-        'warranty': '3 năm (36 tháng) chính hãng đổi mới 1 đổi 1.',
-        'keywords': ['f10 hyper', 'f10 heyper', 'f10 pro v2', 'f10 pro', 'hyper 2.0']
-    },
-    'f10': {
-        'clean_key': 'f10',
-        'formal_title': 'BI GẦM LED AOZOOM F10 SERIES (CHÍNH HÃNG)',
-        'topic': 'Bi Gầm LED Aozoom F10',
-        'default_price': '3.900.000 đ',
-        'specs_desc': 'Ánh sáng bám đường siêu mạnh, mặt cắt thẳng chống chói xe đối diện, chống nước IP68 tuyệt đối',
-        'note': 'F10 New: 3.9tr | F10 3 Màu: 4.5tr | F10 Turbo: 5.1tr | F10 Hyper: 5.5tr.',
-        'warranty': '3 năm (36 tháng) chính hãng đổi mới, tặng dưỡng zin theo từng dòng xe.',
-        'keywords': ['f10', 'bi gam f10', 'den f10', 'aozoom f10']
-    },
-    's3': {
-        'clean_key': 's3',
-        'formal_title': 'BI GẦM LED NAOEVO S3',
-        'topic': 'Bi Gầm Naoevo S3',
-        'default_price': '1.500.000 đ',
-        'specs_desc': 'Bi gầm LED phân khúc giá rẻ ngon bổ rẻ, sáng gấp 3 lần bóng halogen zin',
-        'note': 'Bao công lắp đặt giắc cắm zin.',
-        'warranty': '12 tháng chính hãng.',
-        'keywords': ['s3', 'naoevo s3', 'bi gam s3', 'den s3']
-    },
+
     'san_5d': {
         'clean_key': 'san 5d',
         'formal_title': 'THẢM LÓT SÀN 5D / 6D Ô TÔ CAO CẤP',
@@ -550,18 +491,7 @@ def analyze_and_learn(raw_text: str) -> dict:
         conn.commit()
         conn.close()
 
-        # Đồng bộ cập nhật giá vào Kho Hàng nếu có sản phẩm tương ứng trong tiem_lap_do.db
-        try:
-            db_banhang = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
-            if os.path.exists(db_banhang) and price_num > 0:
-                conn_bh = sqlite3.connect(db_banhang)
-                c_bh = conn_bh.cursor()
-                c_bh.execute("UPDATE products SET price=? WHERE UPPER(name) LIKE ? OR UPPER(code) LIKE ?", 
-                             (price_num, f"%{clean_catalog_key.upper()}%", f"%{clean_catalog_key.upper()}%"))
-                conn_bh.commit()
-                conn_bh.close()
-        except Exception:
-            pass
+
 
         return {
             "type": "success",

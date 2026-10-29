@@ -907,7 +907,7 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
   - ⛔ ĐẶC BIỆT: Gara ĐÃ NGỪNG KINH DOANH dòng Camera 360 TexPad!
 
 • ĐÈN GẦM / BI GẦM NÂNG CẤP ÁNH SÁNG:
-  - Bi Gầm LED F10 Series (Chính hãng Aozoom - Bán chạy số 1):
+  - Bi Gầm LED F10 Series:
     + F10 New 2.0 (Tiêu chuẩn): 3.900.000 đ
     + F10 Ba Màu (3000K/4300K/5500K - Chuyên phá sương): 4.200.000 đ - 4.500.000 đ
     + F10 Turbo V2 (Công suất khủng có trợ pha): 5.100.000 đ - 6.000.000 đ
