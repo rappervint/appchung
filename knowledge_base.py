@@ -206,8 +206,14 @@ def is_learning_command(clean_text: str) -> bool:
     """Kiểm tra xem câu lệnh có phải là lệnh dạy học / ghi nhớ / sửa lại giá / quy định không"""
     clean = clean_text.strip().lower()
 
-    # BẢO VỆ: Nếu câu lệnh có mã đơn hàng cụ thể (#729, don 729), đây là sửa đơn hàng chứ không phải dạy học
+    # BẢO VỆ 1: Nếu câu lệnh có mã đơn hàng cụ thể (#729, don 729), đây là sửa đơn hàng chứ không phải dạy học
     if bool(re.search(r'\b(?:ma\s*don|don\s*#?\d+|#\d+)\b', clean)):
+        return False
+
+    # BẢO VỆ 2: Nếu là lệnh tạo đơn hàng (có biển số xe, SĐT, hoặc hành động lắp đặt đèn/đồ xe)
+    if bool(re.search(r'\b(\d{2}[a-z]{1,2}[\s\-]?[0-9]{3,5})\b', clean)) or \
+       bool(re.search(r'\b(0[35789]\d{8})\b', clean)) or \
+       (any(k in clean for k in ['lap', 'gan', 'thay', 'do', 'ban', 'len doi', 'len cap', 'vao cap', 'chot don', 'nhap don', 'muc cap']) and any(k in clean for k in ['den', 'bi', 'f10', 'titan', 'v20', 's3', 's6', 's8', 's9', 'm40', 'xe', 'cho xe'])):
         return False
 
     # Lệnh sửa giá / đổi giá / chỉnh giá / cập nhật giá sản phẩm
@@ -557,6 +563,7 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
     if has_order_action or has_lamp_install:
         return None
     clean_no_gia = clean.replace('gia', '').replace('bao nhieu', '').replace('nhieu tien', '').strip()
+    is_lamp_inquiry = any(k in clean for k in ['bi gam', 'den gam', 'bi led', 'f10', 'turbo', 'titan', 'naoevo', 'v20', 's3', 's6', 's8', 's9', 'm40'])
 
     conn = sqlite3.connect(DB_KNOWLEDGE)
     c = conn.cursor()
@@ -572,6 +579,8 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
 
     for r in rows:
         mem_id, topic, clean_topic, keywords_str, raw_content, formatted_reply = r
+        if is_lamp_inquiry and not any(k in clean_topic for k in ['den', 'bi', 'gam', 'f10', 'led', 'titan', 'turbo', 's3', 's6', 's8', 's9', 'v20', 'm40']):
+            continue
         score = 0
 
         # Khớp chính xác clean_topic

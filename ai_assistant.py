@@ -417,9 +417,9 @@ LAMP_CATALOG = [
     (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'S9', 0),
     # Dòng F10 Series
     (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 0),
-    (r'\bf10\s*turbo\b', 'F10 TURBO', 0),
-    (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 0),
-    (r'\bf10\s*new\s*2\.?0\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b', 'F10 NEW 2.0', 0),
+    (r'\bf10\s*turbo\s*v2\b|\bf10\s*turbo\b', 'F10 TURBO', 0),
+    (r'\bf10\s*hyper\s*2\.?0\b|\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 0),
+    (r'\bf10\s*new\s*2\.?0\b|\bf10\s*2\.?0\s*new\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b(?!\s*(?:turbo|pro|hyper|3|ba|heyper))', 'F10 NEW 2.0', 0),
     (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 0),
     # Dòng M Series
     (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 0),
@@ -504,9 +504,19 @@ def get_lamp_price_from_memory(lamp_name: str) -> int:
     # 1. ƯU TIÊN SỐ 1: BẢNG PRODUCTS TRONG TIEM_LAP_DO.DB (KHO HÀNG CHÍNH THỐNG)
     try:
         for v in variants:
-            prods = search_product_in_catalog(v)
+            prods = search_product_in_catalog(v, category_filter='ĐÈN LED')
+            if not prods:
+                prods = search_product_in_catalog(v)
             if prods:
-                p_val = prods[0].get('price', 0)
+                target_p = None
+                if len(v) <= 4:
+                    for pr in prods:
+                        if re.search(r'\b' + re.escape(v) + r'\b', pr['name'], re.IGNORECASE):
+                            target_p = pr
+                            break
+                if not target_p:
+                    target_p = prods[0]
+                p_val = target_p.get('price', 0)
                 if p_val and p_val > 0:
                     return int(round(p_val / 1000))
     except Exception:
@@ -554,11 +564,11 @@ def get_lamp_price_from_memory(lamp_name: str) -> int:
     return 0
 
 
-def search_product_in_catalog(query: str):
+def search_product_in_catalog(query: str, category_filter: str = ""):
     """
     Tra cứu sản phẩm thông minh trong kho hàng (app_banhang/tiem_lap_do.db):
     1. Tìm chính xác theo mã sản phẩm hoặc tên sản phẩm
-    2. Tìm kiếm LIKE theo cụm từ
+    2. Tìm kiếm LIKE theo cụm từ (kiểm tra word boundary cho từ ngắn như S3, S6)
     3. Tìm kiếm theo tokens đặc trưng (giữ nguyên '2.0', 'v2', '360', '4k', bỏ qua từ đệm như 'bi', 'đèn', 'led', 'gầm')
     """
     if not query or not query.strip():
@@ -573,19 +583,28 @@ def search_product_in_catalog(query: str):
     c = conn.cursor()
     q = query.strip()
     
+    cat_clause = " AND UPPER(category) LIKE ?" if category_filter else ""
+    cat_param = [f"%{category_filter.upper()}%"] if category_filter else []
+    
     # 1. Tìm chính xác
-    c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE UPPER(code)=UPPER(?) OR UPPER(name)=UPPER(?)", (q, q))
+    c.execute(f"SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE (UPPER(code)=UPPER(?) OR UPPER(name)=UPPER(?)){cat_clause}", [q, q] + cat_param)
     rows = c.fetchall()
     if rows:
         conn.close()
         return [dict(r) for r in rows]
         
     # 2. Tìm LIKE
-    c.execute("SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE UPPER(code) LIKE ? OR UPPER(name) LIKE ?", (f"%{q}%", f"%{q}%"))
+    c.execute(f"SELECT id, code, name, price, cost_price, stock, warranty_months FROM products WHERE (UPPER(code) LIKE ? OR UPPER(name) LIKE ?){cat_clause}", [f"%{q}%", f"%{q}%"] + cat_param)
     rows = c.fetchall()
     if rows:
+        dict_rows = [dict(r) for r in rows]
+        if len(q) <= 3:
+            filtered = [r for r in dict_rows if re.search(r'\b' + re.escape(q) + r'\b', r['name'], re.IGNORECASE)]
+            if filtered:
+                conn.close()
+                return filtered
         conn.close()
-        return [dict(r) for r in rows]
+        return dict_rows
         
     # 3. Tìm theo tokens
     raw_tokens = [t for t in re.split(r'[\s,]+', q.upper()) if t]
@@ -595,13 +614,12 @@ def search_product_in_catalog(query: str):
     if meaningful:
         clauses = " AND ".join(["UPPER(name) LIKE ?" for _ in meaningful])
         params = [f"%{t}%" for t in meaningful]
-        # Ưu tiên sản phẩm có từ khóa đầu tiên ở gần đầu tên
         c.execute(f"""
             SELECT id, code, name, price, cost_price, stock, warranty_months 
             FROM products 
-            WHERE {clauses}
+            WHERE ({clauses}){cat_clause}
             ORDER BY (CASE WHEN UPPER(name) LIKE ? THEN 0 ELSE 1 END), id DESC
-        """, [f"%{meaningful[0]}%"] + params)
+        """, params + cat_param + [f"%{meaningful[0]}%"])
         rows = c.fetchall()
         if rows:
             conn.close()
@@ -1671,22 +1689,44 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         return None
 
     is_pure_query = bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho|het hang)\b', clean_text)) and \
-                    not bool(re.search(r'\b(lap|gan|do|thay|ban|don|nhap)\b', clean_text))
+                    not bool(re.search(r'\b(lap|gan|do|thay|ban|don|nhap|len|vao|chot|muc)\b', clean_text))
     if is_pure_query:
         return None
 
+    # 0. CHUẨN HÓA VÀ LỌC TỪ ĐỆM HỘI THOẠI / GIỌNG NÓI TRỢ LÝ
+    text = raw_text.strip()
+    
+    # Lọc lời chào / gọi tên trợ lý (VD: "alo trợ lý ơi", "ê bot", "em ơi", "anh ơi"...)
+    text = re.sub(r'^\s*(?:alo|ê|bot|em\s*ơi|anh\s*ơi|trợ\s*lý\s*ơi|tro\s*ly\s*oi|trợ\s*lý|tro\s*ly)[,:\s]+', '', text, flags=re.IGNORECASE)
+    
+    # Lọc từ đệm mệnh lệnh nhờ vả (VD: "ghi giúp anh", "nhập giùm anh", "chốt đơn cho", "vừa làm xong"...)
+    filler_patterns = [
+        r'\b(?:ghi\s*giúp\s*(?:anh|em|cho\s*anh)?|ghi\s*giùm\s*(?:anh|em)?|ghi\s*hộ\s*(?:anh|em)?|nhập\s*giúp\s*(?:anh|em)?|nhập\s*giùm\s*(?:anh|em)?|nhập\s*hộ\s*(?:anh|em)?)\b',
+        r'\b(?:tạo\s*đơn\s*(?:giúp|giùm|hộ)?|lên\s*đơn\s*(?:giúp|giùm|hộ)?|chốt\s*đơn\s*(?:cho)?)\b',
+        r'\b(?:vừa\s*làm\s*xong|mới\s*làm\s*xong|thợ\s*vừa\s*làm\s*xong|vừa\s*xong|vừa\s*ráp\s*xong|mới\s*ráp\s*xong|vừa\s*múc|mới\s*múc)\b',
+        r'\b(?:nhập\s*đơn|nhap\s*don|lên\s*đơn|len\s*don|ghi\s*đơn|ghi\s*don|đơn\s*đèn|don\s*den)\b',
+        r'\b(?:qua\s*lắp|qua\s*gắn|vào\s*lắp|đến\s*gắn)\b'
+    ]
+    for fp in filler_patterns:
+        text = re.sub(fp, ' ', text, flags=re.IGNORECASE)
+    
+    # Lọc từ đệm cuối câu (VD: "nhé", "nha", "giùm", "hộ", "cho anh", "với"...)
+    text = re.sub(r'\s*\b(?:nhé|nha|nhe|giùm|gium|hộ|ho|cho\s*anh|cho\s*em|với|voi)\s*$', '', text, flags=re.IGNORECASE)
+    text = ' '.join(text.split()).strip()
+
     # GUARDRAIL BẢO VỆ: Chỉ ghi nhận đơn khi có dấu hiệu lên đơn rõ ràng (hành động, khách, xe, biển số hoặc giá tiền độc lập)
-    has_action = bool(re.search(r'\b(lap|gan|thay|do|ban|len don|nhap don|ghi don|don den|nhap)\b', clean_text))
+    has_action = bool(re.search(r'\b(lap|gan|thay|do|ban|len|vao|ban|muc|rap|chot|nhap|ghi|don)\b', clean_text))
     has_special = bool(re.search(r'\b(mua ve|xe di xet|giao tho|xe bai)\b', clean_text))
     has_plate = bool(re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5})\b', raw_text.upper()))
     has_customer = bool(re.search(r'\b(anh|chi|chu|bac|em|thay|co|khach|chu xe)\s+[a-zA-ZÀ-ỹ]+', raw_text, re.IGNORECASE))
-    has_explicit_price = bool(re.search(r'\s+(\d{3,5})\b', clean_text)) or bool(re.search(r'\b\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|nghin|ngàn)\b', clean_text))
+    has_car = any(bool(re.search(r'\b' + re.escape(c) + r'\b', clean_text, re.IGNORECASE)) for c in CAR_MODELS_LIST)
+    from knowledge_base import parse_vietnamese_currency
+    _disp_p, _val_p = parse_vietnamese_currency(clean_text)
+    has_explicit_price = (_val_p > 0) or bool(re.search(r'\s+(\d{3,5})\b', clean_text)) or bool(re.search(r'\b\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|nghin|ngàn)\b', clean_text))
 
-    is_order_intent = has_action or has_special or has_plate or has_customer or (has_explicit_price and len(clean_text.split()) >= 3)
+    is_order_intent = has_action or has_special or has_plate or has_customer or has_car or (has_explicit_price and len(clean_text.split()) >= 3)
     if not is_order_intent:
         return None
-
-    text = raw_text.strip()
 
     # 1. Biển số xe
     m_plate = re.search(r'\b(\d{2}[A-Z]{1,2}[\s\-]?[0-9]{3,5}(?:\.[0-9]{1,2})?)\b', text, re.IGNORECASE)
@@ -1699,20 +1739,28 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     if phone:
         text = text.replace(phone, ' ')
 
-    # 1.2 Bỏ các tiền tố lệnh như "nhập đơn", "lên đơn", "ghi đơn", "đơn đèn" khỏi text
-    text = re.sub(r'\b(?:nhập\s*đơn|nhap\s*don|lên\s*đơn|len\s*don|ghi\s*đơn|ghi\s*don|đơn\s*đèn|don\s*den)\b', ' ', text, flags=re.IGNORECASE)
-
     # 2. Ngày ghi nhận
     order_date, text = extract_date(text)
 
-    # 3. Dòng xe
+    # 3. Dòng xe (bóc tách dòng xe trước để không bị dính vào tên khách hàng)
     found_car = ''
     for c in CAR_MODELS_LIST:
-        m_c = re.search(r'(?:cho\s+xe\s+|xe\s+)?\b' + re.escape(c) + r'\b', text, re.IGNORECASE)
+        m_c = re.search(r'(?:cho\s+xe\s+|xe\s+|con\s+)?\b' + re.escape(c) + r'\b', text, re.IGNORECASE)
         if m_c:
             found_car = c
             text = text[:m_c.start()] + ' ' + text[m_c.end():]
             break
+
+    # 4. Khách hàng có danh xưng rõ ràng (Anh/Chị/Chú/Bác/Em/Thầy/Cô...)
+    cust_honorific = ''
+    m_hon = re.search(r'\b(?:anh|chị|chi|chú|chu|bác|bac|em|thầy|thay|cô|co|chủ\s*xe|chu\s*xe)\s+([a-zA-ZÀ-ỹ]+(?:\s+[a-zA-ZÀ-ỹ]+)?)(?=\s+(?:xe|con|đi|chạy|lắp|gắn|thay|độ|lên|vào|thu|giá|\d|$)|$)', text, re.IGNORECASE)
+    if m_hon:
+        cand_hon = m_hon.group(0).strip().title()
+        cand_clean = remove_accents(cand_hon).lower()
+        stopwords_hon = ['f10', 'v20', 'turbo', 'titan', 'led', 'den', 'bi', 'gam', 'pha', 's3', 's6', 's8', 's9', 'm40', 'accent', 'vios', 'city', 'camry', 'everest', 'fortuner', 'ranger', 'hilux']
+        if not any(k in cand_clean for k in stopwords_hon):
+            cust_honorific = cand_hon
+            text = text[:m_hon.start()] + ' ' + text[m_hon.end():]
 
     # 4. Giảm giá
     discount_k = 0
@@ -1738,9 +1786,9 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
 
     # 5. Khách hàng đặc biệt
     cust_special = ''
-    special_custs = [('MUA VỀ', r'\b(?:mua\s+ve|mua\s+về)\b'),
+    special_custs = [('MUA VỀ', r'\b(?:mua\s+ve|mua\s+về|tự\s*ráp|tu\s*rap)\b'),
                      ('XE ĐI XÉT', r'\b(?:xe\s+di\s+xet|xe\s+đi\s+xét)\b'),
-                     ('GIAO THỢ', r'\b(?:giao\s+tho|giao\s+thợ)\b'),
+                     ('GIAO THỢ', r'\b(?:giao\s+tho|giao\s+thợ|bán\s+thợ|ban\s+tho)\b'),
                      ('XE BÃI', r'\b(?:xe\s+bai|xe\s+bãi)\b')]
     for ctag, cpat in special_custs:
         m_sc = re.search(cpat, text, re.IGNORECASE)
@@ -1757,7 +1805,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     cust_candidates = []
 
     for chunk in chunks:
-        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do|cho|nhập|nhap|lên|len|ghi)\s+', '', chunk, flags=re.IGNORECASE).strip()
+        c = re.sub(r'^(?:lắp|lap|gắn|gan|thay|bán|ban|độ|do|cho|nhập|nhap|lên|len|ghi|bắn|vào|múc|ráp)\s+', '', chunk, flags=re.IGNORECASE).strip()
         if not c:
             continue
 
@@ -1766,100 +1814,84 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         if m_qty:
             qty = int(m_qty.group(1))
             c = c[:m_qty.start()] + ' ' + c[m_qty.end():]
+        elif re.search(r'\b(?:cặp|cap|đôi|doi|bộ|bo)\b', c, re.IGNORECASE):
+            c = re.sub(r'\b(?:cặp|cap|đôi|doi|bộ|bo)\b', ' ', c, flags=re.IGNORECASE)
 
-        # 1. BƯỚC 1: NHẬN DIỆN TÊN ĐÈN TRƯỚC HẾT TRONG LAMP_CATALOG (Tránh nhầm số version 2.0, 3.0 thành giá tiền)
+        # 1. BƯỚC 1: TÁCH GIÁ TIỀN BẰNG BỘ PHÂN TÍCH TIỀN TỆ THÔNG MINH
+        price_k = 0
+        from knowledge_base import parse_vietnamese_currency
+        p_disp, p_num = parse_vietnamese_currency(c)
+        if p_num > 0:
+            price_k = int(round(p_num / 1000))
+            c = re.sub(r'\b(?:thu|lấy|giá)?\s*' + re.escape(p_disp.replace(' đ', '')) + r'(?:\s*đ|\s*vnd)?', ' ', c, flags=re.IGNORECASE)
+            c = re.sub(r'\b(?:thu|lấy|giá)?\s*\d+(?:[.,]\d+)?\s*(?:tr|trieu|triệu|k|nghin|ngàn)(?:\d+)?(?:\s*đ|\s*vnd)?', ' ', c, flags=re.IGNORECASE)
+            c = re.sub(r'\b(?:thu|lấy|giá)?\s*\d+\s*(?:triệu|trieu|tr)\s*(?:rưỡi|ruoi|\d+)?(?:\s*đ|\s*vnd)?', ' ', c, flags=re.IGNORECASE)
+            c = re.sub(r'\b(?:thu|lấy|giá)\s+\d+(?:[.,]\d+)?\b', ' ', c, flags=re.IGNORECASE)
+        else:
+            # Tìm số trần dạng 4500, 3900, 1500, 6500...
+            m_bare = re.search(r'\b(?:thu|lấy|giá)?\s*([1-9]\d{2,3})\s*(?:k)?\b', c, re.IGNORECASE)
+            if m_bare:
+                val = int(m_bare.group(1))
+                if val not in {2024, 2025, 2026, 2027, 360, 301, 150, 450, 5000, 3000, 4300}:
+                    price_k = val
+                    c = c[:m_bare.start()] + ' ' + c[m_bare.end():]
+
+        # 2. BƯỚC 2: NHẬN DIỆN TÊN ĐÈN TRONG LAMP_CATALOG
         matched_name = ''
         matched_default = 0
         leftover = c
 
-        # Sắp xếp theo độ dài tên chuẩn hóa giảm dần để match F10 NEW 2.0 trước F10
         sorted_catalog = sorted(LAMP_CATALOG, key=lambda x: len(x[1]), reverse=True)
         for pat, cname, _ in sorted_catalog:
             m_l = re.search(pat, c, re.IGNORECASE)
             if m_l:
                 matched_name = cname
-                # Tách cụm tên đèn ra, phần còn lại mới tìm giá tiền & tên khách
                 leftover = c[:m_l.start()] + ' ' + c[m_l.end():]
                 break
 
-        # 2. BƯỚC 2: TÌM GIÁ TIỀN TRONG PHẦN CÒN LẠI (Hoặc toàn bộ c nếu chưa khớp tên đèn catalog)
-        target_for_price = (leftover if matched_name else c).strip()
-        price_k = 0
-        is_default_price = False
-
-        m_p = re.search(r'(?:giá|gia)?\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|nghin|ngàn)?(?:\s*đ|\s*vnd)?$', target_for_price, re.IGNORECASE)
-        if m_p:
-            num_str = m_p.group(1).replace(',', '.')
-            unit = (m_p.group(2) or '').lower()
-            val = float(num_str)
-            has_kw = bool(re.search(r'\b(giá|gia)\b', m_p.group(0), re.IGNORECASE))
-            has_unit = bool(unit)
-
-            # BẢO VỆ TUYỆT ĐỐI:
-            # Nếu KHÔNG CÓ đơn vị (unit) và KHÔNG CÓ từ "giá":
-            # - Không nhận số thập phân nhỏ (như 2.0, 3.0, 1.5...) làm tiền triệu!
-            # - Chỉ nhận số nguyên >= 50 (như 350, 1500, 3900, 4500)
-            is_valid_price = False
-            if has_unit or has_kw:
-                is_valid_price = True
-            elif '.' in num_str or ',' in num_str:
-                if val >= 100000:
-                    is_valid_price = True
-            elif val >= 50:
-                is_valid_price = True
-
-            if is_valid_price and val < 10000000:
-                if unit in ['tr', 'trieu', 'triệu']:
-                    price_k = int(val * 1000)
-                elif unit in ['k', 'nghin', 'ngàn']:
-                    price_k = int(val)
-                elif val >= 100000:
-                    price_k = int(val / 1000)
-                elif val >= 100:
-                    price_k = int(val)
-                elif has_kw and val > 0 and val < 50:
-                    price_k = int(val * 1000)
-                else:
-                    price_k = int(val)
-                # Xóa phần giá tiền khỏi target_for_price
-                target_for_price = target_for_price[:m_p.start()] + ' ' + target_for_price[m_p.end():]
-
-        # 3. BƯỚC 3: TÁCH TÊN KHÁCH HOẶC TÊN ĐÈN NẾU CHƯA MATCH CATALOG
-        clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi|giá|gia|vào|vao|ngày|ngay)\b', ' ', target_for_price, flags=re.IGNORECASE)
-        clean_left = ' '.join(clean_left.split()).strip()
-
+        # Nếu chưa khớp catalog, thử tra cứu kho hàng sản phẩm products
         if not matched_name:
-            prods_found = search_product_in_catalog(clean_left or c)
+            clean_for_prod = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|xe|nhập|nhap|đơn|don|lên|len|ghi|bắn|vào|múc|ráp|thu|giá)\b', ' ', c, flags=re.IGNORECASE).strip()
+            prods_found = search_product_in_catalog(clean_for_prod or c, category_filter='ĐÈN LED')
+            if not prods_found:
+                prods_found = search_product_in_catalog(clean_for_prod or c)
             if prods_found:
                 matched_name = prods_found[0]['name']
-            else:
-                matched_name = clean_left.upper() if clean_left else c.upper()
-        else:
-            if clean_left and len(clean_left) >= 2:
-                clean_norm = remove_accents(clean_left).lower()
-                is_num_or_money = bool(re.match(r'^\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|d|đ|vnd)?$', clean_norm))
-                if not is_num_or_money and clean_norm not in {'nhap don', 'nhap', 'don', 'len don', 'ghi don', 'don den', 'gia', 'xe', 'lap', 'gan'}:
-                    cust_candidates.append(clean_left)
+                leftover = ''
 
-        # 4. BƯỚC 4: TRA CỨU GIÁ TRONG HỆ THỐNG GARA (TRI THỨC HOẶC KHO HÀNG)
-        mem_price = get_lamp_price_from_memory(matched_name or c)
-        if mem_price > 0:
-            matched_default = mem_price
+        # 3. BƯỚC 3: LỌC TÊN KHÁCH (NẾU CÓ DƯ TỪ THỰC SỰ LÀ TÊN NGƯỜI)
+        clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi|giá|gia|vào|vao|ngày|ngay|bắn|múc|ráp|thu|lấy)\b', ' ', leftover, flags=re.IGNORECASE)
+        clean_left = ' '.join(clean_left.split()).strip()
 
+        GARAGE_STOPWORDS = {
+            'bong', 'bóng', 'turbo', 'cap', 'cặp', 'doi', 'đôi', 'bo', 'bộ', 'qua', 'cho', 'xe',
+            'len', 'lên', 'vao', 'vào', 'moi', 'mới', 'vua', 'vừa', 'xong', 'ban', 'bắn', 'lap', 'lắp',
+            'gan', 'gắn', 'thay', 'do', 'độ', 'tro', 'trợ', 'sang', 'sáng', 'led', 'bi', 'den', 'đèn',
+            'gam', 'gầm', 'pha', 'new', 'pro', 'ultra', 'v2', 'v3', 'mini', 'laser', 'thành', 'thanh',
+            'la', 'là', 'nhé', 'nha', 'hộ', 'giùm', 'giup', 'giúp', 'alo', 'trợ lý', 'tro ly', 'con', 'cai', 'cái'
+        }
+        if clean_left and len(clean_left) >= 2:
+            clean_norm = remove_accents(clean_left).lower()
+            is_num_or_money = bool(re.match(r'^\d+(?:[.,]\d+)?\s*(?:k|tr|trieu|triệu|d|đ|vnd)?$', clean_norm))
+            if not is_num_or_money and clean_norm not in GARAGE_STOPWORDS:
+                cust_candidates.append(clean_left)
+
+        # 4. BƯỚC 4: TRA CỨU GIÁ TRONG HỆ THỐNG GARA NẾU NGƯỜI DÙNG CHƯA NHẬP GIÁ
+        is_default_price = False
         if price_k == 0:
-            if matched_default > 0:
-                price_k = matched_default * qty
+            mem_price = get_lamp_price_from_memory(matched_name or c)
+            if mem_price > 0:
+                price_k = mem_price
                 is_default_price = True
             else:
-                # SẢN PHẨM CHƯA CÓ GIÁ TRONG HỆ THỐNG GARA:
-                # TUYỆT ĐỐI KHÔNG TỰ TIỆN CHO GIÁ MẶC ĐỊNH! HỎI NGƯỜI DÙNG GIÁ THỰC TẾ!
                 WIZARD_SESSIONS[session_id] = {
                     'flow': 'ask_lamp_price',
                     'step': 1,
                     'data': {
-                        'matched_name': matched_name,
+                        'matched_name': matched_name or c.strip().upper(),
                         'qty': qty,
                         'cust_special': cust_special,
+                        'cust_honorific': cust_honorific,
                         'cust_candidates': cust_candidates,
                         'plate': plate,
                         'found_car': found_car,
@@ -1873,7 +1905,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 return {
                     "type": "clarify",
                     "message": (
-                        f"⚠️ Sản phẩm **{matched_name}** chưa có giá trong hệ thống gara.\n"
+                        f"⚠️ Sản phẩm **{matched_name or c.strip().upper()}** chưa có giá trong hệ thống gara.\n"
                         f"─────────────────────────────────────────\n"
                         f"Anh/chị lắp loại đèn này cho khách với giá bao nhiêu ạ?\n"
                         f"*(Ví dụ: `4500k`, `3tr5`, `3.500.000`... hoặc gõ `hủy` để thoát)*"
@@ -1881,7 +1913,7 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 }
 
         items.append({
-            'product_name': matched_name,
+            'product_name': matched_name or c.strip().upper(),
             'quantity': qty,
             'base_price_k': price_k,
             'is_default': is_default_price
@@ -1890,18 +1922,23 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     if not items:
         return None
 
-    cust_name = cust_special
-    if not cust_name and cust_candidates:
-        cust_name = cust_candidates[0].strip().title()
-
-    # Tự động tra cứu thông tin khách hàng và dòng xe từ Biển số hoặc Số điện thoại
+    # 5. BƯỚC 5: TỔNG HỢP VÀ ĐỐI CHIẾU THÔNG TIN KHÁCH HÀNG & DÒNG XE
+    cust_name = ''
     auto_detected_cust = False
-    phone = extract_phone(raw_text)
+
+    # Ưu tiên 1: Khách hàng đặc biệt (MUA VỀ, GIAO THỢ, XE ĐI XÉT)
+    if cust_special:
+        cust_name = cust_special
+    # Ưu tiên 2: Khách hàng có danh xưng người dùng vừa nói (Anh Dũng, Chú Bảy, Thầy Đức)
+    elif cust_honorific:
+        cust_name = cust_honorific
+
+    # Ưu tiên 3: Tự động tra cứu hồ sơ khách hàng từ Biển số hoặc Số điện thoại
     if plate or phone:
         lookup_res = lookup_customer_and_car_by_identifier(plate or phone)
         if lookup_res.get('found'):
-            if not cust_name or cust_name in ['KHÁCH LẺ', plate]:
-                c_found = lookup_res.get('customer_name')
+            c_found = lookup_res.get('customer_name')
+            if not cust_name or cust_name.upper() in ['KHÁCH LẺ', 'CHƯA RÕ', plate]:
                 if c_found:
                     cust_name = c_found
                     auto_detected_cust = True
@@ -1909,6 +1946,12 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 found_car = lookup_res.get('car_model') or ''
             if not phone and lookup_res.get('phone'):
                 phone = lookup_res['phone']
+
+    # Ưu tiên 4: Khách hàng từ ứng viên còn lại nếu an toàn
+    if not cust_name and cust_candidates:
+        cand = cust_candidates[0].strip().title()
+        if remove_accents(cand).lower() not in GARAGE_STOPWORDS:
+            cust_name = cand
 
     total_base_k = sum(it['base_price_k'] for it in items)
     if disc_is_pct:
@@ -1937,8 +1980,8 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
             f"• 📦 Đèn lắp: {matched_item_names}\n"
             f"• 💰 Doanh thu: **{total_final_k*1000:,.0f} đ** ({total_final_k:,}k)\n"
             f"───────────────────────────────────────\n"
-            f"👉 Anh/chị vui lòng cho em xin **Tên khách hàng** và **Dòng xe** để em điền vào đơn nhé!\n"
-            f"*(Ví dụ gõ: `Anh Tuấn Vios` hoặc `Chị Mai Accent` | Gõ `hủy` để bỏ qua)*"
+            f"👉 Anh/chị vui lòng cho em xin **Tên khách hàng** " + ("" if found_car else "và **Dòng xe** ") + "để em điền vào đơn nhé!\n"
+            f"*(Ví dụ gõ: `Anh Tuấn` hoặc gõ `khách lẻ` | Gõ `hủy` để bỏ qua)*"
         )
         WIZARD_SESSIONS[session_id] = {
             'flow': 'lamp_fill_missing',
@@ -4080,11 +4123,11 @@ def handle_gara_consultation(raw_text, clean_text):
     # TƯ VẤN & BÁO GIÁ ĐÈN GẦM / BI GẦM LED / BI PHA (TRẦN BÌNH AUTO)
     # ═════════════════════════════════════════════════════════════════════════
     is_f10_query = bool(re.search(r'\b(f10|f10\s*turbo|f10\s*new|f10\s*pro|f10\s*hyper|bi\s*gam\s*f10|den\s*gam\s*f10|den\s*f10)\b', clean_text)) and \
-                   not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text))
+                   not bool(re.search(r'\b(lap|gan|thay|ban|don|nhap|len|vao|chot|muc)\b', clean_text)) and not bool(re.search(r'\b\d{4}\b', clean_text))
     if is_f10_query:
-        p_new = get_lamp_price_from_memory("F10 NEW 2.0") or 3900
+        p_new = get_lamp_price_from_memory("F10 NEW 2.0") or 4500
         p_3m = get_lamp_price_from_memory("F10 BA MÀU") or 4200
-        p_tb = get_lamp_price_from_memory("F10 TURBO") or 5100
+        p_tb = get_lamp_price_from_memory("F10 TURBO") or 6000
         p_hp = get_lamp_price_from_memory("F10 HYPER") or 5500
         p_pro = get_lamp_price_from_memory("F10 PRO") or 5500
 
@@ -5287,6 +5330,21 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
                     "Vui lòng chạy lệnh: `pip install --user google-genai` và kiểm tra tệp `gemini_engine.py`."
                 )
             }
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.1. TẠO / NHẬP ĐƠN BÁO CÁO DOANH THU ĐÈN (ƯU TIÊN TUYỆT ĐỐI KHI CÓ Ý ĐỊNH ĐƠN HÀNG)
+    # LỆNH: "lắp f1 turbo s cho xe city 63a36001 vào ngày 13/8/2026", "nhập đơn f10 new 2.0 63A18730",
+    #       "anh Tuấn vios lên cặp f10 new 4tr2", "f10 new 2.0 63A18730", "thay bi gầm cho anh dũng..."
+    # ═════════════════════════════════════════════════════════════════════
+    is_pure_consultation = any(k in clean for k in ['tu van', 'bao gia', 'gia bao nhieu', 'nhieu tien', 'co nhung loai nao', 'loai nao tot', 'so sanh', 'bang gia', 'xem gia', 'hoi gia']) or \
+                           (clean in ['f10', 'f10 2.0', 'f10 new', 'bi gam', 'den gam', 'bi led', 's3', 's6', 's8', 's9', 'v20', 'm40'])
+    is_pure_stat_inquiry = any(k in clean for k in ['doanh thu', 'doanh so', 'tong ket', 'may don', 'bao nhieu don', 'so don']) and \
+                           not any(k in clean for k in ['nhap don', 'len don', 'tao don', 'ghi don', 'nhap', 'lap', 'gan', 'thay', 'do', 'don den'])
+    
+    if not is_pure_consultation and not is_pure_stat_inquiry:
+        res_den_order = handle_baocao_den(raw, clean, session_id=session_id)
+        if res_den_order:
+            return res_den_order
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.2. TRA CỨU TRI THỨC TỰ ĐỘNG TỪ BỘ NHỚ GARA ĐÃ HỌC (< 0.003s)

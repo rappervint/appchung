@@ -17,3 +17,6 @@ __pycache__/
 
 
 gemini_config.json
+
+*.bak
+backups/

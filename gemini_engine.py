@@ -946,6 +946,14 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 3. PHÂN BIỆT RÕ LỆNH SỬA GIÁ SẢN PHẨM VÀ SỬA ĐƠN HÀNG:
    - Khi người dùng nói "sửa giá lại thành...", "sửa giá f10 new 2.0 thành 4500", "sửa lại giá [tên sản phẩm] giá [tiền]": ĐÂY LÀ LỆNH CẬP NHẬT GIÁ SẢN PHẨM TRONG KHO. Bạn PHẢI gọi `cap_nhat_kho_hang` để cập nhật giá mới!
    - TUYỆT ĐỐI KHÔNG HỎI MÃ ĐƠN HÀNG khi người dùng không nhắc đến chữ "đơn"!
+4. HỌC VÀ NHẬN DIỆN MỌI KHẨU NGỮ, TỪ LÓNG & CÁCH DIỄN ĐẠT ĐƠN HÀNG ĐÈN GARA:
+   - Các từ lóng & hành động: "nhập đơn", "lên đơn", "lắp", "gắn", "thay", "độ", "lên cặp", "vào cặp", "bắn cặp", "múc đôi bi", "vừa làm xong xe...", "chốt đơn cho...", "bán cặp f10 mua về tự ráp"...
+   - Mọi trật tự câu từ:
+     + Biển số trước: "xe 63A18730 lắp f10 new 2.0"
+     + Khách trước: "anh Tuấn vios lên cặp f10 new 4tr2"
+     + Đèn trước: "f10 new 2.0 63A18730", "s3 vf3 1tr5"
+     + Kèm ngày cụ thể: "lắp f1 turbo s cho xe city 63a36001 vào ngày 13/8/2026"
+   - Khi gặp các câu này: PHẢI gọi tool `len_don_bao_cao_den_nhanh` để tạo đơn, TUYỆT ĐỐI KHÔNG BÁO CÁO DOANH THU TOÀN CỬA HÀNG!
 
 • PHIM CÁCH NHIỆT CHỐNG NÓNG:
   - 3M Crystalline Mỹ (200 lớp quang học): Kính lái CR50BLK (5.7tr), trọn gói Sedan (10.8tr - 14.8tr), SUV (12.5tr - 17.6tr).
