@@ -403,40 +403,40 @@ def extract_customer_search_intent(text):
 # ── DANH MỤC ĐÈN THỰC TẾ & BẢNG GIÁ NIÊM YẾT TẠI GARA (k = nghìn đồng) ──
 LAMP_CATALOG = [
     # Dòng V20 Series
-    (r'\bv20\s*base\b', 'V20 BASE', 6500),
-    (r'\bv20\s*ultra\b|\bv20l\b|\bv20\b', 'BI LED V20', 5850),
-    # Dòng Naoevo / X-Light S Series
-    (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'XLIGHT S3 PRO', 1500),
-    (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'NAOEVO S3', 1500),
-    (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'NAOEVO S6 PRO', 2000),
-    (r'\b(?:xlight|naoevo)?\s*s6\b|\bs6\b', 'NAOEVO S6', 1800),
-    (r'\b(?:xlight|naoevo)?\s*s8\s*pro\b|\bs8\s*pro\b', 'NAOEVO S8 PRO', 2800),
-    (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'NAOEVO S8', 2500),
-    (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'NAOEVO S9 PRO', 3000),
-    (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'NAOEVO S9', 2800),
-    # Dòng Bi Gầm F10 Series (Bán chạy nhất)
-    (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 5500),
-    (r'\bf10\s*turbo\b', 'F10 TURBO', 5100),
-    (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 5500),
-    (r'\bf10\s*new\s*2\.?0\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b', 'F10 NEW 2.0', 3900),
-    (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 4500),
+    (r'\bv20\s*base\b', 'V20 BASE', 0),
+    (r'\bv20\s*ultra\b|\bv20l\b|\bv20\b', 'BI LED V20', 0),
+    # Dòng S Series
+    (r'\b(?:xlight|naoevo)?\s*s3\s*pro\b|\bs3\s*pro\b', 'S3 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s3\b|\bs3\b', 'S3', 0),
+    (r'\b(?:xlight|naoevo)?\s*s6\s*pro\b|\bs6\s*pro\b', 'S6 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s6\b|\bs6\b', 'S6', 0),
+    (r'\b(?:xlight|naoevo)?\s*s8\s*pro\b|\bs8\s*pro\b', 'S8 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s8\b|\bs8\b', 'S8', 0),
+    (r'\b(?:xlight|naoevo)?\s*s9\s*pro\b|\bs9\s*pro\b', 'S9 PRO', 0),
+    (r'\b(?:xlight|naoevo)?\s*s9\b|\bs9\b', 'S9', 0),
+    # Dòng F10 Series
+    (r'\bf10\s*pro\s*v2\b|\bf10\s*pro\b', 'F10 PRO V2', 0),
+    (r'\bf10\s*turbo\b', 'F10 TURBO', 0),
+    (r'\bf10\s*hyper\b|\bf10\s*heyper\b', 'F10 HYPER', 0),
+    (r'\bf10\s*new\s*2\.?0\b|\bf10\s*new\b|\bf10\s*2\.?0\b|\bf10\b', 'F10 NEW 2.0', 0),
+    (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 0),
     # Dòng M Series
-    (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 2500),
-    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 3100),
-    (r'\bm30\s*ultra\b|\bm30\b', 'M30 ULTRA', 5500),
-    (r'\bm40\s*ultra\b|\bm40\b', 'M40 ULTRA', 6500),
+    (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 0),
+    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 0),
+    (r'\bm30\s*ultra\b|\bm30\b', 'M30 ULTRA', 0),
+    (r'\bm40\s*ultra\b|\bm40\b', 'M40 ULTRA', 0),
     # Dòng Titan & GTR
-    (r'\btitan\s*gold\b', 'TITAN GOLD', 6750),
-    (r'\btitan\s*black\b', 'TITAN BLACK', 5500),
-    (r'\btitan\s*platinum\b', 'TITAN PLATINUM', 8500),
-    (r'\bg1\s*turbo\b', 'G1 TURBO', 6200),
-    (r'\bxlight\s*301\b|\b301\b', 'XLIGHT 301', 4500),
-    (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 6000),
-    (r'\bcb150\b', 'CB150', 3800),
+    (r'\btitan\s*gold\b', 'TITAN GOLD', 0),
+    (r'\btitan\s*black\b', 'TITAN BLACK', 0),
+    (r'\btitan\s*platinum\b', 'TITAN PLATINUM', 0),
+    (r'\bg1\s*turbo\b', 'G1 TURBO', 0),
+    (r'\bxlight\s*301\b|\b301\b', 'XLIGHT 301', 0),
+    (r'\bf150\s*pro\b|\bf150\b', 'F150 PRO', 0),
+    (r'\bcb150\b', 'CB150', 0),
     # Mí LED & Vòng BM
-    (r'\b(?:led\s*mi|mi\s*led|led\s*deo|mi\s*deo)\b', 'MÍ LED', 1800),
-    (r'\bvong\s*bm\b|\bvòng\s*bm\b', 'VÒNG BM', 1500),
-    (r'\bvong\s*angel\b|\bvòng\s*angel\b', 'VÒNG ANGEL', 1200),
+    (r'\b(?:led\s*mi|mi\s*led|led\s*deo|mi\s*deo)\b', 'MÍ LED', 0),
+    (r'\bvong\s*bm\b|\bvòng\s*bm\b', 'VÒNG BM', 0),
+    (r'\bvong\s*angel\b|\bvòng\s*angel\b', 'VÒNG ANGEL', 0),
 ]
 
 CAR_MODELS_LIST = [
@@ -473,29 +473,44 @@ def clean_customer_name(name_raw, found_car=""):
     return name.title() if name else ""
 
 def get_lamp_price_from_memory(lamp_name: str) -> int:
-    """Tra cứu xem chủ gara đã từng sửa giá cho mẫu đèn này trong gara_memory chưa (trả về k, vd: 4500)"""
+    """Tra cứu xem chủ gara đã lưu giá cho mẫu đèn/sản phẩm này chưa (ưu tiên gara_memory, rồi đến bảng products)"""
     if not lamp_name:
         return 0
+    # 1. Tra cứu trong gara_memory (tri thức chủ gara đã dạy)
     try:
         import knowledge_base
-        if not os.path.exists(knowledge_base.DB_KNOWLEDGE):
-            return 0
-        conn = sqlite3.connect(knowledge_base.DB_KNOWLEDGE, timeout=5)
-        c = conn.cursor()
-        clean = knowledge_base.remove_accents(lamp_name).lower()
-        c.execute("""
-            SELECT price_info FROM gara_memory 
-            WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
-            ORDER BY id DESC LIMIT 1
-        """, (clean, f"%{clean}%", f"%{clean}%"))
-        row = c.fetchone()
-        conn.close()
-        if row and row[0]:
-            p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
-            if p_num > 0:
-                return int(p_num / 1000)
+        if os.path.exists(knowledge_base.DB_KNOWLEDGE):
+            conn = sqlite3.connect(knowledge_base.DB_KNOWLEDGE, timeout=5)
+            c = conn.cursor()
+            clean = knowledge_base.remove_accents(lamp_name).lower()
+            c.execute("""
+                SELECT price_info FROM gara_memory 
+                WHERE clean_topic=? OR clean_topic LIKE ? OR keywords LIKE ?
+                ORDER BY id DESC LIMIT 1
+            """, (clean, f"%{clean}%", f"%{clean}%"))
+            row = c.fetchone()
+            conn.close()
+            if row and row[0]:
+                p_str, p_num = knowledge_base.parse_vietnamese_currency(row[0])
+                if p_num > 0:
+                    return int(p_num / 1000)
     except Exception:
         pass
+
+    # 2. Tra cứu trong kho hàng products (tiem_lap_do.db)
+    try:
+        db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
+        if os.path.exists(db_p):
+            conn_p = sqlite3.connect(db_p, timeout=5)
+            c_p = conn_p.cursor()
+            c_p.execute("SELECT price FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{lamp_name.upper()}%",))
+            row_p = c_p.fetchone()
+            conn_p.close()
+            if row_p and row_p[0] and row_p[0] > 0:
+                return int(row_p[0] / 1000)
+    except Exception:
+        pass
+
     return 0
 
 def lookup_customer_and_car_by_identifier(identifier: str):
@@ -1130,6 +1145,32 @@ def handle_wizard_step(user_text, session_id):
                 }
 
     # ══════════════════════════════════════════
+    # FLOW ASK LAMP PRICE: HỎI GIÁ SẢN PHẨM KHI CHƯA CÓ GIÁ TRONG HỆ THỐNG
+    # ══════════════════════════════════════════
+    elif flow == 'ask_lamp_price':
+        p_num = 0
+        try:
+            import knowledge_base
+            p_str, p_val = knowledge_base.parse_vietnamese_currency(user_text)
+            if p_val > 0:
+                p_num = p_val
+        except Exception:
+            pass
+        if p_num <= 0:
+            p_val = parse_vietnamese_money(user_text, default_thousands=True)
+            if p_val > 0:
+                p_num = p_val
+        if p_num <= 0:
+            return {
+                "type": "clarify",
+                "message": "⚠️ Em chưa nhận diện được số tiền. Vui lòng nhập mức giá (Ví dụ: `4500k`, `3tr5`, `3.500.000`... hoặc gõ `hủy`):"
+            }
+        price_k = int(p_num / 1000)
+        raw_text = data.get('raw_text', '')
+        del WIZARD_SESSIONS[session_id]
+        augmented_text = f"{raw_text} {price_k}k"
+        return handle_baocao_den(augmented_text, remove_accents(augmented_text).lower(), session_id=session_id)
+
     # FLOW 2: WIZARD DOANH THU ĐÈN
     # ══════════════════════════════════════════
     elif flow == 'den':
@@ -1581,12 +1622,11 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
                 raw_name = re.sub(r'\b(giá|gia)\b\s*$', '', raw_name, flags=re.IGNORECASE).strip()
 
         matched_name = ''
-        matched_default = 3500
+        matched_default = 0
         for pat, cname, dprice in LAMP_CATALOG:
             m_l = re.search(pat, raw_name, re.IGNORECASE)
             if m_l:
                 matched_name = cname
-                matched_default = dprice
                 leftover = raw_name[:m_l.start()] + ' ' + raw_name[m_l.end():]
                 clean_left = re.sub(r'\b(lắp|lap|gắn|gan|thay|độ|do|bán|ban|cho|đèn|den|bi|gầm|gam|pha|xe|nhập|nhap|đơn|don|lên|len|ghi)\b', ' ', leftover, flags=re.IGNORECASE)
                 clean_left = ' '.join(clean_left.split()).strip()
@@ -1599,14 +1639,44 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         if not matched_name:
             matched_name = raw_name.upper()
 
-        # Kiểm tra xem chủ gara có từng sửa giá riêng cho mẫu đèn này không trong bộ não tri thức
+        # Kiểm tra xem sản phẩm đã có giá trong tri thức hoặc kho hàng chưa
         mem_price = get_lamp_price_from_memory(matched_name or raw_name)
         if mem_price > 0:
             matched_default = mem_price
 
         if price_k == 0:
-            price_k = matched_default * qty
-            is_default_price = True
+            if matched_default > 0:
+                price_k = matched_default * qty
+                is_default_price = True
+            else:
+                # SẢN PHẨM CHƯA CÓ GIÁ TRONG HỆ THỐNG GARA:
+                # TUYỆT ĐỐI KHÔNG TỰ TIỆN CHO GIÁ MẶC ĐỊNH! HỎI NGƯỜI DÙNG GIÁ THỰC TẾ!
+                WIZARD_SESSIONS[session_id] = {
+                    'flow': 'ask_lamp_price',
+                    'step': 1,
+                    'data': {
+                        'matched_name': matched_name,
+                        'qty': qty,
+                        'cust_special': cust_special,
+                        'cust_candidates': cust_candidates,
+                        'plate': plate,
+                        'found_car': found_car,
+                        'discount_k': discount_k,
+                        'disc_is_pct': disc_is_pct,
+                        'disc_pct_val': disc_pct_val,
+                        'order_date': order_date,
+                        'raw_text': raw_text
+                    }
+                }
+                return {
+                    "type": "clarify",
+                    "message": (
+                        f"⚠️ Sản phẩm **{matched_name}** chưa có giá trong hệ thống gara.\n"
+                        f"─────────────────────────────────────────\n"
+                        f"Anh/chị lắp loại đèn này cho khách với giá bao nhiêu ạ?\n"
+                        f"*(Ví dụ: `4500k`, `3tr5`, `3.500.000`... hoặc gõ `hủy` để thoát)*"
+                    )
+                }
 
         items.append({
             'product_name': matched_name,
@@ -3682,93 +3752,56 @@ def handle_gara_consultation(raw_text, clean_text):
     # 5. TRA CỨU TỪNG THIẾT BỊ CỤ THỂ (3-4 DÒNG TẬP TRUNG)
     # ═════════════════════════════════════════════════════════════════════════
 
-    # Vietmap M1
-    if bool(re.search(r'\b(m1|vietmap m1|cam m1)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH VIETMAP M1 (2 MẮT TRƯỚC + SAU):**\n"
-                "• **Giá trọn gói:** **6.190.000 đ** (Trước 2K + Sau Full HD)\n"
-                "• **Tính năng độc quyền:** Màn hình luôn báo tốc độ giới hạn + Cảnh báo camera phạt nguội, cấm vượt\n"
-                "• **Quà tặng:** Tặng thẻ nhớ chính hãng, miễn phí đi dây nguồn âm kín tại gara."
-            )
-        }
+    # Tra cứu các sản phẩm camera hành trình (A510, M310, A200, A210, A800SE, Vietmap M1, M2...)
+    cam_match = re.search(r'\b(a510|70mai a510|m310|a310|70mai m310|a200|70mai a200|a210|70mai a210|a800se|a800|vietmap m1|cam m1|m1|vietmap m2|cam m2|m2)\b', clean_text)
+    if cam_match:
+        c_key = cam_match.group(1).upper()
+        # 1. Tra cứu trong gara_memory (tri thức gara)
+        try:
+            import knowledge_base
+            res_km = knowledge_base.query_learned_knowledge(clean_text, raw_text)
+            if res_km:
+                return res_km
+        except Exception:
+            pass
 
-    # Vietmap M2
-    if bool(re.search(r'\b(m2|vietmap m2|cam m2)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH VIETMAP M2 (4K - XEM TỪ XA):**\n"
-                "• **Giá trọn gói:** **8.980.000 đ**\n"
-                "• **Tính năng:** Mắt trước 4K, **tặng SIM 12 tháng** xem video trực tiếp & định vị xe từ xa qua điện thoại."
-            )
-        }
+        # 2. Tra cứu trong kho hàng products (tiem_lap_do.db)
+        try:
+            db_p = os.path.join(BASE_DIR, 'app_banhang', 'tiem_lap_do.db')
+            if os.path.exists(db_p):
+                conn_p = sqlite3.connect(db_p, timeout=5)
+                c_p = conn_p.cursor()
+                c_p.execute("SELECT name, price, stock FROM products WHERE UPPER(name) LIKE ? ORDER BY id DESC LIMIT 1", (f"%{c_key}%",))
+                row_p = c_p.fetchone()
+                conn_p.close()
+                if row_p:
+                    p_name, p_price, p_stock = row_p
+                    p_pr_str = f"{p_price:,.0f} đ" if p_price else "Liên hệ"
+                    st_str = f"Sẵn hàng ({p_stock} cái)" if (p_stock and p_stock > 0) else "Tạm hết hàng"
+                    return {
+                        "type": "success",
+                        "module": "dichvu",
+                        "message": (
+                            f"📹 **THÔNG TIN KHO HÀNG GARA: {p_name}**\n"
+                            f"─────────────────────────────────────────\n"
+                            f"• 💰 **Giá bán niêm yết:** **{p_pr_str}**\n"
+                            f"• 📦 **Tình trạng tồn kho:** {st_str}\n"
+                            f"• 🔧 Miễn phí công lắp đặt đi dây âm thẩm mỹ tại gara."
+                        )
+                    }
+        except Exception:
+            pass
 
-    # 70mai M310 / A310 (Giải đáp thông minh khi khách hỏi A310 hoặc M310)
-    if bool(re.search(r'\b(m310|a310|70mai 310|cam 310|camera 310|70mai m310|70mai a310|camera a310|camera m310|cam m310|cam a310)\b', clean_text)):
+        # 3. Nếu chưa có trong hệ thống: Báo rõ ràng, không tự tiện bịa giá!
         return {
-            "type": "success",
+            "type": "info",
             "module": "dichvu",
             "message": (
-                "📹 **CAMERA HÀNH TRÌNH 70MAI M310 / M310 PLUS (3K):**\n"
-                "• **Giá bán trọn gói:** **1.500.000 đ** *(Bản quốc tế Plus 3K - Sẵn hàng tại kho gara)*\n"
-                "• **Cấu hình:** Ghi hình trước siêu nét 3K (1296P/3K), góc rộng 130°, cảm biến nhạy sáng quay đêm rõ biển số, kết nối Wi-Fi xem & tải video trực tiếp về điện thoại qua app 70mai.\n"
-                "• **Quà tặng:** Tặng thẻ nhớ tốc độ cao, bao trọn gói công lắp đặt đi dây âm kín zin 100% tại gara.\n"
-                "• **Bảo hành:** **12 tháng chính hãng 1 đổi 1**.\n\n"
-                "💡 *Lưu ý:* 70mai dòng 310 có tên chính thức là **70mai M310** (dòng cam trước nhỏ gọn giấu sau gương). Nếu bạn cần loại **ghi hình cả Trước + Sau**, có thể tham khảo thêm: **70mai A210 / A200 (2.500.000 đ)** hoặc **70mai A510 3K Sony Starvis 2 (3.400.000 đ)** nhé!"
-            )
-        }
-
-    # 70mai A210
-    if bool(re.search(r'\b(a210|70mai a210|cam a210)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH 70MAI A210 (GHI HÌNH TRƯỚC + SAU):**\n"
-                "• **Giá bán trọn gói:** **2.500.000 đ** *(Mã SP: SP2734848)*\n"
-                "• **Cấu hình:** 2 mắt ghi hình Trước + Sau Full HD, góc rộng, quay đêm rõ nét.\n"
-                "• **Quà tặng:** Tặng thẻ nhớ **32GB**, bao trọn công lắp đặt đi dây âm thẩm mỹ tại gara.\n"
-                "• **Bảo hành:** **12 tháng chính hãng 1 đổi 1**."
-            )
-        }
-
-    # 70mai A510
-    if bool(re.search(r'\b(a510|70mai a510)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH 70MAI A510 (SONY STARVIS 2):**\n"
-                "• **Giá trọn gói:** **3.400.000 đ** (Trước 3K + Sau, cảm biến Sony quay đêm siêu sáng)\n"
-                "• **Lưu ý:** Chưa bao gồm thẻ nhớ (Gara có sẵn thẻ nhớ SanDisk/Kioxia chuyên dụng 32GB/64GB/128GB tốc độ cao).\n"
-                "• **Bảo hành:** 12 tháng chính hãng 1 đổi 1, miễn phí công lắp đặt đi dây âm thẩm mỹ."
-            )
-        }
-
-    # 70mai A800SE
-    if bool(re.search(r'\b(a800se|a800)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH 70MAI A800SE (4K TRƯỚC + SAU):**\n"
-                "• **Bản thường:** **3.600.000 đ** *(Tặng thẻ 64GB)*\n"
-                "• **Bản SpeedEye (Có cảnh báo giao thông):** **4.800.000 đ** *(Tặng thẻ 64GB)*"
-            )
-        }
-
-    # 70mai A200
-    if bool(re.search(r'\b(a200|70mai a200)\b', clean_text)):
-        return {
-            "type": "success",
-            "module": "dichvu",
-            "message": (
-                "📹 **CAMERA HÀNH TRÌNH 70MAI A200 2K:**\n"
-                "• **Giá trọn gói:** **2.500.000 đ** (Gồm mắt Trước + Sau Full HD, tặng thẻ 32GB - Ngon bổ rẻ nhất)."
+                f"📹 **THÔNG TIN SẢN PHẨM: {c_key}**\n"
+                f"─────────────────────────────────────────\n"
+                f"⚠️ Sản phẩm này hiện chưa có thông tin giá niêm yết trong hệ thống gara.\n"
+                f"👉 Anh/chị chủ gara có thể cập nhật giá vào kho hàng hoặc nhắn:\n"
+                f"*(Ví dụ: `sửa lại giá {c_key.lower()} giá 3tr5`)* để AI ghi nhớ nhé!"
             )
         }
 
@@ -5098,7 +5131,12 @@ def process_ai_command(user_text, session_id="default_user"):
             last_item = LAST_CONSULTED_TOPIC[session_id]
             last_key = last_item.get('key', '')
             if last_key:
-                raw = f"sửa lại giá {last_key} {raw}"
+                from knowledge_base import parse_vietnamese_currency
+                p_display, p_num = parse_vietnamese_currency(raw)
+                if p_display:
+                    raw = f"sửa lại giá {last_key} giá {p_display}"
+                else:
+                    raw = f"sửa lại giá {last_key} {raw}"
                 clean = remove_accents(raw).lower()
 
     # 2. Thực thi xử lý câu lệnh
