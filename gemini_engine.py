@@ -3713,303 +3713,95 @@ def cap_nhat_thong_tin_khach_hang(
 
 
 def tra_cuu_khach_hang_va_bao_hanh(tu_khoa: str) -> str:
-
-
-
     """Tra cứu bảo hành, lịch sử lắp đặt phụ kiện, dòng xe của khách hàng theo Biển số xe, SĐT hoặc Tên khách kèm dòng xe.
-
-
-
-
-
-
-
     Args:
-
-
-
-        tu_khoa: Biển số xe (ví dụ '63A-187.30', '18730'), Số điện thoại, hoặc Tên khách + Dòng xe (ví dụ 'Toàn Soluto', 'Toàn Vios').
-
-
-
+        tu_khoa: Biển số xe (ví dụ '63A-187.30', '18730', '70a65741'), Số điện thoại, hoặc Tên khách + Dòng xe (ví dụ 'Toàn Soluto', 'Toàn Vios').
     """
-
-
-
-    kw = tu_khoa.strip().upper()
-
-
-
+    kw = tu_khoa.strip()
+    clean_q = re.sub(r'[^A-Za-z0-9]', '', kw).upper()
+    clean_phone_q = re.sub(r'\D', '', kw)
     results = []
 
-
-
-
-
-
-
     # 1. Tra trong Bán Hàng & Lắp Đồ
-
-
-
     if os.path.exists(DB_BANHANG):
-
-
-
-        conn = sqlite3.connect(DB_BANHANG)
-
-
-
-        c = conn.cursor()
-
-
-
-        c.execute("""
-
-
-
-            SELECT o.id, o.customer_name, o.phone, o.license_plate, o.install_date, o.total_price,
-
-
-
-                   GROUP_CONCAT(i.item_name || ' (BH ' || i.warranty_months || 'T)', '; ')
-
-
-
-            FROM orders o
-
-
-
-            LEFT JOIN order_items i ON o.id = i.order_id
-
-
-
-            WHERE UPPER(o.license_plate) LIKE ? OR o.phone LIKE ? OR UPPER(o.customer_name) LIKE ?
-
-
-
-            GROUP BY o.id
-
-
-
-            ORDER BY o.install_date DESC LIMIT 5
-
-
-
-        """, (f"%{kw}%", f"%{kw}%", f"%{kw}%"))
-
-
-
-        rows = c.fetchall()
-
-
-
-        for r in rows:
-
-
-
-            results.append({
-
-
-
-                "module": "Bán Hàng / Lắp Đồ",
-
-
-
-                "id": r[0],
-
-
-
-                "name": r[1],
-
-
-
-                "phone": r[2],
-
-
-
-                "plate": r[3],
-
-
-
-                "date": r[4],
-
-
-
-                "total": f"{r[5]:,.0f} đ" if r[5] else "0 đ",
-
-
-
-                "items": r[6] or "Không có chi tiết món"
-
-
-
-            })
-
-
-
-        conn.close()
-
-
-
-
-
-
+        try:
+            conn = sqlite3.connect(DB_BANHANG, timeout=5)
+            c = conn.cursor()
+            phone_filter = f"%{clean_phone_q}%" if len(clean_phone_q) >= 9 else "__NO_PHONE_MATCH__"
+            clean_plate_filter = f"%{clean_q}%" if clean_q else "__NO_PLATE_MATCH__"
+            c.execute("""
+                SELECT o.id, o.customer_name, o.phone, o.license_plate, o.install_date, o.total_price,
+                       GROUP_CONCAT(i.item_name || ' (SL: ' || i.qty || ', BH ' || i.warranty_months || 'T)', '; ')
+                FROM orders o
+                LEFT JOIN order_items i ON o.id = i.order_id
+                WHERE replace(replace(replace(replace(UPPER(o.license_plate), '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                   OR replace(replace(replace(replace(o.phone, '-', ''), '.', ''), ' ', ''), '_', '') LIKE ?
+                   OR UPPER(o.license_plate) LIKE ?
+                   OR o.phone LIKE ?
+                   OR UPPER(o.customer_name) LIKE ?
+                GROUP BY o.id
+                ORDER BY o.install_date DESC LIMIT 10
+            """, (clean_plate_filter, phone_filter, f"%{kw.upper()}%", f"%{kw.upper()}%", f"%{kw.upper()}%"))
+            rows = c.fetchall()
+            for r in rows:
+                results.append({
+                    "module": "Bán Hàng & Kho",
+                    "id": r[0],
+                    "name": r[1],
+                    "phone": r[2],
+                    "plate": r[3],
+                    "date": r[4],
+                    "total": f"{r[5]:,.0f} đ" if r[5] else "0 đ",
+                    "items": r[6] or "Không có chi tiết món"
+                })
+            conn.close()
+        except Exception as e_bh:
+            print(f"[GeminiEngine] Error DB_BANHANG: {e_bh}")
 
     # 2. Tra trong Báo Cáo Doanh Thu Đèn
-
-
-
     if os.path.exists(DB_DEN):
-
-
-
-        conn = sqlite3.connect(DB_DEN)
-
-
-
-        c = conn.cursor()
-
-
-
-        c.execute("""
-
-
-
-            SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
-
-
-
-            FROM orders
-
-
-
-            WHERE UPPER(customer_name) LIKE ? OR UPPER(car_model) LIKE ?
-
-
-
-            ORDER BY order_date DESC LIMIT 5
-
-
-
-        """, (f"%{kw}%", f"%{kw}%"))
-
-
-
-        for r in c.fetchall():
-
-
-
-            results.append({
-
-
-
-                "module": "Báo Cáo Đèn",
-
-
-
-                "id": r[0],
-
-
-
-                "name": r[3],
-
-
-
-                "phone": "Theo hồ sơ đèn",
-
-
-
-                "plate": r[4] or "Xe chưa ghi biển",
-
-
-
-                "date": r[1],
-
-
-
-                "total": f"{r[6]:,}k ({r[6] * 1000:,} đ)",
-
-
-
-                "items": f"Đèn {r[2]} (SL: {r[5]})"
-
-
-
-            })
-
-
-
-        conn.close()
-
-
-
-
-
-
+        try:
+            conn = sqlite3.connect(DB_DEN, timeout=5)
+            c = conn.cursor()
+            clean_plate_filter = f"%{clean_q}%" if clean_q else "__NO_PLATE_MATCH__"
+            c.execute("""
+                SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
+                FROM orders
+                WHERE replace(replace(replace(replace(replace(UPPER(customer_name), '-', ''), '.', ''), ' ', ''), '_', ''), '(', '') LIKE ?
+                   OR replace(replace(replace(replace(replace(UPPER(car_model), '-', ''), '.', ''), ' ', ''), '_', ''), '(', '') LIKE ?
+                   OR UPPER(customer_name) LIKE ?
+                   OR UPPER(car_model) LIKE ?
+                ORDER BY order_date DESC LIMIT 10
+            """, (clean_plate_filter, clean_plate_filter, f"%{kw.upper()}%", f"%{kw.upper()}%"))
+            for r in c.fetchall():
+                results.append({
+                    "module": "Báo Cáo Đèn",
+                    "id": r[0],
+                    "name": r[3],
+                    "phone": "Theo hồ sơ đèn",
+                    "plate": r[4] or "Xe chưa ghi biển",
+                    "date": r[1],
+                    "total": f"{r[6] * 1000:,.0f} đ" if r[6] else "0 đ",
+                    "items": f"Đèn {r[2]} (SL: {r[5]})"
+                })
+            conn.close()
+        except Exception as e_den:
+            print(f"[GeminiEngine] Error DB_DEN: {e_den}")
 
     if not results:
-
-
-
         return f"🔍 Không tìm thấy thông tin bảo hành hay đơn hàng nào khớp với từ khóa **'{tu_khoa}'**."
 
-
-
-
-
-
-
     res_str = f"🔍 **KẾT QUẢ TRA CỨU HỒ SƠ & BẢO HÀNH CHO '{tu_khoa}':**\n"
-
-
-
     res_str += "─────────────────────────────────────────\n"
-
-
-
     for idx, r in enumerate(results, 1):
-
-
-
         res_str += (
-
-
-
             f"**{idx}. [{r['module']}] Đơn #{r['id']}**\n"
-
-
-
             f"  • Khách hàng: **{r['name']}**\n"
-
-
-
             f"  • Biển số / Xe: **{r['plate']}** | SĐT: **{r['phone']}**\n"
-
-
-
             f"  • Ngày lắp: **{r['date']}** | Tổng tiền: **{r['total']}**\n"
-
-
-
             f"  • Phụ kiện: {r['items']}\n\n"
-
-
-
         )
-
-
-
     return res_str.strip()
-
-
-
-
-
-
-
-
-
 
 
 def tra_cuu_san_pham_kho_hang(tu_khoa: str) -> str:

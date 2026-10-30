@@ -38,6 +38,7 @@ import re
 import json
 import sqlite3
 from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -2809,8 +2810,76 @@ def handle_thuchi(raw_text, clean_text, session_id='default_user'):
 # 5. TRA CỨU BẢO HÀNH & ĐƠN HÀNG
 # ─────────────────────────────────────────────────────────────────────────────
 
+def compute_item_warranty(install_date_str, warranty_months, item_name=""):
+    """
+    Tính hạn bảo hành và trả về badge trạng thái trực quan:
+    🟢 Còn hạn (đến DD/MM/YYYY - còn X tháng)
+    🔴 Hết hạn (hết hạn DD/MM/YYYY)
+    ⚪ Không bảo hành / Hàng tiêu hao
+    """
+    clean_name = remove_accents(item_name or "").lower()
+    is_consumable = any(k in clean_name for k in [
+        'tien cong', 'cong lap', 'dich vu', 'nhot', 'dau nhot', 'nuoc hoa', 
+        'san 6d', 'lot san', 'tau sac', 'tau nguon', 'gia do', 'khu mui', 've sinh'
+    ])
+    
+    war_m = 0
+    try:
+        war_m = int(warranty_months or 0)
+    except (ValueError, TypeError):
+        war_m = 0
+        
+    if war_m <= 0:
+        if is_consumable:
+            return "⚪ *(Hàng tiêu hao / Dịch vụ - Không BH)*"
+        if any(k in clean_name for k in ['bi led', 'bi gam', 'bong led', 'man hinh', 'cam', 'camera', 'box', 'android', 'v20', 'f10', 's3', 's6', 's8', 's9', 'm20', 'm30', 'm40', 'titan', 'xlight', 'x-light', 'gotech', 'winca', 'vietmap']):
+            war_m = 24  # Tiêu chuẩn gara cho thiết bị điện tử / đèn
+        else:
+            return "⚪ *(Chưa ghi nhận thời hạn BH)*"
+            
+    if not install_date_str:
+        return f"🛡️ BH {war_m} tháng"
+        
+    dt = None
+    s = str(install_date_str).strip().split(' ')[0]
+    try:
+        if '-' in s:
+            p = s.split('-')
+            if len(p) == 3:
+                if len(p[0]) == 4:
+                    dt = datetime(int(p[0]), int(p[1]), int(p[2])).date()
+                else:
+                    dt = datetime(int(p[2]), int(p[1]), int(p[0])).date()
+        elif '/' in s:
+            p = s.split('/')
+            if len(p) == 3:
+                if len(p[0]) == 4:
+                    dt = datetime(int(p[0]), int(p[1]), int(p[2])).date()
+                else:
+                    dt = datetime(int(p[2]), int(p[1]), int(p[0])).date()
+    except Exception:
+        dt = None
+        
+    if not dt:
+        return f"🛡️ BH {war_m} tháng"
+        
+    try:
+        exp_date = dt + relativedelta(months=war_m)
+        today = datetime.now().date()
+        exp_str = exp_date.strftime('%d/%m/%Y')
+        
+        if exp_date >= today:
+            days_left = (exp_date - today).days
+            months_left = max(1, round(days_left / 30.4))
+            return f"🟢 **Còn hạn BH {war_m}T** (đến {exp_str} - còn ~{months_left} tháng)"
+        else:
+            return f"🔴 **Đã hết BH {war_m}T** (hết hạn từ {exp_str})"
+    except Exception:
+        return f"🛡️ BH {war_m} tháng"
+
+
 def handle_search_warranty_and_orders(raw_text, clean_text):
-    """Tra cứu bảo hành và lịch sử đơn hàng theo biển số xe, SĐT, tên khách (Hỗ trợ đại từ nhân xưng linh hoạt và hiển thị đầy đủ SĐT)"""
+    """Tra cứu bảo hành và lịch sử đơn hàng theo biển số xe, SĐT, tên khách (Hỗ trợ tìm kiếm thông minh trên cả Bán Hàng và Báo Cáo Đèn)"""
     is_search = bool(re.search(r'\b(tim|kiem tra|tra cuu|check|xem|bao hanh|lich su|don hang|sdt|so dien thoai|dien thoai|chu xe)\b', clean_text))
     plate = extract_license_plate(raw_text)
     phone = extract_phone(raw_text)
@@ -2831,7 +2900,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
     if not search_query or len(search_query) < 2:
         return {
             "type": "clarify",
-            "message": "🔍 Bạn muốn tra cứu thông tin bảo hành, chủ xe hoặc SĐT cho **Biển số xe**, **Số điện thoại** hay **Tên khách hàng** nào? (Ví dụ: *'tra cứu biển số 63A-187.30'* hoặc *'sđt xe 63A-192.37'* hoặc *'chị Mỹ Vios'*)"
+            "message": "🔍 Bạn muốn tra cứu thông tin bảo hành, chủ xe hoặc SĐT cho **Biển số xe**, **Số điện thoại** hay **Tên khách hàng** nào? (Ví dụ: *'tra cứu biển số 63A-187.30'* hoặc *'sđt xe 63A-192.37'* hoặc *'70a65741'*)"
         }
 
     clean_q = clean_plate_raw(search_query)
@@ -2893,11 +2962,9 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                         if re.search(r'\b' + re.escape(target_name) + r'\b', clean_c_name):
                             score += 20
                         
-                        # Khớp chính xác tên ngay sau đại từ (VD: 'Cô Mỹ - ...', 'Chị Mỹ - ...')
                         if re.search(rf'^(?:anh|chi|co|chu|bac|em|di|duong|cau|mo|thim|thay|ban|ong|ba|cu|a|c|e)\s+{re.escape(target_name)}(?:\s*[-/(]|\s*$)', clean_c_name):
                             score += 25
 
-                        # Khớp đại từ nhân xưng người dùng nhập
                         if hon in ['anh', 'a'] and (clean_c_name.startswith('anh ') or clean_c_name.startswith('a ')):
                             score += 15
                         elif hon in ['chi', 'c'] and (clean_c_name.startswith('chi ') or clean_c_name.startswith('c ')):
@@ -2941,6 +3008,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
 
             else:
                 valid_phone_filter = f"%{clean_phone_q}%" if len(clean_phone_q) >= 9 else "__NO_PHONE_MATCH__"
+                clean_plate_filter = f"%{clean_q}%" if clean_q else "__NO_PLATE_MATCH__"
                 c.execute("""
                     SELECT id, customer_name, phone, license_plate, install_date, total_price 
                     FROM orders 
@@ -2949,15 +3017,14 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                        OR replace(replace(replace(replace(phone, '-', ''), '.', ''), ' ', ''), '_', '') LIKE ? 
                        OR phone LIKE ?
                        OR customer_name LIKE ?
-                    ORDER BY install_date DESC LIMIT 10
-                """, (f"%{clean_q}%", f"%{search_query}%", valid_phone_filter, valid_phone_filter, f"%{search_query}%"))
+                    ORDER BY install_date DESC LIMIT 15
+                """, (clean_plate_filter, f"%{search_query}%", valid_phone_filter, valid_phone_filter, f"%{search_query}%"))
                 orders = c.fetchall()
 
                 for o in orders:
                     c_plate = (o['license_plate'] or '').strip()
                     c_name = (o['customer_name'] or '').strip()
                     key = (clean_plate_raw(c_plate) if c_plate and c_plate not in ('KHÔNG RÕ',) else c_name) or f"ORDER_{o['id']}"
-                    
                     phone_val = (o['phone'] or '').strip()
                     if not phone_val and c_plate and c_plate not in ('', 'KHÔNG RÕ'):
                         c.execute("""
@@ -2980,7 +3047,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                             "plate": c_plate,
                             "name": c_name,
                             "phone": phone_val,
-                            "score": 10,
+                            "score": 20,
                             "matched_extra": False,
                             "visits": []
                         }
@@ -2994,10 +3061,10 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                         "items": [dict(it) for it in items]
                     })
             conn.close()
-        except Exception:
-            pass
+        except Exception as e_bh:
+            print(f"[SearchWarranty] Lỗi tra cứu DB_BANHANG: {e_bh}")
 
-    # 2. Tra cứu trong Báo Cáo Đèn
+    # 2. Tra cứu trong Báo Cáo Đèn (doanhthu_den.db)
     if os.path.exists(DB_DEN):
         try:
             conn = sqlite3.connect(DB_DEN, timeout=10)
@@ -3010,7 +3077,7 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                 hon = cust_intent['honorific']
 
                 c.execute("""
-                    SELECT id, order_date, product_name, customer_name, car_model, price_k
+                    SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
                     FROM orders
                     WHERE customer_name IS NOT NULL AND customer_name != ''
                     ORDER BY order_date DESC
@@ -3026,7 +3093,10 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                     if not re.search(r'\b' + re.escape(target_name) + r'\b', clean_c_name):
                         continue
 
-                    # Thử hợp nhất vào khách hàng đã có trong phần mềm Bán Hàng (nếu cùng tên và trùng model xe)
+                    qty = r['quantity'] if ('quantity' in r.keys() and r['quantity']) else 1
+                    price = (r['price_k'] or 0) * 1000
+
+                    # Thử hợp nhất vào khách hàng đã có trong phần mềm Bán Hàng (nếu cùng tên và trùng model xe hoặc biển số)
                     found_group = None
                     norm_model = re.sub(r'[\s\-_]', '', clean_c_model)
                     model_key = re.sub(r'\d+', '', norm_model)
@@ -3053,8 +3123,8 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                         found_group["visits"].append({
                             "order_id": f"ĐÈN-{r['id']}",
                             "date": r['order_date'],
-                            "total": (r['price_k'] or 0) * 1000,
-                            "items": [{"item_name": r['product_name'], "price": (r['price_k'] or 0) * 1000, "warranty_months": 24, "qty": 1}]
+                            "total": price,
+                            "items": [{"item_name": r['product_name'], "price": price, "warranty_months": 24, "qty": qty}]
                         })
                         continue
 
@@ -3102,65 +3172,104 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
                     grouped[key]["visits"].append({
                         "order_id": f"ĐÈN-{r['id']}",
                         "date": r['order_date'],
-                        "total": (r['price_k'] or 0) * 1000,
-                        "items": [{"item_name": r['product_name'], "price": (r['price_k'] or 0) * 1000, "warranty_months": 24, "qty": 1}]
+                        "total": price,
+                        "items": [{"item_name": r['product_name'], "price": price, "warranty_months": 24, "qty": qty}]
                     })
 
             else:
+                valid_phone_filter = f"%{clean_phone_q}%" if len(clean_phone_q) >= 9 else "__NO_PHONE_MATCH__"
+                clean_plate_filter = f"%{clean_q}%" if clean_q else "__NO_PLATE_MATCH__"
                 c.execute("""
-                    SELECT id, order_date, product_name, customer_name, car_model, price_k
+                    SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
                     FROM orders
-                    WHERE customer_name LIKE ? OR car_model LIKE ?
-                    ORDER BY order_date DESC LIMIT 5
-                """, (f"%{search_query}%", f"%{search_query}%"))
+                    WHERE replace(replace(replace(replace(replace(UPPER(customer_name), '-', ''), '.', ''), ' ', ''), '_', ''), '(', '') LIKE ?
+                       OR replace(replace(replace(replace(replace(UPPER(car_model), '-', ''), '.', ''), ' ', ''), '_', ''), '(', '') LIKE ?
+                       OR customer_name LIKE ?
+                       OR car_model LIKE ?
+                       OR customer_name LIKE ?
+                    ORDER BY order_date DESC LIMIT 15
+                """, (clean_plate_filter, clean_plate_filter, f"%{search_query}%", f"%{search_query}%", valid_phone_filter))
                 den_orders = c.fetchall()
-                
+
                 for r in den_orders:
                     c_name = (r['customer_name'] or '').strip()
                     c_model = (r['car_model'] or '').strip()
-                    key = f"DEN_{c_name}_{c_model}"
-                    
-                    den_phone = ""
-                    den_plate = c_model
-                    if os.path.exists(DB_BANHANG):
-                        try:
-                            conn_bh = sqlite3.connect(DB_BANHANG, timeout=5)
-                            c_bh = conn_bh.cursor()
-                            c_bh.execute("SELECT phone, license_plate FROM orders WHERE UPPER(customer_name) = ? AND phone != '' LIMIT 1", (c_name.upper(),))
-                            bh_match = c_bh.fetchone()
-                            if bh_match:
-                                den_phone = bh_match[0] or ""
-                                if bh_match[1]:
-                                    den_plate = f"{c_model} ({bh_match[1]})"
-                            conn_bh.close()
-                        except Exception:
-                            pass
+                    qty = r['quantity'] if ('quantity' in r.keys() and r['quantity']) else 1
+                    price = (r['price_k'] or 0) * 1000
 
-                    if key not in grouped:
-                        grouped[key] = {
-                            "source": "Báo cáo Đèn",
-                            "plate": den_plate,
-                            "name": c_name,
-                            "phone": den_phone,
-                            "score": 10,
-                            "matched_extra": False,
-                            "visits": []
-                        }
-                    grouped[key]["visits"].append({
-                        "order_id": r['id'],
+                    # Trích xuất biển số từ customer_name hoặc car_model
+                    den_plate_extracted = extract_license_plate(c_name) or extract_license_plate(c_model)
+                    clean_den_plate = clean_plate_raw(den_plate_extracted)
+
+                    # Hợp nhất vào xe đã có trong Bán Hàng nếu trùng biển số hoặc trùng tên khách
+                    matched_g = None
+                    for g in grouped.values():
+                        clean_g_plate = clean_plate_raw(g['plate'])
+                        if clean_den_plate and clean_g_plate and (clean_den_plate in clean_g_plate or clean_g_plate in clean_den_plate):
+                            matched_g = g
+                            break
+                        if c_name and g['name'] and remove_accents(c_name).lower() in remove_accents(g['name']).lower():
+                            matched_g = g
+                            break
+
+                    visit_item = {
+                        "order_id": f"ĐÈN-{r['id']}",
                         "date": r['order_date'],
-                        "total": (r['price_k'] or 0) * 1000,
-                        "items": [{"item_name": r['product_name'], "price": (r['price_k'] or 0) * 1000, "warranty_months": 24, "qty": 1}]
-                    })
+                        "total": price,
+                        "items": [{
+                            "item_name": r['product_name'],
+                            "price": price,
+                            "warranty_months": 24,
+                            "qty": qty
+                        }]
+                    }
+
+                    if matched_g:
+                        matched_g["visits"].append(visit_item)
+                    else:
+                        key = f"DEN_{clean_den_plate or c_name}"
+                        den_phone = ""
+                        den_plate = den_plate_extracted or c_model
+                        if clean_den_plate and os.path.exists(DB_BANHANG):
+                            try:
+                                conn_bh = sqlite3.connect(DB_BANHANG, timeout=5)
+                                c_bh = conn_bh.cursor()
+                                c_bh.execute("""
+                                    SELECT phone, customer_name FROM orders
+                                    WHERE replace(replace(replace(replace(UPPER(license_plate), '-', ''), '.', ''), ' ', ''), '_', '') = ?
+                                      AND phone IS NOT NULL AND phone != ''
+                                    LIMIT 1
+                                """, (clean_den_plate,))
+                                bh_m = c_bh.fetchone()
+                                if bh_m:
+                                    den_phone = bh_m[0] or ""
+                                    if bh_m[1] and len(bh_m[1]) > len(c_name):
+                                        c_name = bh_m[1]
+                                conn_bh.close()
+                            except Exception:
+                                pass
+
+                        if key not in grouped:
+                            grouped[key] = {
+                                "source": "Báo cáo Đèn",
+                                "plate": den_plate,
+                                "name": c_name,
+                                "phone": den_phone,
+                                "score": 15,
+                                "matched_extra": False,
+                                "visits": [visit_item]
+                            }
+                        else:
+                            grouped[key]["visits"].append(visit_item)
             conn.close()
-        except Exception:
-            pass
+        except Exception as e_den:
+            print(f"[SearchWarranty] Lỗi tra cứu DB_DEN: {e_den}")
 
     if not grouped:
         display_q = raw_text.strip() if cust_intent else search_query
         return {
             "type": "info",
-            "message": f"🔎 Không tìm thấy đơn hàng hoặc thông tin khách hàng nào khớp với từ khóa **'{display_q}'**.\nBạn vui lòng kiểm tra lại biển số xe, số điện thoại hoặc tên khách nhé!"
+            "message": f"🔎 Không tìm thấy đơn hàng hoặc thông tin bảo hành nào khớp với từ khóa **'{display_q}'**.\nBạn vui lòng kiểm tra lại biển số xe, số điện thoại hoặc tên khách nhé!"
         }
 
     # Nếu có cust_intent: Ưu tiên ứng viên khớp matched_extra nếu user gõ kèm xe
@@ -3175,7 +3284,8 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
     top_candidates = candidate_list[:3]
 
     display_q = raw_text.strip() if cust_intent else search_query
-    res_text = f"🔍 **KẾT QUẢ TRA CỨU KHÁCH HÀNG / BẢO HÀNH: '{display_q.upper()}'**\n\n"
+    res_text = f"🔍 **KẾT QUẢ TRA CỨU BẢO HÀNH & LỊCH SỬ XE: '{display_q.upper()}'**\n"
+    res_text += "─────────────────────────────────────────\n"
 
     for info in top_candidates:
         plate_str = info['plate'] if info['plate'] else 'Chưa lưu biển số'
@@ -3183,31 +3293,36 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
         phone_str = info['phone'].strip() if info.get('phone') else ''
         
         if phone_str:
-            phone_badge = f"📞 **Số điện thoại:** **{phone_str}**"
+            phone_badge = f"📞 **SĐT:** **{phone_str}**"
         else:
-            phone_badge = "📞 **Số điện thoại:** *(Chưa lưu SĐT trên hệ thống)*"
+            phone_badge = "📞 **SĐT:** *(Chưa lưu trên hệ thống)*"
 
-        res_text += f"👤 **Chủ xe / Khách hàng:** **{name_str}**\n"
         res_text += f"🚗 **Biển số xe:** **{plate_str}** | {phone_badge}\n"
+        res_text += f"👤 **Chủ xe / Khách hàng:** **{name_str}**\n"
         
         total_spent = sum(v['total'] for v in info['visits'])
         num_visits = len(info['visits'])
-        res_text += f"💰 **Tổng chi tiêu:** **{total_spent:,.0f} đ** ({num_visits} lần làm xe)\n"
-        res_text += f"📋 **Lịch sử phụ kiện & Hạn bảo hành:**\n"
+        res_text += f"💰 **Tổng chi tiêu:** **{total_spent:,.0f} đ** ({num_visits} lần làm xe)\n\n"
+        res_text += "📋 **LỊCH SỬ PHỤ KIỆN & TÌNH TRẠNG BẢO HÀNH:**\n"
+
+        # Sắp xếp các lần lắp đặt từ gần nhất đến xa nhất
+        info['visits'].sort(key=lambda x: str(x.get('date', '')), reverse=True)
 
         for v in info['visits']:
             res_text += f"  📅 *Ngày {v['date']} (Đơn #{v['order_id']} - {v['total']:,.0f} đ):*\n"
             if v['items']:
                 for it in v['items']:
-                    war = it.get('warranty_months', 0)
-                    war_badge = f"🛡️ BH {war} tháng" if war > 0 else "Không BH"
-                    res_text += f"    • {it['item_name']}: {it['price']:,.0f} đ ({war_badge})\n"
+                    qty_str = f" (SL: {it.get('qty', 1)})" if it.get('qty', 1) > 1 else ""
+                    w_badge = compute_item_warranty(v['date'], it.get('warranty_months', 0), it.get('item_name', ''))
+                    res_text += f"    • **{it['item_name']}**{qty_str}: {it['price']:,.0f} đ\n"
+                    res_text += f"      └ {w_badge}\n"
             else:
-                res_text += f"    • (Không có chi tiết từng món)\n"
-        res_text += "──────────────────────────\n"
+                res_text += f"    • *(Không có chi tiết từng món)*\n"
+        res_text += "─────────────────────────────────────────\n"
 
     res_text += f"\n👉 [Mở tab Tra cứu trên phần mềm Bán hàng](/banhang/)"
     return {"type": "success", "message": res_text}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. TRA CỨU TỒN KHO & GIÁ BÁN
@@ -5974,6 +6089,25 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
             return fast_res
     except Exception as e_fast:
         print(f"[AutoLearner] Fast-path matcher error: {e_fast}")
+
+    # 3.7. FAST-PATH: TRA CỨU BẢO HÀNH & LỊCH SỬ XE KHI NHẬP BIỂN SỐ / SĐT / LỆNH TRA CỨU
+    # Nhận diện: biển số gõ liền (70a65741, 63a22471...), SĐT (09xxxxxxxxx), hoặc câu tra cứu bảo hành
+    plate_candidate = extract_license_plate(raw)
+    phone_candidate = extract_phone(raw)
+    is_pure_plate = False
+    clean_raw_alphanumeric = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
+    if plate_candidate:
+        clean_p = clean_plate_raw(plate_candidate)
+        if clean_p and (clean_p == clean_raw_alphanumeric or f"XE{clean_p}" == clean_raw_alphanumeric):
+            is_pure_plate = True
+    is_pure_phone = bool(phone_candidate and re.sub(r'\D', '', raw) == phone_candidate)
+    is_explicit_lookup = any(k in clean for k in ['bao hanh', 'tra cuu xe', 'lich su xe', 'kiem tra xe', 'check xe', 'xem xe'])
+    is_not_order_intent = not bool(re.search(r'\b(?:nhap don|len don|ghi don|tao don|lap|gan|thay|do|nhap)\b', clean))
+
+    if (is_pure_plate or is_pure_phone or is_explicit_lookup) and is_not_order_intent:
+        res_fast_search = handle_search_warranty_and_orders(raw, clean)
+        if res_fast_search:
+            return res_fast_search
 
     # 4. ƯU TIÊN TUYỆT ĐỐI: GEMINI 3.5 FLASH (Google Generative AI)
     if GEMINI_AVAILABLE and gemini_engine:
