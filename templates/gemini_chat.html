@@ -1,2941 +1,1651 @@
 <!DOCTYPE html>
-
 <html lang="vi">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-
-    <title>Trợ Lý AI Gara • Google Gemini | Trần Bình Auto</title>
-
-
-
-    <!-- Bootstrap 5 & Icons -->
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trợ Lý AI Gara Trần Bình Auto | Gemini 3.8 & Bộ Nhớ Tự Học</title>
 
     <!-- Google Fonts: Plus Jakarta Sans -->
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
-
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 & Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
-
-
-    <!-- Marked.js để hiển thị Markdown siêu chuẩn -->
-
+    <!-- Markdown Parser (marked.js) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-
-
     <style>
-
         :root {
-
             --bg-main: #131314;
-
+            --bg-sidebar: #18191a;
             --bg-surface: #1e1f20;
-
             --bg-surface-hover: #282a2c;
-
             --bg-input: #1e1f20;
-
             --border-subtle: rgba(255, 255, 255, 0.08);
-
             --border-focus: #4285f4;
-
             --text-primary: #e3e3e3;
-
             --text-secondary: #9aa0a6;
-
             --text-muted: #6e7681;
-
             --gemini-blue: #4285f4;
-
             --gemini-purple: #9b51e0;
-
             --gemini-pink: #ea4335;
-
         }
-
-
 
         * {
-
             box-sizing: border-box;
-
             margin: 0;
-
             padding: 0;
-
         }
-
-
 
         body {
-
             background-color: var(--bg-main);
-
             color: var(--text-primary);
-
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-
-            min-height: 100vh;
-
+            height: 100vh;
+            overflow: hidden;
             display: flex;
-
-            flex-direction: column;
-
-            overflow-x: hidden;
-
         }
 
+        /* ── Full App Layout (Sidebar + Workspace) ── */
+        .gemini-app-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
 
+        /* ── Left Sidebar (Lịch Sử Cuộc Trò Chuyện) ── */
+        .gemini-sidebar {
+            width: 290px;
+            min-width: 290px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1050;
+        }
+
+        .gemini-sidebar.collapsed {
+            margin-left: -290px;
+        }
+
+        .sidebar-header {
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .btn-new-chat {
+            width: 100%;
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.16), rgba(155, 81, 224, 0.16));
+            border: 1px solid rgba(138, 180, 248, 0.35);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.88rem;
+            padding: 10px 14px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-new-chat:hover {
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.28), rgba(155, 81, 224, 0.28));
+            border-color: #8ab4f8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(66, 133, 244, 0.2);
+        }
+
+        .sidebar-sessions-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-sessions-list::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .sidebar-sessions-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 3px;
+        }
+
+        .session-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.83rem;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .session-item:hover {
+            background: var(--bg-surface-hover);
+            color: #fff;
+        }
+
+        .session-item.active {
+            background: rgba(66, 133, 244, 0.14);
+            border-color: rgba(66, 133, 244, 0.4);
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .session-item-title {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .session-item-time {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .session-item-del {
+            opacity: 0;
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .session-item:hover .session-item-del {
+            opacity: 1;
+        }
+
+        .session-item-del:hover {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .sidebar-footer {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* ── Main Workspace ── */
+        .gemini-main-workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+            position: relative;
+            background-color: var(--bg-main);
+        }
 
         /* ── Top Bar & Navigation Tabs ── */
-
         .gemini-topbar {
-
             position: sticky;
-
             top: 0;
-
-            z-index: 1000;
-
-            background: rgba(19, 19, 20, 0.85);
-
+            z-index: 100;
+            background: rgba(19, 19, 20, 0.92);
             backdrop-filter: blur(16px);
-
             -webkit-backdrop-filter: blur(16px);
-
             border-bottom: 1px solid var(--border-subtle);
-
-            padding: 10px 20px;
-
+            padding: 10px 18px;
         }
 
+        .sidebar-toggle-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
 
+        .sidebar-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
 
         .gemini-brand {
-
             display: flex;
-
             align-items: center;
-
-            gap: 12px;
-
+            gap: 10px;
             text-decoration: none;
-
             color: #fff;
-
         }
-
-
 
         .gemini-sparkle-logo {
-
-            width: 34px;
-
-            height: 34px;
-
+            width: 32px;
+            height: 32px;
             background: linear-gradient(135deg, #4285f4 0%, #9b51e0 50%, #ea4335 100%);
-
             border-radius: 10px;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
-            font-size: 18px;
-
+            font-size: 17px;
             color: #fff;
-
-            box-shadow: 0 4px 16px rgba(155, 81, 224, 0.35);
-
-            animation: pulseGlow 3s infinite alternate;
-
+            box-shadow: 0 0 15px rgba(155, 81, 224, 0.35);
         }
-
-
-
-        @keyframes pulseGlow {
-
-            0% { box-shadow: 0 0 10px rgba(66, 133, 244, 0.4); }
-
-            100% { box-shadow: 0 0 20px rgba(155, 81, 224, 0.6); }
-
-        }
-
-
 
         .brand-title {
-
-            font-weight: 800;
-
             font-size: 1.05rem;
-
+            font-weight: 700;
             letter-spacing: -0.3px;
-
             display: flex;
-
             align-items: center;
-
             gap: 8px;
-
         }
-
-
 
         .brand-badge {
-
             background: rgba(66, 133, 244, 0.15);
-
+            border: 1px solid rgba(66, 133, 244, 0.35);
             color: #8ab4f8;
-
-            border: 1px solid rgba(66, 133, 244, 0.3);
-
             font-size: 0.68rem;
-
-            font-weight: 700;
-
-            padding: 2px 8px;
-
+            font-weight: 600;
+            padding: 2px 7px;
             border-radius: 20px;
-
             display: inline-flex;
-
             align-items: center;
-
-            gap: 5px;
-
+            gap: 4px;
         }
-
-
 
         .badge-pulse-dot {
-
             width: 6px;
-
             height: 6px;
-
             background: #34a853;
-
             border-radius: 50%;
-
-            animation: pulseDot 1.5s infinite;
-
+            animation: pulseDot 2s infinite;
         }
-
-
 
         @keyframes pulseDot {
-
             0%, 100% { opacity: 1; transform: scale(1); }
-
             50% { opacity: 0.4; transform: scale(0.8); }
-
         }
-
-
 
         /* ── Navigation Tabs ── */
-
         .hub-nav-tabs {
-
             display: flex;
-
             align-items: center;
-
             gap: 6px;
-
             background: rgba(255, 255, 255, 0.04);
-
             border: 1px solid var(--border-subtle);
-
             padding: 4px;
-
             border-radius: 14px;
-
         }
-
-
 
         .hub-tab-btn {
-
             color: var(--text-secondary);
-
             font-size: 0.82rem;
-
             font-weight: 600;
-
             padding: 6px 14px;
-
             border-radius: 10px;
-
             text-decoration: none;
-
             display: inline-flex;
-
             align-items: center;
-
             gap: 6px;
-
             transition: all 0.2s;
-
         }
-
-
 
         .hub-tab-btn:hover {
-
             color: #fff;
-
             background: rgba(255, 255, 255, 0.08);
-
         }
-
-
 
         .hub-tab-btn.active {
-
             background: linear-gradient(135deg, rgba(66, 133, 244, 0.25), rgba(155, 81, 224, 0.25));
-
             color: #fff;
-
             border: 1px solid rgba(138, 180, 248, 0.4);
-
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-
         }
-
-
 
         .top-action-btn {
-
             background: rgba(255, 255, 255, 0.06);
-
             border: 1px solid var(--border-subtle);
-
             color: var(--text-primary);
-
             font-size: 0.82rem;
-
             font-weight: 600;
-
             padding: 6px 12px;
-
             border-radius: 10px;
-
             display: inline-flex;
-
             align-items: center;
-
             gap: 6px;
-
             transition: all 0.2s;
-
             cursor: pointer;
-
         }
-
-
 
         .top-action-btn:hover {
-
             background: rgba(255, 255, 255, 0.12);
-
             color: #fff;
-
         }
-
-
 
         /* ── Model & Token Pill ── */
-
         .model-token-pill {
-
             background: rgba(66, 133, 244, 0.12);
-
             border: 1px solid rgba(138, 180, 248, 0.35);
-
             color: #8ab4f8;
-
             cursor: pointer;
-
             display: inline-flex;
-
             align-items: center;
-
             gap: 8px;
-
             padding: 5px 12px;
-
             border-radius: 20px;
-
             font-size: 0.8rem;
-
             font-weight: 600;
-
             transition: all 0.2s;
-
         }
-
         .model-token-pill:hover {
-
             background: rgba(66, 133, 244, 0.22);
-
             border-color: #8ab4f8;
-
             transform: translateY(-1px);
-
             box-shadow: 0 4px 12px rgba(66, 133, 244, 0.25);
-
             color: #fff;
-
         }
-
         .model-badge-dot {
-
             width: 8px;
-
             height: 8px;
-
             background: #34a853;
-
             border-radius: 50%;
-
             box-shadow: 0 0 8px #34a853;
-
             animation: pulseDot 2s infinite;
-
         }
-
         .token-count-badge {
-
             background: rgba(255, 255, 255, 0.1);
-
             padding: 2px 7px;
-
             border-radius: 10px;
-
             font-size: 0.72rem;
-
             color: #e8eaed;
-
         }
-
-
-
-        /* ── Glassmorphic Modal for Model & Resource Manager ── */
-
-        .gemini-modal-backdrop {
-
-            position: fixed;
-
-            top: 0; left: 0; right: 0; bottom: 0;
-
-            background: rgba(0, 0, 0, 0.75);
-
-            backdrop-filter: blur(8px);
-
-            -webkit-backdrop-filter: blur(8px);
-
-            z-index: 99999;
-
-            display: none;
-
-            align-items: center;
-
-            justify-content: center;
-
-            padding: 16px;
-
-            animation: fadeIn 0.2s ease-out;
-
-        }
-
-        .gemini-modal-content {
-
-            background: #181a20;
-
-            border: 1px solid rgba(255, 255, 255, 0.15);
-
-            border-radius: 20px;
-
-            max-width: 680px;
-
-            width: 100%;
-
-            max-height: 90vh;
-
-            overflow-y: auto;
-
-            color: #e8eaed;
-
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-
-            display: flex;
-
-            flex-direction: column;
-
-        }
-
-        .gemini-modal-header {
-
-            padding: 18px 24px;
-
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: space-between;
-
-            background: rgba(255, 255, 255, 0.02);
-
-        }
-
-        .gemini-modal-body {
-
-            padding: 24px;
-
-            overflow-y: auto;
-
-        }
-
-        .model-card-item {
-
-            background: rgba(255, 255, 255, 0.03);
-
-            border: 1px solid rgba(255, 255, 255, 0.08);
-
-            border-radius: 14px;
-
-            padding: 16px;
-
-            margin-bottom: 12px;
-
-            transition: all 0.2s;
-
-            cursor: pointer;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: space-between;
-
-            gap: 14px;
-
-        }
-
-        .model-card-item:hover {
-
-            border-color: rgba(138, 180, 248, 0.5);
-
-            background: rgba(66, 133, 244, 0.06);
-
-            transform: translateY(-1px);
-
-        }
-
-        .model-card-item.active {
-
-            border-color: #34a853;
-
-            background: rgba(52, 168, 83, 0.1);
-
-            box-shadow: 0 0 15px rgba(52, 168, 83, 0.2);
-
-        }
-
-        .stat-metric-card {
-
-            background: rgba(255, 255, 255, 0.04);
-
-            border: 1px solid rgba(255, 255, 255, 0.08);
-
-            border-radius: 14px;
-
-            padding: 14px;
-
-            text-align: center;
-
-        }
-
-        .stat-metric-val {
-
-            font-size: 1.4rem;
-
-            font-weight: 700;
-
-            color: #8ab4f8;
-
-            margin-top: 4px;
-
-        }
-
-        .msg-usage-tag {
-
-            font-size: 0.72rem;
-
-            color: var(--text-muted);
-
-            margin-top: 6px;
-
-            display: inline-flex;
-
-            align-items: center;
-
-            gap: 5px;
-
-            background: rgba(255, 255, 255, 0.04);
-
-            padding: 2px 8px;
-
-            border-radius: 8px;
-
-            border: 1px solid rgba(255, 255, 255, 0.05);
-
-        }
-
-
 
         /* ── Main Chat Stream ── */
-
         .chat-container {
-
             flex: 1;
-
             max-width: 880px;
-
             width: 100%;
-
             margin: 0 auto;
-
             padding: 24px 16px 160px;
-
             display: flex;
-
             flex-direction: column;
-
             gap: 24px;
-
         }
-
-
 
         /* ── Welcome Greeting (Khi chưa có tin nhắn) ── */
-
         .gemini-welcome {
-
             padding: 40px 0 20px;
-
             text-align: left;
-
             animation: fadeIn 0.4s ease-out;
-
         }
-
-
 
         .welcome-greeting-title {
-
             font-size: 2.4rem;
-
             font-weight: 800;
-
             letter-spacing: -0.5px;
-
             margin-bottom: 8px;
-
             background: linear-gradient(90deg, #4285f4 0%, #9b51e0 50%, #ea4335 100%);
-
             -webkit-background-clip: text;
-
             -webkit-text-fill-color: transparent;
-
         }
-
-
 
         .welcome-greeting-sub {
-
             font-size: 1.35rem;
-
             font-weight: 600;
-
             color: #cbd5e1;
-
             margin-bottom: 30px;
-
         }
-
-
 
         .suggestions-grid {
-
             display: grid;
-
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-
             gap: 14px;
-
             margin-top: 10px;
-
         }
-
-
 
         .suggestion-card {
-
             background: var(--bg-surface);
-
             border: 1px solid var(--border-subtle);
-
             border-radius: 16px;
-
             padding: 16px;
-
             cursor: pointer;
-
-            transition: all 0.25s;
-
-            display: flex;
-
-            flex-direction: column;
-
-            justify-content: space-between;
-
-            min-height: 110px;
-
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
         }
-
-
 
         .suggestion-card:hover {
-
             background: var(--bg-surface-hover);
-
             border-color: rgba(66, 133, 244, 0.4);
-
             transform: translateY(-2px);
-
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
         }
 
+        .card-icon {
+            font-size: 20px;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
 
-
-        .sug-title {
-
-            font-weight: 700;
-
+        .card-title {
             font-size: 0.92rem;
-
+            font-weight: 600;
             color: #fff;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-
-            margin-bottom: 6px;
-
+            margin-bottom: 4px;
         }
 
-
-
-        .sug-desc {
-
+        .card-desc {
             font-size: 0.8rem;
-
             color: var(--text-secondary);
-
-            line-height: 1.45;
-
+            line-height: 1.4;
         }
 
-
-
-        /* ── Message Bubbles ── */
-
+        /* ── Message Rows ── */
         .msg-row {
-
             display: flex;
-
             gap: 14px;
-
+            animation: fadeIn 0.3s ease-out;
             width: 100%;
-
-            animation: fadeIn 0.25s ease-out;
-
         }
-
-
 
         @keyframes fadeIn {
-
-            from { opacity: 0; transform: translateY(10px); }
-
+            from { opacity: 0; transform: translateY(6px); }
             to { opacity: 1; transform: translateY(0); }
-
         }
-
-
 
         .msg-row.user {
-
             justify-content: flex-end;
-
         }
-
-
 
         .msg-avatar {
-
             width: 32px;
-
             height: 32px;
-
             border-radius: 50%;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
-            font-size: 15px;
-
             flex-shrink: 0;
-
-            margin-top: 2px;
-
+            font-size: 15px;
         }
-
-
-
-        .avatar-gemini {
-
-            background: linear-gradient(135deg, #4285f4, #9b51e0);
-
-            color: #fff;
-
-            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
-
-        }
-
-
 
         .avatar-user {
-
-            background: rgba(255, 255, 255, 0.12);
-
-            color: #cbd5e1;
-
+            background: #2563eb;
+            color: #fff;
         }
 
-
+        .avatar-gemini {
+            background: linear-gradient(135deg, #4285f4, #9b51e0);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(155, 81, 224, 0.4);
+        }
 
         .msg-content-wrapper {
-
             max-width: 82%;
-
             display: flex;
-
             flex-direction: column;
-
         }
-
-
 
         .msg-bubble-user {
-
-            background: #2b2d30;
-
+            background: #282a2c;
             border: 1px solid rgba(255, 255, 255, 0.08);
-
-            color: #f1f5f9;
-
+            color: #fff;
             padding: 12px 18px;
-
-            border-radius: 20px;
-
-            border-top-right-radius: 6px;
-
+            border-radius: 20px 20px 4px 20px;
             font-size: 0.95rem;
-
-            line-height: 1.6;
-
+            line-height: 1.55;
             white-space: pre-wrap;
-
             word-break: break-word;
-
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-
         }
 
-
-
-        .msg-bubble-gemini {
-
+        .msg-bubble-bot {
             color: var(--text-primary);
-
-            font-size: 0.95rem;
-
+            font-size: 0.96rem;
             line-height: 1.65;
-
             word-break: break-word;
-
-            padding-top: 4px;
-
         }
 
-
-
-        .msg-bubble-gemini p { margin-bottom: 10px; }
-
-        .msg-bubble-gemini p:last-child { margin-bottom: 0; }
-
-        .msg-bubble-gemini strong { color: #8ab4f8; font-weight: 700; }
-
-        .msg-bubble-gemini em { color: #ffd60a; font-style: normal; }
-
-        .msg-bubble-gemini ul, .msg-bubble-gemini ol { padding-left: 20px; margin-bottom: 12px; }
-
-        .msg-bubble-gemini li { margin-bottom: 4px; }
-
-        .msg-bubble-gemini hr { border-color: rgba(255, 255, 255, 0.1); margin: 14px 0; }
-
-        
-
-        .msg-bubble-gemini a {
-
-            color: #8ab4f8;
-
-            text-decoration: none;
-
-            border-bottom: 1px dashed rgba(138, 180, 248, 0.5);
-
-        }
-
-        .msg-bubble-gemini a:hover {
-
-            color: #d2e3fc;
-
-            border-bottom-style: solid;
-
-        }
-
-
-
-        /* ── Action Buttons bên trong tin nhắn phản hồi ── */
-
-        .msg-actions-card {
-
-            margin-top: 14px;
-
-            padding: 12px 16px;
-
-            background: rgba(255, 255, 255, 0.03);
-
-            border: 1px solid rgba(255, 255, 255, 0.1);
-
-            border-radius: 14px;
-
-            display: flex;
-
-            flex-wrap: wrap;
-
-            align-items: center;
-
-            gap: 10px;
-
-        }
-
-
-
-        .btn-confirm-action {
-
-            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-
-            color: #fff;
-
-            border: 1px solid rgba(74, 222, 128, 0.4);
-
-            border-radius: 12px;
-
-            padding: 8px 18px;
-
-            font-size: 0.88rem;
-
-            font-weight: 700;
-
-            display: inline-flex;
-
-            align-items: center;
-
-            gap: 6px;
-
-            cursor: pointer;
-
-            transition: all 0.2s;
-
-            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-
-        }
-
-
-
-        .btn-confirm-action:hover {
-
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-
-            transform: translateY(-1px);
-
-            box-shadow: 0 6px 16px rgba(22, 163, 74, 0.5);
-
-            color: #fff;
-
-        }
-
-
-
-        .btn-cancel-action {
-
-            background: rgba(239, 68, 68, 0.15);
-
-            color: #fca5a5;
-
-            border: 1px solid rgba(239, 68, 68, 0.35);
-
-            border-radius: 12px;
-
-            padding: 8px 18px;
-
-            font-size: 0.88rem;
-
-            font-weight: 600;
-
-            display: inline-flex;
-
-            align-items: center;
-
-            gap: 6px;
-
-            cursor: pointer;
-
-            transition: all 0.2s;
-
-        }
-
-
-
-        .btn-cancel-action:hover {
-
-            background: rgba(239, 68, 68, 0.25);
-
-            color: #fff;
-
-        }
-
-
-
-        /* Thanh công cụ phụ dưới tin nhắn của Bot */
-
-        .msg-footer-tools {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-
-            margin-top: 10px;
-
-            padding-top: 6px;
-
-        }
-
-
-
-        .tool-icon-btn {
-
-            background: none;
-
-            border: none;
-
-            color: var(--text-muted);
-
-            font-size: 14px;
-
-            cursor: pointer;
-
-            padding: 4px 8px;
-
-            border-radius: 6px;
-
-            transition: all 0.2s;
-
-            display: inline-flex;
-
-            align-items: center;
-
-            gap: 4px;
-
-        }
-
-
-
-        .tool-icon-btn:hover {
-
-            color: #fff;
-
-            background: rgba(255, 255, 255, 0.08);
-
-        }
-
-
-
-        /* ── Typing Indicator (Hiệu ứng Gemini đang suy nghĩ) ── */
-
+        .msg-bubble-bot p { margin-bottom: 12px; }
+        .msg-bubble-bot p:last-child { margin-bottom: 0; }
+        .msg-bubble-bot ul, .msg-bubble-bot ol { margin-left: 20px; margin-bottom: 12px; }
+        .msg-bubble-bot li { margin-bottom: 4px; }
+        .msg-bubble-bot strong { color: #fff; font-weight: 700; }
+        .msg-bubble-bot a { color: #8ab4f8; text-decoration: none; border-bottom: 1px dashed rgba(138, 180, 248, 0.4); }
+        .msg-bubble-bot a:hover { color: #c2e7ff; border-bottom-style: solid; }
+        .msg-bubble-bot code { background: rgba(255, 255, 255, 0.08); color: #f28b82; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+        .msg-bubble-bot pre { background: #1e1f20; border: 1px solid var(--border-subtle); padding: 14px; border-radius: 12px; overflow-x: auto; margin-bottom: 12px; }
+        .msg-bubble-bot blockquote { border-left: 3px solid #8ab4f8; padding-left: 12px; color: var(--text-secondary); margin: 8px 0; }
+
+        /* Thinking Indicator */
         .gemini-thinking {
-
             display: flex;
-
             align-items: center;
-
-            gap: 6px;
-
-            padding: 10px 0;
-
+            gap: 10px;
             color: var(--text-secondary);
-
-            font-size: 0.88rem;
-
+            font-size: 0.9rem;
+            padding: 8px 0;
         }
-
-
 
         .thinking-sparkle {
-
+            color: #9b51e0;
             animation: rotateSparkle 2s linear infinite;
-
-            color: #8ab4f8;
-
-            font-size: 18px;
-
         }
-
-
 
         @keyframes rotateSparkle {
-
             0% { transform: rotate(0deg) scale(0.9); }
-
-            50% { transform: rotate(180deg) scale(1.15); }
-
+            50% { transform: rotate(180deg) scale(1.1); }
             100% { transform: rotate(360deg) scale(0.9); }
-
         }
 
-
-
-        /* ── FLOATING INPUT CAPSULE (Chuẩn Google Gemini) ── */
-
+        /* ── Floating Gemini Input Bar ── */
         .floating-input-bar {
-
             position: fixed;
-
-            bottom: 18px;
-
+            bottom: 24px;
             left: 50%;
-
             transform: translateX(-50%);
-
             width: calc(100% - 32px);
-
-            max-width: 860px;
-
-            z-index: 1000;
-
-            background: var(--bg-surface);
-
-            border: 1px solid rgba(255, 255, 255, 0.14);
-
+            max-width: 840px;
+            background: #1e1f20;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 28px;
-
-            padding: 8px 14px;
-
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
-
-            transition: all 0.2s ease;
-
+            padding: 8px 14px 8px 18px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            transition: all 0.25s ease;
+            z-index: 1000;
         }
 
-
+        .gemini-sidebar:not(.collapsed) ~ .gemini-main-workspace .floating-input-bar {
+            left: calc(50% + 145px);
+        }
 
         .floating-input-bar:focus-within {
-
-            border-color: var(--border-focus);
-
-            background: #232528;
-
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 3px rgba(66, 133, 244, 0.25);
-
+            border-color: rgba(66, 133, 244, 0.6);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 0 2px rgba(66, 133, 244, 0.2);
+            background: #252628;
         }
-
-
-
-        .input-row {
-
-            display: flex;
-
-            align-items: flex-end;
-
-            gap: 10px;
-
-        }
-
-
 
         .gemini-textarea {
-
             flex: 1;
-
             background: transparent;
-
             border: none;
-
             outline: none;
-
             color: #fff;
-
             font-family: inherit;
-
             font-size: 15.5px;
-
             line-height: 1.5;
-
             resize: none;
-
-            max-height: 220px;
-
+            max-height: 200px;
             min-height: 26px;
-
             padding: 6px 2px;
-
             overflow-y: auto;
-
         }
-
-
 
         .gemini-textarea::-webkit-scrollbar { width: 5px; }
-
         .gemini-textarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
 
-
-
         .gemini-textarea::placeholder {
-
             color: var(--text-muted);
-
             font-size: 0.95rem;
-
         }
-
-
 
         .input-btn-group {
-
             display: flex;
-
             align-items: center;
-
             gap: 6px;
-
             padding-bottom: 2px;
-
         }
-
-
 
         .btn-input-tool {
-
             width: 36px;
-
             height: 36px;
-
             border-radius: 50%;
-
             border: none;
-
             background: transparent;
-
             color: var(--text-secondary);
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
             font-size: 17px;
-
             cursor: pointer;
-
             transition: all 0.2s;
-
         }
-
-
 
         .btn-input-tool:hover {
-
             color: #fff;
-
             background: rgba(255, 255, 255, 0.08);
-
         }
-
-
 
         .btn-input-tool.recording {
-
             color: #ef4444;
-
             background: rgba(239, 68, 68, 0.15);
-
             animation: pulseRecord 1s infinite;
-
         }
-
-
 
         @keyframes pulseRecord {
-
             0%, 100% { transform: scale(1); }
-
             50% { transform: scale(1.15); }
-
         }
 
-
-
-        .btn-send {
-
+        .btn-gemini-send {
             width: 38px;
-
             height: 38px;
-
             border-radius: 50%;
-
             border: none;
-
-            background: #4285f4;
-
+            background: linear-gradient(135deg, #4285f4, #9b51e0);
             color: #fff;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
             font-size: 16px;
-
             cursor: pointer;
-
             transition: all 0.2s;
-
             box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
-
         }
 
-
-
-        .btn-send:hover {
-
-            background: #3367d6;
-
+        .btn-gemini-send:hover {
             transform: scale(1.05);
-
+            filter: brightness(1.15);
         }
 
-
-
-        .btn-send:disabled {
-
-            background: rgba(255, 255, 255, 0.08);
-
-            color: rgba(255, 255, 255, 0.25);
-
-            box-shadow: none;
-
+        .btn-gemini-send:disabled {
+            opacity: 0.35;
             cursor: not-allowed;
-
             transform: none;
-
         }
 
-
-
-        .input-subhint {
-
-            text-align: center;
-
-            font-size: 0.72rem;
-
-            color: var(--text-muted);
-
-            margin-top: 6px;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            gap: 6px;
-
-        }
-
-
-
-        /* ── Toast Copy ── */
-
-        .gemini-toast {
-
+        /* ── Glassmorphic Modal for Model & Resource Manager ── */
+        .gemini-modal-backdrop {
             position: fixed;
-
-            top: 20px;
-
-            left: 50%;
-
-            transform: translateX(-50%) translateY(-30px);
-
-            background: rgba(30, 41, 59, 0.95);
-
-            border: 1px solid rgba(56, 189, 248, 0.35);
-
-            color: #fff;
-
-            padding: 8px 18px;
-
-            border-radius: 20px;
-
-            font-size: 0.85rem;
-
-            font-weight: 600;
-
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             z-index: 99999;
-
-            opacity: 0;
-
-            pointer-events: none;
-
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .gemini-modal-content {
+            background: #181a20;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            max-width: 680px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            color: #e8eaed;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+        }
+        .gemini-modal-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .gemini-modal-body {
+            padding: 24px;
+            overflow-y: auto;
+        }
+        .model-card-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .model-card-item:hover {
+            border-color: rgba(138, 180, 248, 0.5);
+            background: rgba(66, 133, 244, 0.06);
+            transform: translateY(-1px);
+        }
+        .model-card-item.active {
+            border-color: #34a853;
+            background: rgba(52, 168, 83, 0.1);
+            box-shadow: 0 0 15px rgba(52, 168, 83, 0.2);
+        }
+        .stat-metric-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
+        }
+        .stat-metric-val {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #8ab4f8;
+            margin-top: 4px;
         }
 
-
+        /* Toast Thông Báo */
+        .gemini-toast {
+            position: fixed;
+            top: 75px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #252628;
+            color: #fff;
+            border: 1px solid var(--border-subtle);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 9999;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
 
         .gemini-toast.show {
-
             opacity: 1;
-
             transform: translateX(-50%) translateY(0);
-
         }
-
-
 
         /* ── Responsive Mobile ── */
-
         @media (max-width: 768px) {
-
-            .gemini-topbar { padding: 8px 12px; }
-
-            .hub-nav-tabs { display: none; } /* Ẩn tabs dài trên màn hình nhỏ */
-
-            .brand-title { font-size: 0.95rem; }
-
-            .welcome-greeting-title { font-size: 1.8rem; }
-
-            .welcome-greeting-sub { font-size: 1.1rem; }
-
-            .chat-container { padding: 16px 12px 140px; }
-
-            .msg-content-wrapper { max-width: 90%; }
-
-            .floating-input-bar {
-
-                width: calc(100% - 16px);
-
-                bottom: 10px;
-
-                border-radius: 22px;
-
-                padding: 6px 10px;
-
+            .gemini-sidebar {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                box-shadow: 8px 0 30px rgba(0, 0, 0, 0.8);
             }
-
+            .sidebar-backdrop {
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.65);
+                backdrop-filter: blur(4px);
+                z-index: 1040;
+                display: none;
+            }
+            .sidebar-backdrop.show {
+                display: block;
+            }
+            .gemini-topbar { padding: 8px 12px; }
+            .hub-nav-tabs { display: none; }
+            .brand-title { font-size: 0.92rem; }
+            .welcome-greeting-title { font-size: 1.8rem; }
+            .welcome-greeting-sub { font-size: 1.1rem; }
+            .chat-container { padding: 16px 12px 140px; }
+            .msg-content-wrapper { max-width: 90%; }
+            .floating-input-bar {
+                width: calc(100% - 16px);
+                bottom: 12px;
+                border-radius: 22px;
+                padding: 6px 10px;
+                left: 50% !important;
+            }
         }
-
     </style>
-
 </head>
-
 <body>
 
-
-
-    <!-- ── TOPBAR & NAVIGATION TABS ── -->
-
-    <header class="gemini-topbar">
-
-        <div class="d-flex align-items-center justify-content-between">
-
-            <a href="/" class="gemini-brand">
-
-                <div class="gemini-sparkle-logo">
-
-                    <i class="bi bi-stars"></i>
-
-                </div>
-
-                <div>
-
-                    <div class="brand-title">
-
-                        <span>TRẦN BÌNH AUTO</span>
-
-                        <span class="brand-badge">
-
-                            <span class="badge-pulse-dot"></span>
-
-                            Gemini 3.5 & AI Nội Bộ
-
-                        </span>
-
-                    </div>
-
-                </div>
-
-            </a>
-
-
-
-            <!-- Thanh Tabs Chuyển Nhanh Giữa Các Phân Hệ -->
-
-            <nav class="hub-nav-tabs">
-
-                <a href="/" class="hub-tab-btn" title="Cổng điều hành trung tâm">
-
-                    <i class="bi bi-house-door-fill"></i> Trang Chủ
-
-                </a>
-
-                <a href="/banhang/" class="hub-tab-btn" title="Phần mềm bán hàng & kho">
-
-                    <i class="bi bi-cart3"></i> Bán Hàng
-
-                </a>
-
-                <a href="/den/" class="hub-tab-btn" title="Báo cáo doanh thu đèn">
-
-                    <i class="bi bi-lightbulb-fill"></i> Báo Cáo Đèn
-
-                </a>
-
-                <a href="/thuchi/" class="hub-tab-btn" title="Sổ quản lý thu chi">
-
-                    <i class="bi bi-wallet2"></i> Thu Chi
-
-                </a>
-
-                <a href="/chat/" class="hub-tab-btn active" title="Trợ lý AI Gemini">
-
-                    <i class="bi bi-stars"></i> Trợ Lý AI
-
-                </a>
-
-            </nav>
-
-
-
-            <!-- Nút thao tác góc phải & Pill Model/Token -->
-
-            <div class="d-flex align-items-center gap-2">
-
-                <button class="model-token-pill" onclick="openModelManagerModal()" title="Xem tài nguyên token & Đổi Model AI" id="modelTokenPill">
-
-                    <span class="model-badge-dot"></span>
-
-                    <span id="activeModelLabel">⚡ 3.5 Flash-Lite</span>
-
-                    <span class="token-count-badge" id="tokenCountBadge">0 tokens</span>
-
+    <div class="gemini-app-layout">
+        <!-- ── KHUNG BÊN TRÁI: LỊCH SỬ CUỘC TRÒ CHUYỆN (GEMINI SIDEBAR) ── -->
+        <aside class="gemini-sidebar" id="geminiSidebar">
+            <div class="sidebar-header">
+                <button class="btn-new-chat" onclick="startNewChat()">
+                    <span class="d-flex align-items-center gap-2">
+                        <i class="bi bi-plus-lg"></i>
+                        <span>Cuộc trò chuyện mới</span>
+                    </span>
+                    <i class="bi bi-stars text-info" style="font-size:0.9rem;"></i>
                 </button>
-
-                <button class="top-action-btn" onclick="startNewChat()" title="Bắt đầu phiên trò chuyện mới">
-
-                    <i class="bi bi-plus-lg"></i>
-
-                    <span class="d-none d-sm-inline">Đoạn Chat Mới</span>
-
-                </button>
-
-                <a href="/" class="top-action-btn" title="Về trang chủ Hub">
-
-                    <i class="bi bi-grid-fill"></i>
-
-                </a>
-
             </div>
 
-        </div>
-
-    </header>
-
-
-
-    <!-- ── CHAT CONTAINER ── -->
-
-    <main class="chat-container" id="chatContainer">
-
-        
-
-        <!-- Màn hình chào ban đầu (Khi chưa có tin nhắn) -->
-
-        <div class="gemini-welcome" id="welcomeSection">
-
-            <h1 class="welcome-greeting-title">Xin chào, Anh Bình 👋</h1>
-
-            <div class="welcome-greeting-sub">Hôm nay em có thể hỗ trợ gì cho Gara Trần Bình Auto?</div>
-
-
-
-            <div class="suggestions-grid">
-
-                <div class="suggestion-card" onclick="useSuggestion('lắp Titan F1 Turbo S cho xe City 63A36001 vào ngày 13/8/2026')">
-
-                    <div>
-
-                        <div class="sug-title"><i class="bi bi-lightning-charge-fill text-warning"></i> Lên đơn đèn nhanh</div>
-
-                        <div class="sug-desc">"Lắp Titan F1 Turbo S cho xe City 63A36001 vào ngày 13/8"</div>
-
-                    </div>
-
-                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tự tra cứu giá & hồ sơ</small>
-
-                </div>
-
-
-
-                <div class="suggestion-card" onclick="useSuggestion('giá bi gầm F10 2.0 và kiểm tra tồn kho còn bao nhiêu bộ')">
-
-                    <div>
-
-                        <div class="sug-title"><i class="bi bi-box-seam-fill text-info"></i> Tra cứu giá & tồn kho</div>
-
-                        <div class="sug-desc">"Giá bi gầm F10 2.0 và kiểm tra tồn kho còn bao nhiêu bộ"</div>
-
-                    </div>
-
-                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tra cứu 2.780+ sản phẩm</small>
-
-                </div>
-
-
-
-                <div class="suggestion-card" onclick="useSuggestion('chi 350k mua cơm trưa cho anh em thợ hôm nay')">
-
-                    <div>
-
-                        <div class="sug-title"><i class="bi bi-cash-stack text-success"></i> Ghi sổ thu chi</div>
-
-                        <div class="sug-desc">"Chi 350k mua cơm trưa cho anh em thợ hôm nay"</div>
-
-                    </div>
-
-                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tự động vào sổ quỹ</small>
-
-                </div>
-
-
-
-                <div class="suggestion-card" onclick="useSuggestion('bộ nhớ tự học')">
-
-                    <div>
-
-                        <div class="sug-title"><i class="bi bi-cpu-fill text-primary"></i> Bộ nhớ tự học</div>
-
-                        <div class="sug-desc">"Xem danh sách các từ lóng và mẫu lệnh AI đã tự học từ Gemini"</div>
-
-                    </div>
-
-                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Phản hồi siêu tốc &lt; 15ms</small>
-
-                </div>
-
+            <div class="px-3 pt-2 pb-1" style="font-size:0.7rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">
+                Gần Đây & Lịch Sử
             </div>
 
-        </div>
-
-
-
-        <!-- Danh sách tin nhắn trò chuyện -->
-
-        <div id="messagesList" style="display: flex; flex-direction: column; gap: 20px;"></div>
-
-
-
-    </main>
-
-
-
-    <!-- ── FLOATING INPUT BAR (GEMINI CAPSULE) ── -->
-
-    <div class="floating-input-bar">
-
-        <div class="input-row">
-
-            <!-- Nút Giọng nói Microphone -->
-
-            <button class="btn-input-tool" id="btnMic" onclick="toggleSpeechRecognition()" title="Nói tiếng Việt (Nhận diện giọng nói)">
-
-                <i class="bi bi-mic-fill"></i>
-
-            </button>
-
-
-
-            <!-- Textarea tự động co giãn nhiều dòng -->
-
-            <textarea 
-
-                class="gemini-textarea" 
-
-                id="userInput" 
-
-                rows="1" 
-
-                placeholder="Nhập mệnh lệnh điều hành, thông tin xe, dán bảng biểu... (Shift + Enter để xuống dòng)"
-
-                oninput="handleTextareaInput(this)"
-
-                onkeydown="handleTextareaKeydown(event)"
-
-            ></textarea>
-
-
-
-            <!-- Nhóm nút hành động phụ & nút Gửi -->
-
-            <div class="input-btn-group">
-
-                <button class="btn-input-tool" id="btnClearInput" onclick="clearInput()" title="Xóa nội dung" style="display: none;">
-
-                    <i class="bi bi-x-circle-fill"></i>
-
-                </button>
-
-                <button class="btn-send" id="btnSend" onclick="sendMessage()" disabled title="Gửi tin nhắn (Enter)">
-
-                    <i class="bi bi-arrow-up"></i>
-
-                </button>
-
+            <div class="sidebar-sessions-list" id="sidebarSessionsList">
+                <!-- Danh sách phiên hội thoại nạp động qua JavaScript -->
+                <div class="text-center py-4 text-muted" style="font-size:0.78rem;">
+                    Chưa có cuộc trò chuyện nào
+                </div>
             </div>
 
+            <div class="sidebar-footer">
+                <span id="sessionsCountLabel">0 cuộc trò chuyện</span>
+                <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" style="font-size:0.75rem;" onclick="clearAllChatSessions()">
+                    <i class="bi bi-trash"></i> Xóa hết
+                </button>
+            </div>
+        </aside>
+
+        <!-- Lớp phủ đóng sidebar trên điện thoại -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+        <!-- ── KHUNG CHÍNH: KHÔNG GIAN TRÒ CHUYỆN ── -->
+        <div class="gemini-main-workspace" id="mainWorkspace">
+            <!-- TOPBAR & NAVIGATION TABS -->
+            <header class="gemini-topbar">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Nút Đóng / Mở Sidebar Lịch Sử -->
+                        <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Đóng/Mở thanh lịch sử chat">
+                            <i class="bi bi-layout-sidebar-inset"></i>
+                        </button>
+
+                        <a href="/" class="gemini-brand">
+                            <div class="gemini-sparkle-logo">
+                                <i class="bi bi-stars"></i>
+                            </div>
+                            <div>
+                                <div class="brand-title">
+                                    <span>TRẦN BÌNH AUTO</span>
+                                    <span class="brand-badge">
+                                        <span class="badge-pulse-dot"></span>
+                                        Gemini 3.8 & AI Tự Học
+                                    </span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Thanh Tabs Chuyển Nhanh Giữa Các Phân Hệ -->
+                    <nav class="hub-nav-tabs">
+                        <a href="/" class="hub-tab-btn" title="Cổng điều hành trung tâm">
+                            <i class="bi bi-house-door-fill"></i> Trang Chủ
+                        </a>
+                        <a href="/banhang/" class="hub-tab-btn" title="Phần mềm bán hàng & kho">
+                            <i class="bi bi-cart3"></i> Bán Hàng
+                        </a>
+                        <a href="/den/" class="hub-tab-btn" title="Báo cáo doanh thu đèn">
+                            <i class="bi bi-lightbulb-fill"></i> Báo Cáo Đèn
+                        </a>
+                        <a href="/thuchi/" class="hub-tab-btn" title="Sổ quản lý thu chi">
+                            <i class="bi bi-wallet2"></i> Thu Chi
+                        </a>
+                        <a href="/chat/" class="hub-tab-btn active" title="Trợ lý AI Gemini">
+                            <i class="bi bi-stars"></i> Trợ Lý AI
+                        </a>
+                    </nav>
+
+                    <!-- Nút thao tác góc phải & Pill Model/Token -->
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="model-token-pill" onclick="openModelManagerModal()" title="Xem tài nguyên token & Đổi Model AI" id="modelTokenPill">
+                            <span class="model-badge-dot"></span>
+                            <span id="activeModelLabel">⚡ 3.5 Flash-Lite</span>
+                            <span class="token-count-badge" id="tokenCountBadge">0 tokens</span>
+                        </button>
+                        <button class="top-action-btn" onclick="startNewChat()" title="Bắt đầu phiên trò chuyện mới">
+                            <i class="bi bi-plus-lg"></i>
+                            <span class="d-none d-sm-inline">Chat Mới</span>
+                        </button>
+                        <a href="/" class="top-action-btn" title="Về trang chủ Hub">
+                            <i class="bi bi-grid-fill"></i>
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CHAT STREAM CONTAINER -->
+            <main class="chat-container" id="chatContainer">
+                <!-- Màn hình chào mừng khi chưa có tin nhắn -->
+                <div class="gemini-welcome" id="welcomeSection">
+                    <div class="welcome-greeting-title">Xin chào, Trần Bình Auto!</div>
+                    <div class="welcome-greeting-sub">Tôi có thể hỗ trợ gì cho gara của bạn hôm nay?</div>
+
+                    <div class="suggestions-grid">
+                        <div class="suggestion-card" onclick="useSuggestion('Lắp F1 Turbo S cho xe City 63A36001 vào ngày 13/8/2026')">
+                            <div class="card-icon text-warning">💡</div>
+                            <div class="card-title">Tạo Đơn Báo Cáo Đèn</div>
+                            <div class="card-desc">Lắp F1 Turbo S cho xe City 63A36001 vào ngày 13/8/2026</div>
+                        </div>
+
+                        <div class="suggestion-card" onclick="useSuggestion('Sàn đúc giá bao nhiêu tiền cho xe 4 chỗ và VF3?')">
+                            <div class="card-icon text-info">🚗</div>
+                            <div class="card-title">Tra Cứu Bảng Giá Sàn Đúc</div>
+                            <div class="card-desc">Hỏi chi tiết giá lót sàn đúc xe 4 chỗ, 7 chỗ và VF3</div>
+                        </div>
+
+                        <div class="suggestion-card" onclick="useSuggestion('Chi 250k tiền cơm trưa nhân viên gara')">
+                            <div class="card-icon text-danger">💸</div>
+                            <div class="card-title">Ghi Sổ Quỹ Thu Chi</div>
+                            <div class="card-desc">Chi 250k tiền cơm trưa, mua xăng, tiền điện nước...</div>
+                        </div>
+
+                        <div class="suggestion-card" onclick="useSuggestion('Báo cáo doanh thu tháng 8/2026 cả bán hàng và đèn')">
+                            <div class="card-icon text-success">📊</div>
+                            <div class="card-title">Thống Kê Doanh Thu Toàn Diện</div>
+                            <div class="card-desc">Xem tổng doanh số, số lượng đơn bán hàng & doanh thu đèn</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh sách các tin nhắn trao đổi -->
+                <div class="d-flex flex-column gap-4" id="messagesList"></div>
+            </main>
+
+            <!-- FLOATING INPUT BAR -->
+            <div class="floating-input-bar">
+                <textarea 
+                    class="gemini-textarea" 
+                    id="userInput" 
+                    placeholder="Hỏi bất kỳ điều gì, lên đơn đèn, tra cứu giá sàn đúc, ghi thu chi..." 
+                    rows="1"
+                    oninput="handleTextareaInput(this)"
+                    onkeydown="handleTextareaKeydown(event)"
+                ></textarea>
+
+                <div class="input-btn-group">
+                    <button class="btn-input-tool" id="btnMic" onclick="toggleSpeechRecognition()" title="Nói bằng giọng nói">
+                        <i class="bi bi-mic"></i>
+                    </button>
+                    <button class="btn-gemini-send" id="btnSend" onclick="sendMessage()" title="Gửi tin nhắn (Enter)">
+                        <i class="bi bi-arrow-up-short" style="font-size:24px;"></i>
+                    </button>
+                </div>
+            </div>
         </div>
-
-
-
-        <div class="input-subhint">
-
-            <span>✨ Trợ lý AI kết hợp <strong>Gemini 3.5 Flash</strong> & <strong>AI Nội Bộ</strong>. Mọi thay đổi dữ liệu luôn yêu cầu xác nhận.</span>
-
-        </div>
-
     </div>
-
-
-
-    <!-- Toast Thông Báo -->
-
-    <div class="gemini-toast" id="geminiToast"></div>
-
-
-
-    <script>
-
-        // Cấu hình Marked.js
-
-        marked.setOptions({
-
-            breaks: true,
-
-            gfm: true
-
-        });
-
-
-
-        const STORAGE_KEY = 'gemini_garage_chat_history';
-
-        const SESSION_ID_KEY = 'garage_shared_session_id';
-
-
-
-        function getSessionId() {
-
-            let sid = localStorage.getItem(SESSION_ID_KEY);
-
-            if (!sid) {
-
-                sid = 'gemini_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-
-                localStorage.setItem(SESSION_ID_KEY, sid);
-
-            }
-
-            return sid;
-
-        }
-
-
-
-        function showToast(msg) {
-
-            const toast = document.getElementById('geminiToast');
-
-            toast.innerText = msg;
-
-            toast.classList.add('show');
-
-            setTimeout(() => toast.classList.remove('show'), 2200);
-
-        }
-
-
-
-        // Tự động điều chỉnh độ cao Textarea
-
-        function handleTextareaInput(el) {
-
-            el.style.height = 'auto';
-
-            const newHeight = Math.min(el.scrollHeight, 220);
-
-            el.style.height = newHeight + 'px';
-
-
-
-            const hasText = el.value.trim().length > 0;
-
-            document.getElementById('btnSend').disabled = !hasText;
-
-            document.getElementById('btnClearInput').style.display = hasText ? 'flex' : 'none';
-
-        }
-
-
-
-        // Bắt phím Enter / Shift + Enter
-
-        function handleTextareaKeydown(e) {
-
-            // Nhấn Enter mà KHÔNG giữ Shift / Ctrl -> GỬI TIN NHẮN
-
-            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
-
-                // Trên thiết bị cảm ứng (Mobile), cho phép Enter xuống dòng nếu người dùng muốn
-
-                if (window.innerWidth <= 768 && e.isComposing) {
-
-                    return;
-
-                }
-
-                e.preventDefault();
-
-                sendMessage();
-
-            }
-
-            // Nhấn Shift + Enter hoặc Ctrl + Enter -> TỰ ĐỘNG XUỐNG DÒNG (mặc định của browser)
-
-        }
-
-
-
-        function clearInput() {
-
-            const inp = document.getElementById('userInput');
-
-            inp.value = '';
-
-            handleTextareaInput(inp);
-
-            inp.focus();
-
-        }
-
-
-
-        function useSuggestion(promptText) {
-
-            const inp = document.getElementById('userInput');
-
-            inp.value = promptText;
-
-            handleTextareaInput(inp);
-
-            sendMessage();
-
-        }
-
-
-
-        // Khởi tạo lịch sử chat từ localStorage
-
-        function loadChatHistory() {
-
-            try {
-
-                const raw = localStorage.getItem(STORAGE_KEY);
-
-                if (raw) {
-
-                    const list = JSON.parse(raw);
-
-                    if (Array.isArray(list) && list.length > 0) {
-
-                        document.getElementById('welcomeSection').style.display = 'none';
-
-                        list.forEach(item => {
-
-                            appendMessageUI(item.role, item.content, false);
-
-                        });
-
-                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-
-                    }
-
-                }
-
-            } catch (e) {
-
-                console.error("Lỗi đọc chat history:", e);
-
-            }
-
-        }
-
-
-
-        function saveChatHistory(role, content) {
-
-            try {
-
-                let list = [];
-
-                const raw = localStorage.getItem(STORAGE_KEY);
-
-                if (raw) list = JSON.parse(raw);
-
-                list.push({ role, content, time: new Date().toISOString() });
-
-                if (list.length > 60) list = list.slice(-60);
-
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-
-            } catch (e) {}
-
-        }
-
-
-
-        function startNewChat() {
-
-            if (confirm('Bắt đầu cuộc trò chuyện mới? (Lịch sử trao đổi cũ trên màn hình sẽ được làm mới).')) {
-
-                localStorage.removeItem(STORAGE_KEY);
-
-                localStorage.removeItem(SESSION_ID_KEY);
-
-                document.getElementById('messagesList').innerHTML = '';
-
-                document.getElementById('welcomeSection').style.display = 'block';
-
-                const inp = document.getElementById('userInput');
-
-                inp.value = '';
-
-                handleTextareaInput(inp);
-
-                inp.focus();
-
-                showToast('✨ Đã bắt đầu cuộc trò chuyện mới!');
-
-            }
-
-        }
-
-
-
-        function appendMessageUI(role, content, shouldScroll = true) {
-
-            document.getElementById('welcomeSection').style.display = 'none';
-
-            const list = document.getElementById('messagesList');
-
-
-
-            const row = document.createElement('div');
-
-            row.className = `msg-row ${role}`;
-
-
-
-            if (role === 'user') {
-
-                row.innerHTML = `
-
-                    <div class="msg-content-wrapper">
-
-                        <div class="msg-bubble-user">${escapeHtml(content)}</div>
-
-                    </div>
-
-                    <div class="msg-avatar avatar-user">
-
-                        <i class="bi bi-person-fill"></i>
-
-                    </div>
-
-                `;
-
-            } else {
-
-                // Kiểm tra xem phản hồi có phải là phiếu xác nhận hay không
-
-                const hasConfirm = content.includes('XÁC NHẬN') || content.includes('👉 Anh có chắc chắn') || content.includes('👉 Bạn có chắc chắn');
-
-                
-
-                let confirmButtonsHtml = '';
-
-                if (hasConfirm) {
-
-                    confirmButtonsHtml = `
-
-                        <div class="msg-actions-card">
-
-                            <button class="btn-confirm-action" onclick="quickActionReply('ok')">
-
-                                <i class="bi bi-check-circle-fill"></i> ✅ OK / Lưu Vào Hệ Thống
-
-                            </button>
-
-                            <button class="btn-cancel-action" onclick="quickActionReply('hủy')">
-
-                                <i class="bi bi-x-circle"></i> 🛑 Hủy Bỏ
-
-                            </button>
-
-                        </div>
-
-                    `;
-
-                }
-
-
-
-                // Render markdown
-
-                const parsedHtml = marked.parse(content);
-
-
-
-                row.innerHTML = `
-
-                    <div class="msg-avatar avatar-gemini">
-
-                        <i class="bi bi-stars"></i>
-
-                    </div>
-
-                    <div class="msg-content-wrapper">
-
-                        <div class="msg-bubble-gemini">
-
-                            ${parsedHtml}
-
-                            ${confirmButtonsHtml}
-
-                        </div>
-
-                        <div class="msg-footer-tools">
-
-                            <button class="tool-icon-btn" onclick="copyMessageText(this)" title="Sao chép nội dung">
-
-                                <i class="bi bi-copy"></i> Sao chép
-
-                            </button>
-
-                            <button class="tool-icon-btn" onclick="speakMessageText(this)" title="Đọc to bằng giọng nói">
-
-                                <i class="bi bi-volume-up"></i> Nghe
-
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                `;
-
-            }
-
-
-
-            list.appendChild(row);
-
-            if (shouldScroll) {
-
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-
-            }
-
-        }
-
-
-
-        function escapeHtml(text) {
-
-            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-
-            return text.replace(/[&<>"']/g, m => map[m]);
-
-        }
-
-
-
-        function quickActionReply(act) {
-
-            const inp = document.getElementById('userInput');
-
-            inp.value = act;
-
-            sendMessage();
-
-        }
-
-
-
-        function copyMessageText(btn) {
-
-            const msgRow = btn.closest('.msg-row');
-
-            const bubble = msgRow.querySelector('.msg-bubble-gemini');
-
-            if (bubble) {
-
-                navigator.clipboard.writeText(bubble.innerText).then(() => {
-
-                    showToast('📋 Đã sao chép nội dung vào khay nhớ tạm!');
-
-                });
-
-            }
-
-        }
-
-
-
-        function speakMessageText(btn) {
-
-            const msgRow = btn.closest('.msg-row');
-
-            const bubble = msgRow.querySelector('.msg-bubble-gemini');
-
-            if (bubble && 'speechSynthesis' in window) {
-
-                window.speechSynthesis.cancel();
-
-                const utter = new SpeechSynthesisUtterance(bubble.innerText);
-
-                utter.lang = 'vi-VN';
-
-                utter.rate = 1.05;
-
-                window.speechSynthesis.speak(utter);
-
-            }
-
-        }
-
-
-
-        // Gửi tin nhắn tới Server
-
-        async function sendMessage() {
-
-            const input = document.getElementById('userInput');
-
-            const btnSend = document.getElementById('btnSend');
-
-            const text = input.value.trim();
-
-            if (!text) return;
-
-
-
-            // 1. Render tin nhắn User
-
-            appendMessageUI('user', text);
-
-            saveChatHistory('user', text);
-
-
-
-            input.value = '';
-
-            handleTextareaInput(input);
-
-            btnSend.disabled = true;
-
-
-
-            // 2. Hiệu ứng Gemini đang xử lý
-
-            const list = document.getElementById('messagesList');
-
-            const thinkingRow = document.createElement('div');
-
-            thinkingRow.className = 'msg-row bot';
-
-            thinkingRow.id = 'thinkingIndicator';
-
-            thinkingRow.innerHTML = `
-
-                <div class="msg-avatar avatar-gemini">
-
-                    <i class="bi bi-stars"></i>
-
-                </div>
-
-                <div class="msg-content-wrapper">
-
-                    <div class="gemini-thinking">
-
-                        <i class="bi bi-stars thinking-sparkle"></i>
-
-                        <span>Gemini đang suy nghĩ & tra cứu dữ liệu gara...</span>
-
-                    </div>
-
-                </div>
-
-            `;
-
-            list.appendChild(thinkingRow);
-
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-
-
-
-            try {
-
-                const res = await fetch('/api/ai/chat', {
-
-                    method: 'POST',
-
-                    headers: { 'Content-Type': 'application/json' },
-
-                    body: JSON.stringify({
-
-                        message: text,
-
-                        session_id: getSessionId()
-
-                    })
-
-                });
-
-
-
-                const data = await res.json();
-
-                const thinkingEl = document.getElementById('thinkingIndicator');
-
-                if (thinkingEl) thinkingEl.remove();
-
-
-
-                const botReply = data.message || 'Dạ em đã hoàn thành yêu cầu của anh!';
-
-                appendMessageUI('bot', botReply);
-
-                saveChatHistory('bot', botReply);
-
-
-
-            } catch (err) {
-
-                const thinkingEl = document.getElementById('thinkingIndicator');
-
-                if (thinkingEl) thinkingEl.remove();
-
-
-
-                const errMsg = '⚠️ Gặp lỗi kết nối tới máy chủ AI: ' + err.message + '\nAnh vui lòng thử lại nhé!';
-
-                appendMessageUI('bot', errMsg);
-
-            } finally {
-
-                input.focus();
-
-            }
-
-        }
-
-
-
-        // Nhận diện giọng nói tiếng Việt
-
-        let recognition = null;
-
-        let isRecording = false;
-
-
-
-        function toggleSpeechRecognition() {
-
-            const btnMic = document.getElementById('btnMic');
-
-            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-            if (!SpeechRec) {
-
-                alert('Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói. Hãy dùng Google Chrome hoặc Microsoft Edge!');
-
-                return;
-
-            }
-
-
-
-            if (isRecording && recognition) {
-
-                recognition.stop();
-
-                return;
-
-            }
-
-
-
-            recognition = new SpeechRec();
-
-            recognition.lang = 'vi-VN';
-
-            recognition.continuous = false;
-
-            recognition.interimResults = false;
-
-
-
-            recognition.onstart = function() {
-
-                isRecording = true;
-
-                btnMic.classList.add('recording');
-
-                showToast('🎙️ Đang lắng nghe... Anh hãy nói lệnh vào micro!');
-
-            };
-
-
-
-            recognition.onresult = function(event) {
-
-                const transcript = event.results[0][0].transcript;
-
-                const inp = document.getElementById('userInput');
-
-                inp.value = (inp.value ? inp.value + ' ' : '') + transcript;
-
-                handleTextareaInput(inp);
-
-            };
-
-
-
-            recognition.onerror = function(event) {
-
-                console.error("Lỗi SpeechRecognition:", event.error);
-
-                isRecording = false;
-
-                btnMic.classList.remove('recording');
-
-            };
-
-
-
-            recognition.onend = function() {
-
-                isRecording = false;
-
-                btnMic.classList.remove('recording');
-
-            };
-
-
-
-            recognition.start();
-
-        }
-
-
-
-        // Tự động nạp khi trang tải
-
-        window.addEventListener('DOMContentLoaded', () => {
-
-            loadChatHistory();
-
-            document.getElementById('userInput').focus();
-
-        });
-
-    
-
-        // ── ĐỒNG BỘ HAI CỬA SỔ CHAT REALTIME (Cross-tab & Mini Bubble Sync) ──
-
-        window.addEventListener('storage', (e) => {
-
-            if (e.key === STORAGE_KEY) {
-
-                document.getElementById('messagesList').innerHTML = '';
-
-                loadChatHistory();
-
-            }
-
-        });
-
-
-
-        // ── QUẢN LÝ MODEL & TÀI NGUYÊN TOKEN ──
-
-        let currentModelsData = null;
-
-
-
-        function openModelManagerModal() {
-
-            document.getElementById('modelManagerModal').style.display = 'flex';
-
-            refreshModelAndUsageStats(true);
-
-        }
-
-
-
-        function closeModelManagerModal() {
-
-            document.getElementById('modelManagerModal').style.display = 'none';
-
-        }
-
-
-
-        async function refreshModelAndUsageStats(showToastMsg = false) {
-
-            try {
-
-                // 1. Fetch models
-
-                const resModels = await fetch('/api/ai/models');
-
-                if (resModels.ok) {
-
-                    currentModelsData = await resModels.json();
-
-                    renderModelsList(currentModelsData);
-
-                    updateActiveModelUI(currentModelsData.active_model);
-
-                }
-
-
-
-                // 2. Fetch token usage
-
-                const resUsage = await fetch('/api/ai/usage');
-
-                if (resUsage.ok) {
-
-                    const usage = await resUsage.json();
-
-                    renderUsageStats(usage);
-
-                }
-
-
-
-                if (showToastMsg) showToast('📊 Đã cập nhật số liệu token & model mới nhất!');
-
-            } catch (err) {
-
-                console.error('Lỗi nạp thông tin model/token:', err);
-
-            }
-
-        }
-
-
-
-        function updateActiveModelUI(modelId) {
-
-            const label = document.getElementById('activeModelLabel');
-
-            if (!label) return;
-
-            const shortNames = {
-                'gemini-3.8-flash': '⚡ 3.8 Flash',
-
-                'gemini-3.5-flash-lite': '⚡ 3.5 Flash-Lite',
-
-                'gemini-3.5-flash': '🚀 3.5 Flash',
-
-                'gemini-2.5-flash': '⏱️ 2.5 Flash',
-
-                'gemini-2.5-pro': '🧠 2.5 Pro',
-
-                'gemini-3.7-flash': '🔥 3.7 Flash'
-
-            };
-
-            label.innerText = shortNames[modelId] || modelId;
-
-        }
-
-
-
-        function renderModelsList(data) {
-
-            const container = document.getElementById('modelsListContainer');
-
-            if (!container || !data || !data.models) return;
-
-
-
-            const active = data.active_model || 'gemini-3.5-flash-lite';
-
-            container.innerHTML = data.models.map(m => {
-
-                const isActive = m.id === active;
-
-                return `
-
-                    <div class="model-card-item ${isActive ? 'active' : ''}" onclick="selectGeminiModel('${m.id}')">
-
-                        <div style="flex:1;">
-
-                            <div class="d-flex align-items-center gap-2 mb-1">
-
-                                <span style="font-weight:700; color:#fff; font-size:0.95rem;">${m.name}</span>
-
-                                ${m.recommended ? '<span class="badge bg-primary" style="font-size:0.65rem;">Khuyên dùng</span>' : ''}
-
-                                ${isActive ? '<span class="badge bg-success" style="font-size:0.65rem;">● Đang Kích Hoạt</span>' : ''}
-
-                            </div>
-
-                            <div style="font-size:0.75rem; color:var(--text-secondary); line-height:1.4;">${m.desc}</div>
-
-                            <div class="d-flex gap-3 mt-2" style="font-size:0.7rem; color:var(--text-muted);">
-
-                                <span>Tốc độ: <strong class="text-white">${m.speed}</strong></span>
-
-                                <span>Chi phí token: <strong class="text-white">${m.cost}</strong></span>
-
-                            </div>
-
-                        </div>
-
-                        <div>
-
-                            <button class="btn btn-sm ${isActive ? 'btn-success' : 'btn-outline-primary'} rounded-pill px-3" style="font-size:0.75rem; font-weight:600;" onclick="event.stopPropagation(); selectGeminiModel('${m.id}')">
-
-                                ${isActive ? 'Đang Dùng' : 'Chọn Model'}
-
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                `;
-
-            }).join('');
-
-        }
-
-
-
-        function renderUsageStats(usage) {
-
-            if (!usage) return;
-
-            const badge = document.getElementById('tokenCountBadge');
-
-            if (badge) {
-
-                const tot = usage.today_tokens || 0;
-
-                badge.innerText = tot > 1000 ? (tot / 1000).toFixed(1) + 'k tokens' : tot + ' tokens';
-
-            }
-
-
-
-            const elTodayTok = document.getElementById('statTodayTokens');
-
-            if (elTodayTok) elTodayTok.innerText = (usage.today_tokens || 0).toLocaleString();
-
-
-
-            const elTodayReqs = document.getElementById('statTodayReqs');
-
-            if (elTodayReqs) elTodayReqs.innerText = (usage.today_requests || 0) + ' lượt gửi';
-
-
-
-            const elTotTok = document.getElementById('statTotalTokens');
-
-            if (elTotTok) elTotTok.innerText = (usage.total_tokens || 0).toLocaleString();
-
-
-
-            const elTotReqs = document.getElementById('statTotalReqs');
-
-            if (elTotReqs) elTotReqs.innerText = (usage.total_requests || 0) + ' lượt gọi API';
-
-
-
-            const elRatio = document.getElementById('statRatioTokens');
-
-            if (elRatio) {
-
-                const p = usage.prompt_tokens || 0;
-
-                const r = usage.response_tokens || 0;
-
-                elRatio.innerText = `${p > 1000 ? (p/1000).toFixed(1)+'k':p} / ${r > 1000 ? (r/1000).toFixed(1)+'k':r}`;
-
-            }
-
-
-
-            const elLocal = document.getElementById('statLocalSaved');
-
-            if (elLocal) elLocal.innerText = (usage.saved_local_requests || 0) + ' lượt';
-
-
-
-            const lastBox = document.getElementById('lastCallBox');
-
-            if (lastBox && usage.last_call && usage.last_call.time) {
-
-                const lc = usage.last_call;
-
-                lastBox.innerHTML = `
-
-                    ⚡ <strong>Lượt gọi gần nhất:</strong> ${lc.time} | <strong>Model:</strong> <code>${lc.model}</code> | <strong>Đầu vào:</strong> ${lc.prompt_tokens} tokens | <strong>Phản hồi:</strong> ${lc.response_tokens} tokens (<strong>Tổng:</strong> ${lc.total_tokens} tokens)
-
-                `;
-
-            }
-
-        }
-
-
-
-        async function selectGeminiModel(modelId) {
-
-            try {
-
-                const res = await fetch('/api/ai/models/select', {
-
-                    method: 'POST',
-
-                    headers: {'Content-Type': 'application/json'},
-
-                    body: JSON.stringify({ model: modelId })
-
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-
-                    showToast(`✨ ${data.message}`);
-
-                    refreshModelAndUsageStats();
-
-                } else {
-
-                    alert('Lỗi: ' + data.message);
-
-                }
-
-            } catch (err) {
-
-                alert('Lỗi kết nối khi đổi model: ' + err);
-
-            }
-
-        }
-
-
-
-        async function resetTokenCounter() {
-
-            if (!confirm('Anh có chắc muốn đặt lại bộ đếm token về 0? (Dữ liệu lịch sử trò chuyện vẫn được giữ nguyên)')) return;
-
-            try {
-
-                const res = await fetch('/api/ai/usage/reset', { method: 'POST' });
-
-                const data = await res.json();
-
-                if (data.success) {
-
-                    showToast('🧹 Đã đặt lại bộ đếm token về 0!');
-
-                    refreshModelAndUsageStats();
-
-                }
-
-            } catch (err) {
-
-                alert('Lỗi reset token: ' + err);
-
-            }
-
-        }
-
-
-
-        // Tự động nạp thông số Model & Token khi mở trang
-
-        document.addEventListener('DOMContentLoaded', () => {
-
-            refreshModelAndUsageStats();
-
-        });
-
-
-
-</script>
 
     <!-- ── MODAL QUẢN LÝ MODEL GEMINI & TÀI NGUYÊN TOKEN ── -->
-
     <div class="gemini-modal-backdrop" id="modelManagerModal" onclick="if(event.target===this) closeModelManagerModal()">
-
         <div class="gemini-modal-content">
-
             <div class="gemini-modal-header">
-
                 <div class="d-flex align-items-center gap-2">
-
                     <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,#4285f4,#9b51e0); display:flex; align-items:center; justify-content:center; color:#fff;">
-
                         <i class="bi bi-cpu-fill"></i>
-
                     </div>
-
                     <div>
-
                         <div style="font-weight:700; font-size:1.05rem; color:#fff;">Quản Lý Model & Tài Nguyên Gemini</div>
-
                         <div style="font-size:0.75rem; color:var(--text-secondary);">Tự do đổi model AI & theo dõi dung lượng token</div>
-
                     </div>
-
                 </div>
-
                 <button class="btn btn-sm btn-link text-white text-decoration-none" onclick="closeModelManagerModal()" style="font-size:1.2rem;">✕</button>
-
             </div>
-
             <div class="gemini-modal-body">
-
-                <!-- PHẦN 1: THỐNG KÊ TÀI NGUYÊN & TOKEN -->
-
+                <!-- THỐNG KÊ TÀI NGUYÊN & TOKEN -->
                 <div class="mb-4">
-
                     <div class="d-flex align-items-center justify-content-between mb-2">
-
                         <span style="font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px; color:#8ab4f8;">
-
                             📊 Tài Nguyên & Token Đã Dùng
-
                         </span>
-
                         <div class="d-flex gap-2">
-
                             <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.72rem;" onclick="refreshModelAndUsageStats(true)">
-
                                 <i class="bi bi-arrow-clockwise"></i> Làm mới
-
                             </button>
-
                             <button class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.72rem;" onclick="resetTokenCounter()">
-
                                 <i class="bi bi-trash"></i> Reset bộ đếm
-
                             </button>
-
                         </div>
-
                     </div>
-
-
 
                     <div class="row g-2 mb-3">
-
                         <div class="col-6 col-md-3">
-
                             <div class="stat-metric-card">
-
                                 <div style="font-size:0.72rem; color:var(--text-muted);">Token Hôm Nay</div>
-
                                 <div class="stat-metric-val" id="statTodayTokens">0</div>
-
                                 <div style="font-size:0.68rem; color:#34a853;" id="statTodayReqs">0 lệnh</div>
-
                             </div>
-
                         </div>
-
                         <div class="col-6 col-md-3">
-
                             <div class="stat-metric-card">
-
                                 <div style="font-size:0.72rem; color:var(--text-muted);">Tổng Token Tích Lũy</div>
-
                                 <div class="stat-metric-val" id="statTotalTokens">0</div>
-
                                 <div style="font-size:0.68rem; color:var(--text-secondary);" id="statTotalReqs">0 lượt gọi</div>
-
                             </div>
-
                         </div>
-
                         <div class="col-6 col-md-3">
-
                             <div class="stat-metric-card">
-
                                 <div style="font-size:0.72rem; color:var(--text-muted);">Đầu Vào / Phản Hồi</div>
-
                                 <div class="stat-metric-val" style="font-size:1.05rem; padding-top:4px;" id="statRatioTokens">0 / 0</div>
-
                                 <div style="font-size:0.68rem; color:var(--text-secondary);">Prompt / Output</div>
-
                             </div>
-
                         </div>
-
                         <div class="col-6 col-md-3">
-
                             <div class="stat-metric-card">
-
                                 <div style="font-size:0.72rem; color:var(--text-muted);">AI Nội Bộ Tiết Kiệm</div>
-
                                 <div class="stat-metric-val" style="color:#34a853;" id="statLocalSaved">0</div>
-
                                 <div style="font-size:0.68rem; color:#34a853;">~0 token tốn</div>
-
                             </div>
-
                         </div>
-
                     </div>
-
-
-
-                    <!-- Chi tiết lượt gọi gần nhất -->
 
                     <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 14px; font-size:0.75rem; color:var(--text-secondary);" id="lastCallBox">
-
                         ⚡ <strong>Lượt gọi gần nhất:</strong> Chưa có dữ liệu
-
                     </div>
-
                 </div>
 
-
-
-                <!-- PHẦN 2: LỰA CHỌN MODEL GEMINI -->
-
+                <!-- LỰA CHỌN MODEL GEMINI -->
                 <div>
-
                     <div style="font-weight:700; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px; color:#8ab4f8; margin-bottom:12px;">
-
                         🤖 Danh Sách Model Gemini Cho API Key Của Bạn
-
                     </div>
-
                     <div id="modelsListContainer">
-
                         <div class="text-center py-3 text-muted">Đang tải danh sách model...</div>
-
                     </div>
-
                 </div>
-
             </div>
-
             <div style="padding:14px 24px; border-top:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02); display:flex; justify-content:flex-end;">
-
                 <button class="btn btn-secondary btn-sm px-4 rounded-pill" onclick="closeModelManagerModal()">Đóng</button>
-
             </div>
-
         </div>
-
     </div>
 
+    <!-- Toast Thông Báo -->
+    <div class="gemini-toast" id="geminiToast"></div>
 
+    <script>
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
 
+        const SESSIONS_STORAGE_KEY = 'gemini_garage_sessions_v2';
+        const ACTIVE_SESSION_ID_KEY = 'gemini_garage_active_session_id';
+
+        let activeSessionId = null;
+
+        // ── QUẢN LÝ LỊCH SỬ CÁC CUỘC TRÒ CHUYỆN (SESSIONS) ──
+        function getAllSessions() {
+            try {
+                const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
+                if (raw) {
+                    const list = JSON.parse(raw);
+                    if (Array.isArray(list)) return list;
+                } else {
+                    const oldRaw = localStorage.getItem('gemini_garage_chat_history');
+                    if (oldRaw) {
+                        const oldList = JSON.parse(oldRaw);
+                        if (Array.isArray(oldList) && oldList.length > 0) {
+                            const firstUserMsg = oldList.find(m => m.role === 'user');
+                            const title = firstUserMsg ? (firstUserMsg.content.substring(0, 34) + '...') : 'Cuộc trò chuyện trước';
+                            const migratedSess = {
+                                id: 'legacy_sess_1',
+                                title: title,
+                                createdAt: Date.now() - 3600000,
+                                updatedAt: Date.now(),
+                                messages: oldList
+                            };
+                            localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify([migratedSess]));
+                            return [migratedSess];
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Lỗi đọc sessions:", e);
+            }
+            return [];
+        }
+
+        function saveSessions(sessions) {
+            try {
+                localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+            } catch (e) {}
+        }
+
+        function getActiveSession() {
+            const sessions = getAllSessions();
+            if (!activeSessionId) {
+                activeSessionId = localStorage.getItem(ACTIVE_SESSION_ID_KEY);
+            }
+            let sess = sessions.find(s => s.id === activeSessionId);
+            if (!sess) {
+                if (sessions.length > 0) {
+                    sess = sessions[0];
+                    activeSessionId = sess.id;
+                    localStorage.setItem(ACTIVE_SESSION_ID_KEY, activeSessionId);
+                } else {
+                    sess = createNewChatSession(false);
+                }
+            }
+            return sess;
+        }
+
+        function renderSidebarSessionsList() {
+            const container = document.getElementById('sidebarSessionsList');
+            const countLabel = document.getElementById('sessionsCountLabel');
+            if (!container) return;
+
+            const sessions = getAllSessions();
+            if (countLabel) countLabel.innerText = `${sessions.length} cuộc trò chuyện`;
+
+            if (sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-muted" style="font-size:0.78rem;">
+                        Chưa có cuộc trò chuyện nào
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sessions.map(s => {
+                const isActive = s.id === activeSessionId;
+                const d = new Date(s.updatedAt || s.createdAt || Date.now());
+                const timeStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                    <div class="session-item ${isActive ? 'active' : ''}" onclick="switchSession('${s.id}')">
+                        <div class="session-item-title" title="${(s.title || 'Cuộc trò chuyện').replace(/"/g, '&quot;')}">
+                            <i class="bi bi-chat-left-text" style="font-size:0.85rem; color:${isActive ? '#8ab4f8' : 'var(--text-muted)'};"></i>
+                            <span>${s.title || 'Cuộc trò chuyện'}</span>
+                        </div>
+                        <span class="session-item-time">${timeStr}</span>
+                        <button class="session-item-del" onclick="event.stopPropagation(); deleteChatSession('${s.id}')" title="Xóa cuộc trò chuyện này">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function switchSession(sessionId) {
+            activeSessionId = sessionId;
+            localStorage.setItem(ACTIVE_SESSION_ID_KEY, sessionId);
+
+            const sessions = getAllSessions();
+            const sess = sessions.find(s => s.id === sessionId);
+
+            document.getElementById('messagesList').innerHTML = '';
+            if (sess && Array.isArray(sess.messages) && sess.messages.length > 0) {
+                document.getElementById('welcomeSection').style.display = 'none';
+                sess.messages.forEach(msg => {
+                    appendMessageUI(msg.role, msg.content, false);
+                });
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            } else {
+                document.getElementById('welcomeSection').style.display = 'block';
+            }
+
+            renderSidebarSessionsList();
+            if (window.innerWidth <= 768) {
+                toggleSidebar(false);
+            }
+            const inp = document.getElementById('userInput');
+            if (inp) inp.focus();
+        }
+
+        function createNewChatSession(shouldSwitch = true) {
+            const sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+            const newSess = {
+                id: sid,
+                title: 'Cuộc trò chuyện mới',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                messages: []
+            };
+
+            const sessions = getAllSessions();
+            sessions.unshift(newSess);
+            saveSessions(sessions);
+
+            if (shouldSwitch) {
+                switchSession(sid);
+                showToast('✨ Đã tạo cuộc trò chuyện mới!');
+            }
+            return newSess;
+        }
+
+        function startNewChat() {
+            createNewChatSession(true);
+        }
+
+        function deleteChatSession(sessionId) {
+            if (!confirm('Xóa cuộc trò chuyện này?')) return;
+            let sessions = getAllSessions();
+            sessions = sessions.filter(s => s.id !== sessionId);
+            saveSessions(sessions);
+
+            if (activeSessionId === sessionId) {
+                if (sessions.length > 0) {
+                    switchSession(sessions[0].id);
+                } else {
+                    createNewChatSession(true);
+                }
+            } else {
+                renderSidebarSessionsList();
+            }
+            showToast('🗑️ Đã xóa cuộc trò chuyện!');
+        }
+
+        function clearAllChatSessions() {
+            if (!confirm('Anh có chắc muốn xóa TOÀN BỘ lịch sử các cuộc trò chuyện không?')) return;
+            localStorage.removeItem(SESSIONS_STORAGE_KEY);
+            localStorage.removeItem(ACTIVE_SESSION_ID_KEY);
+            createNewChatSession(true);
+            showToast('🧹 Đã xóa toàn bộ lịch sử trò chuyện!');
+        }
+
+        function toggleSidebar(forceState = null) {
+            const sb = document.getElementById('geminiSidebar');
+            const bd = document.getElementById('sidebarBackdrop');
+            if (!sb) return;
+
+            if (forceState === false) {
+                sb.classList.add('collapsed');
+                if (bd) bd.classList.remove('show');
+            } else if (forceState === true) {
+                sb.classList.remove('collapsed');
+                if (bd && window.innerWidth <= 768) bd.classList.add('show');
+            } else {
+                sb.classList.toggle('collapsed');
+                if (bd && window.innerWidth <= 768) {
+                    bd.classList.toggle('show', !sb.classList.contains('collapsed'));
+                }
+            }
+        }
+
+        // Lắng nghe sự kiện storage từ cửa sổ/tab khác để tự động cập nhật danh sách
+        window.addEventListener('storage', (e) => {
+            if (e.key === SESSIONS_STORAGE_KEY) {
+                renderSidebarSessionsList();
+            }
+        });
+
+        // ── UI CHAT & TIN NHẮN ──
+        function showToast(msg) {
+            const toast = document.getElementById('geminiToast');
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function handleTextareaInput(textarea) {
+            textarea.style.height = 'auto';
+            const newHeight = Math.min(textarea.scrollHeight, 200);
+            textarea.style.height = newHeight + 'px';
+            const btnSend = document.getElementById('btnSend');
+            btnSend.disabled = textarea.value.trim().length === 0;
+        }
+
+        function handleTextareaKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function useSuggestion(promptText) {
+            const inp = document.getElementById('userInput');
+            inp.value = promptText;
+            handleTextareaInput(inp);
+            sendMessage();
+        }
+
+        function appendMessageUI(role, content, shouldScroll = true) {
+            document.getElementById('welcomeSection').style.display = 'none';
+            const list = document.getElementById('messagesList');
+
+            const row = document.createElement('div');
+            row.className = `msg-row ${role}`;
+
+            if (role === 'user') {
+                row.innerHTML = `
+                    <div class="msg-content-wrapper">
+                        <div class="msg-bubble-user">${content}</div>
+                    </div>
+                    <div class="msg-avatar avatar-user">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                `;
+            } else {
+                let parsedHTML = marked.parse(content);
+                row.innerHTML = `
+                    <div class="msg-avatar avatar-gemini">
+                        <i class="bi bi-stars"></i>
+                    </div>
+                    <div class="msg-content-wrapper">
+                        <div class="msg-bubble-bot">${parsedHTML}</div>
+                    </div>
+                `;
+            }
+
+            list.appendChild(row);
+            if (shouldScroll) {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const btnSend = document.getElementById('btnSend');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 1. Thêm tin nhắn của User
+            appendMessageUI('user', text);
+
+            const sessions = getAllSessions();
+            let currentSess = sessions.find(s => s.id === activeSessionId);
+            if (!currentSess) {
+                currentSess = createNewChatSession(false);
+                activeSessionId = currentSess.id;
+            }
+
+            // Nếu đây là tin nhắn đầu tiên, tự động tạo tiêu đề session
+            if (currentSess.messages.length === 0 || currentSess.title === 'Cuộc trò chuyện mới') {
+                currentSess.title = text.length > 34 ? text.substring(0, 34) + '...' : text;
+            }
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            currentSess.messages.push({ role: 'user', content: text, time: timeStr });
+            currentSess.updatedAt = Date.now();
+
+            // Đưa session này lên đầu danh sách
+            const filtered = sessions.filter(s => s.id !== currentSess.id);
+            filtered.unshift(currentSess);
+            saveSessions(filtered);
+            renderSidebarSessionsList();
+
+            input.value = '';
+            handleTextareaInput(input);
+            btnSend.disabled = true;
+
+            // 2. Hiệu ứng Gemini đang xử lý
+            const list = document.getElementById('messagesList');
+            const thinkingRow = document.createElement('div');
+            thinkingRow.className = 'msg-row bot';
+            thinkingRow.id = 'thinkingIndicator';
+            thinkingRow.innerHTML = `
+                <div class="msg-avatar avatar-gemini">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div class="msg-content-wrapper">
+                    <div class="gemini-thinking">
+                        <i class="bi bi-stars thinking-sparkle"></i>
+                        <span>Gemini đang suy nghĩ & tra cứu dữ liệu gara...</span>
+                    </div>
+                </div>
+            `;
+            list.appendChild(thinkingRow);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+            try {
+                const res = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        session_id: activeSessionId
+                    })
+                });
+
+                const data = await res.json();
+                const thinkingEl = document.getElementById('thinkingIndicator');
+                if (thinkingEl) thinkingEl.remove();
+
+                const botReply = data.message || 'Dạ em đã hoàn thành yêu cầu của anh!';
+                appendMessageUI('bot', botReply);
+
+                // Lưu phản hồi bot vào session
+                currentSess.messages.push({ role: 'bot', content: botReply, time: timeStr, usage: data.usage });
+                currentSess.updatedAt = Date.now();
+                saveSessions(filtered);
+                renderSidebarSessionsList();
+                refreshModelAndUsageStats();
+
+            } catch (err) {
+                const thinkingEl = document.getElementById('thinkingIndicator');
+                if (thinkingEl) thinkingEl.remove();
+
+                const errMsg = '⚠️ Gặp lỗi kết nối tới máy chủ AI: ' + err.message + '\nAnh vui lòng thử lại nhé!';
+                appendMessageUI('bot', errMsg);
+            } finally {
+                input.focus();
+            }
+        }
+
+        // Nhận diện giọng nói tiếng Việt
+        let recognition = null;
+        let isRecording = false;
+
+        function toggleSpeechRecognition() {
+            const btnMic = document.getElementById('btnMic');
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                alert('Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói trực tiếp. Vui lòng dùng Chrome hoặc Edge mới nhất!');
+                return;
+            }
+
+            if (isRecording) {
+                if (recognition) recognition.stop();
+                return;
+            }
+
+            recognition = new SpeechRec();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isRecording = true;
+                btnMic.classList.add('recording');
+                btnMic.innerHTML = '<i class="bi bi-stop-circle-fill"></i>';
+                showToast('🎙️ Đang nghe giọng nói... Mời anh nói lệnh!');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                if (transcript) {
+                    const inp = document.getElementById('userInput');
+                    inp.value = transcript;
+                    handleTextareaInput(inp);
+                    showToast(`🗣️ Đã nhận: "${transcript}"`);
+                    setTimeout(() => {
+                        sendMessage();
+                    }, 400);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech error:', event.error);
+                showToast('⚠️ Không nhận diện được âm thanh hoặc microphone bị chặn.');
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                btnMic.classList.remove('recording');
+                btnMic.innerHTML = '<i class="bi bi-mic"></i>';
+            };
+
+            recognition.start();
+        }
+
+        // ── QUẢN LÝ MODEL & TÀI NGUYÊN TOKEN ──
+        function openModelManagerModal() {
+            document.getElementById('modelManagerModal').style.display = 'flex';
+            refreshModelAndUsageStats(true);
+        }
+
+        function closeModelManagerModal() {
+            document.getElementById('modelManagerModal').style.display = 'none';
+        }
+
+        async function refreshModelAndUsageStats(showToastMsg = false) {
+            try {
+                const resModels = await fetch('/api/ai/models');
+                if (resModels.ok) {
+                    const data = await resModels.json();
+                    renderModelsList(data);
+                    updateActiveModelUI(data.active_model);
+                }
+
+                const resUsage = await fetch('/api/ai/usage');
+                if (resUsage.ok) {
+                    const usage = await resUsage.json();
+                    renderUsageStats(usage);
+                }
+
+                if (showToastMsg) showToast('📊 Đã cập nhật số liệu token & model mới nhất!');
+            } catch (err) {
+                console.error('Lỗi nạp thông tin model/token:', err);
+            }
+        }
+
+        function updateActiveModelUI(modelId) {
+            const label = document.getElementById('activeModelLabel');
+            if (!label) return;
+            const shortNames = {
+                'gemini-3.8-flash': '⚡ 3.8 Flash',
+                'gemini-3.5-flash-lite': '⚡ 3.5 Flash-Lite',
+                'gemini-3.5-flash': '🚀 3.5 Flash',
+                'gemini-3.7-flash': '🔥 3.7 Flash',
+                'gemini-2.5-flash': '⏱️ 2.5 Flash',
+                'gemini-2.5-pro': '🧠 2.5 Pro'
+            };
+            label.innerText = shortNames[modelId] || modelId;
+        }
+
+        function renderModelsList(data) {
+            const container = document.getElementById('modelsListContainer');
+            if (!container || !data || !data.models) return;
+
+            const active = data.active_model || 'gemini-3.5-flash-lite';
+            container.innerHTML = data.models.map(m => {
+                const isActive = m.id === active;
+                return `
+                    <div class="model-card-item ${isActive ? 'active' : ''}" onclick="selectGeminiModel('${m.id}')">
+                        <div style="flex:1;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="font-weight:700; color:#fff; font-size:0.95rem;">${m.name}</span>
+                                ${m.recommended ? '<span class="badge bg-primary" style="font-size:0.65rem;">Khuyên dùng</span>' : ''}
+                                ${isActive ? '<span class="badge bg-success" style="font-size:0.65rem;">● Đang Kích Hoạt</span>' : ''}
+                            </div>
+                            <div style="font-size:0.75rem; color:var(--text-secondary); line-height:1.4;">${m.desc}</div>
+                            <div class="d-flex gap-3 mt-2" style="font-size:0.7rem; color:var(--text-muted);">
+                                <span>Tốc độ: <strong class="text-white">${m.speed}</strong></span>
+                                <span>Chi phí token: <strong class="text-white">${m.cost}</strong></span>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm ${isActive ? 'btn-success' : 'btn-outline-primary'} rounded-pill px-3" style="font-size:0.75rem; font-weight:600;" onclick="event.stopPropagation(); selectGeminiModel('${m.id}')">
+                                ${isActive ? 'Đang Dùng' : 'Chọn Model'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderUsageStats(usage) {
+            if (!usage) return;
+            const badge = document.getElementById('tokenCountBadge');
+            if (badge) {
+                const tot = usage.today_tokens || 0;
+                badge.innerText = tot > 1000 ? (tot / 1000).toFixed(1) + 'k tokens' : tot + ' tokens';
+            }
+
+            const elTodayTok = document.getElementById('statTodayTokens');
+            if (elTodayTok) elTodayTok.innerText = (usage.today_tokens || 0).toLocaleString();
+
+            const elTodayReqs = document.getElementById('statTodayReqs');
+            if (elTodayReqs) elTodayReqs.innerText = (usage.today_requests || 0) + ' lệnh';
+
+            const elTotTok = document.getElementById('statTotalTokens');
+            if (elTotTok) elTotTok.innerText = (usage.total_tokens || 0).toLocaleString();
+
+            const elTotReqs = document.getElementById('statTotalReqs');
+            if (elTotReqs) elTotReqs.innerText = (usage.total_requests || 0) + ' lượt gọi';
+
+            const elRatio = document.getElementById('statRatioTokens');
+            if (elRatio) {
+                const p = usage.prompt_tokens || 0;
+                const r = usage.response_tokens || 0;
+                elRatio.innerText = `${p > 1000 ? (p/1000).toFixed(1)+'k':p} / ${r > 1000 ? (r/1000).toFixed(1)+'k':r}`;
+            }
+
+            const elLocal = document.getElementById('statLocalSaved');
+            if (elLocal) elLocal.innerText = (usage.saved_local_requests || 0) + ' lượt';
+
+            const lastBox = document.getElementById('lastCallBox');
+            if (lastBox && usage.last_call && usage.last_call.time) {
+                const lc = usage.last_call;
+                lastBox.innerHTML = `
+                    ⚡ <strong>Lượt gọi gần nhất:</strong> ${lc.time} | <strong>Model:</strong> <code>${lc.model}</code> | <strong>Đầu vào:</strong> ${lc.prompt_tokens} tok | <strong>Phản hồi:</strong> ${lc.response_tokens} tok (<strong>Tổng:</strong> ${lc.total_tokens} tokens)
+                `;
+            }
+        }
+
+        async function selectGeminiModel(modelId) {
+            try {
+                const res = await fetch('/api/ai/models/select', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model: modelId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`✨ ${data.message}`);
+                    refreshModelAndUsageStats();
+                } else {
+                    alert('Lỗi: ' + data.message);
+                }
+            } catch (err) {
+                alert('Lỗi kết nối khi đổi model: ' + err);
+            }
+        }
+
+        async function resetTokenCounter() {
+            if (!confirm('Anh có chắc muốn đặt lại bộ đếm token về 0? (Dữ liệu lịch sử trò chuyện vẫn được giữ nguyên)')) return;
+            try {
+                const res = await fetch('/api/ai/usage/reset', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('🧹 Đã đặt lại bộ đếm token về 0!');
+                    refreshModelAndUsageStats();
+                }
+            } catch (err) {
+                alert('Lỗi reset token: ' + err);
+            }
+        }
+
+        // Tự động khởi chạy khi vào trang
+        document.addEventListener('DOMContentLoaded', () => {
+            const sess = getActiveSession();
+            renderSidebarSessionsList();
+            if (sess && sess.id) {
+                switchSession(sess.id);
+            }
+            refreshModelAndUsageStats();
+        });
+    </script>
 </body>
-
 </html>
-
