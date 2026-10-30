@@ -8014,6 +8014,66 @@ def extract_photo_capture_date(image_bytes, file_timestamp=None, user_caption=""
     return detected_date, date_note
 
 
+def parse_discount_expression(text: str, total_base_k: int = 0) -> tuple:
+    """
+    Trích xuất mức giảm giá từ văn bản (caption gửi kèm ảnh hoặc tin nhắn chat sửa đơn).
+    Hỗ trợ:
+      - Tỷ lệ %: 'giảm 10%', 'bớt 10%', '-10%', 'chiết khấu 10%', 'ck 10%', 'giảm 10 %', '- 10%'
+      - Số tiền dạng lẻ triệu: 'giảm 1tr5', 'bớt 2tr3', 'giảm 1 triệu 5'
+      - Số tiền có đơn vị: 'giảm 200k', 'bớt 150k', 'giảm 1tr', 'giảm 1.5 triệu', '-200k', 'giảm 500000', 'giảm 500k'
+      - Viết tắt gara: 'bớt 200', 'giảm 200', 'bớt 10' (<=30 không đơn vị được hiểu là 10% nếu total_base_k > 0)
+    Trả về: (discount_k, is_pct, pct_val)
+    """
+    if not text:
+        return 0, False, 0
+    t = str(text).strip()
+
+    # 1. Kiểm tra %: 'giảm 10%', 'bớt 10%', '-10%', 'chiết khấu 10%', 'ck 10%', 'giảm 10 %'
+    m_pct = re.search(r'(?:(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau|ck)\s*|[-–—]\s*)([0-9]+(?:[.,][0-9]+)?)\s*%', t, re.IGNORECASE)
+    if m_pct:
+        pct_val = float(m_pct.group(1).replace(',', '.'))
+        disc_k = int(round(total_base_k * (pct_val / 100.0))) if total_base_k > 0 else 0
+        return disc_k, True, pct_val
+
+    # 1.5. Hỗ trợ dạng lẻ triệu: '1tr5', '2tr3', '1 triệu 5'
+    m_tr_odd = re.search(r'(?:(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau|ck)\s*|[-–—]\s*)(\d+)\s*(?:tr|trieu|triệu)\s*(\d+)\b', t, re.IGNORECASE)
+    if m_tr_odd:
+        major = float(m_tr_odd.group(1))
+        minor_str = m_tr_odd.group(2)
+        minor = float(minor_str) * 100 if len(minor_str) == 1 else float(minor_str)
+        disc_k = int(round(major * 1000 + minor))
+        return disc_k, False, 0
+
+    # 2. Kiểm tra số tiền: 'giảm 200k', 'bớt 150k', 'giảm 1tr', '-200k', 'giảm 500000', 'bớt 200'
+    m_amt = re.search(r'(?:(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau|ck)\s*|[-–—]\s*)([0-9]+(?:[.,][0-9]+)?)\s*(tr|trieu|triệu|k|nghin|nghìn|vnd|d|đ|đồng|dong)?\b', t, re.IGNORECASE)
+    if m_amt:
+        val_str = m_amt.group(1).replace(',', '.')
+        unit = (m_amt.group(2) or '').lower()
+        val = float(val_str)
+        if unit in ['tr', 'trieu', 'triệu']:
+            disc_k = int(round(val * 1000))
+            return disc_k, False, 0
+        elif unit in ['k', 'nghin', 'nghìn']:
+            disc_k = int(round(val))
+            return disc_k, False, 0
+        elif val >= 100000:
+            disc_k = int(round(val / 1000.0))
+            return disc_k, False, 0
+        elif not unit and val <= 30 and total_base_k > 0:
+            # Ngôn ngữ gara: 'bớt 10', 'giảm 10' không đơn vị -> 10%
+            disc_k = int(round(total_base_k * (val / 100.0)))
+            return disc_k, True, val
+        elif val >= 10 and val < 1000:
+            # Ví dụ: giảm 200, bớt 150 -> 200k, 150k
+            disc_k = int(round(val))
+            return disc_k, False, 0
+        else:
+            disc_k = int(round(val / 1000.0)) if val >= 1000 else int(round(val))
+            return disc_k, False, 0
+
+    return 0, False, 0
+
+
 def scan_car_warranty_photo(image_data, user_caption="", session_id="default_user", file_timestamp=None):
     """
     Tự động phân tích ảnh nghiệm thu / bảo hành xe bằng Gemini Vision:
@@ -8289,6 +8349,21 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         })
 
     total_base_k = sum(it['base_price_k'] for it in items)
+
+    # 5.5. Tự động bóc tách giảm giá từ caption/ghi chú người dùng (VD: 'Giảm 10%', 'bớt 200k', '-10%')
+    discount_k, disc_is_pct, disc_pct_val = parse_discount_expression(user_caption, total_base_k)
+
+    # Phân bổ giảm giá vào từng món hàng (nếu có)
+    allocated = 0
+    for i, it in enumerate(items):
+        if i == len(items) - 1:
+            disc = max(0, discount_k - allocated)
+        else:
+            disc = round(discount_k * (it['base_price_k'] / total_base_k)) if total_base_k > 0 else 0
+            allocated += disc
+        it['discount_k'] = disc
+        it['final_price_k'] = max(0, it['base_price_k'] - disc)
+
     total_final_k = sum(it['final_price_k'] for it in items)
 
     # 6. Tra cứu cơ sở dữ liệu Gara (Khách hàng & Dòng xe)
@@ -8309,7 +8384,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         'plate': plate,
         'phone': phone,
         'order_date': order_date,
-        'discount_k': 0,
+        'discount_k': discount_k,
         'total_base_k': total_base_k,
         'total_final_k': total_final_k
     }
@@ -8354,12 +8429,25 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         q = it['quantity']
         qty_lbl = f"{q} bộ " if q > 1 else ""
         unit_str = f" *({q}x {it['unit_price_k']*1000:,.0f} đ)*" if q > 1 else ""
-        item_lines.append(f"  {i}. **{qty_lbl}{it['product_name']}**: **{it['final_price_k'] * 1000:,.0f} đ ({it['final_price_k']:,}k)**{unit_str}")
+        if it.get('discount_k', 0) > 0:
+            b_pk = it['base_price_k']
+            f_pk = it['final_price_k']
+            item_lines.append(f"  {i}. **{qty_lbl}{it['product_name']}**: ~~{b_pk * 1000:,.0f} đ~~ ➔ **{f_pk * 1000:,.0f} đ ({f_pk:,}k)**{unit_str}")
+        else:
+            item_lines.append(f"  {i}. **{qty_lbl}{it['product_name']}**: **{it['final_price_k'] * 1000:,.0f} đ ({it['final_price_k']:,}k)**{unit_str}")
     items_text = "\n".join(item_lines)
     items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
 
     phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
     dup_line = (dup_warning + "───────────────────────────────────────\n") if dup_warning else ""
+
+    disc_line = ""
+    if discount_k > 0:
+        disc_note_str = f" *(Giảm {disc_pct_val:.0f}%)*" if disc_is_pct else ""
+        disc_line = (
+            f"• 💵 **Tổng tiền gốc:** ~~{total_base_k * 1000:,.0f} đ~~\n"
+            f"• 🎁 **Giảm giá / Bớt tiền:** **-{discount_k * 1000:,.0f} đ**{disc_note_str}\n"
+        )
 
     card_msg = (
         "❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
@@ -8371,7 +8459,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         f"• 🚘 **Biển số:** **{plate}**\n"
         + phone_line
         + f"{items_header}{items_text}\n"
-        f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
+        + disc_line
+        + f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
         f"• 📅 **Ngày lắp:** **{order_date}**{date_badge}\n"
         "───────────────────────────────────────\n"
         f"👉 Nhắn tin để sửa thông tin nếu cần (VD: *'sửa giá 10tr'*, *'đổi xe Carens'*, *'ngày 15/08'*, *'giảm 200k'*, *'tên Anh Tuấn'*)...\n"
@@ -8394,7 +8483,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
             "found_car": full_car,
             "plate": plate,
             "items": items,
-            "discount_k": 0,
+            "discount_k": discount_k,
             "total_base_k": total_base_k,
             "total_final_k": total_final_k,
             "order_date": order_date,

@@ -1231,16 +1231,35 @@ def modify_draft_baocao_den(payload, user_text):
     is_price_intent = any(k in clean for k in ['gia', 'giá', 'tien', 'tiền', 'giam', 'giảm', 'bot', 'bớt', 'thanh', 'thành', 'la', 'là', 'tr', 'trieu', 'triệu', 'k'])
     if is_price_intent:
         from knowledge_base import parse_vietnamese_currency
-        if any(k in clean for k in ['giam', 'giảm', 'bot', 'bớt']):
-            _, d_num = parse_vietnamese_currency(user_text)
-            if d_num > 0:
-                d_k = int(d_num / 1000) if d_num > 50000 else int(d_num)
+        if any(k in clean for k in ['giam', 'giảm', 'bot', 'bớt', 'chiet khau', 'chiết khấu', 'ck']) or '%' in user_text:
+            b_k = payload.get('total_base_k', 0)
+            if not b_k:
+                b_k = sum(it.get('base_price_k', it.get('final_price_k', 0)) for it in payload.get('items', []))
+            
+            from gemini_engine import parse_discount_expression
+            d_k, is_pct, pct_val = parse_discount_expression(user_text, b_k)
+            if d_k <= 0:
+                _, d_num = parse_vietnamese_currency(user_text)
+                if d_num > 0:
+                    d_k = int(d_num / 1000) if d_num > 50000 else int(d_num)
+
+            if d_k > 0:
                 payload['discount_k'] = d_k
-                b_k = payload.get('total_base_k', 0)
+                payload['total_base_k'] = b_k
                 payload['total_final_k'] = max(0, b_k - d_k)
-                for it in payload.get('items', []):
-                    it['final_price_k'] = max(0, it.get('base_price_k', 0) - d_k)
-                changes.append(f"Giảm giá: **-{d_k*1000:,.0f} đ (-{d_k:,}k)** ➔ Thực thu: **{payload['total_final_k']*1000:,.0f} đ**")
+                allocated = 0
+                items = payload.get('items', [])
+                for i, it in enumerate(items):
+                    if i == len(items) - 1:
+                        disc = max(0, d_k - allocated)
+                    else:
+                        disc = round(d_k * (it.get('base_price_k', it.get('final_price_k', 0)) / b_k)) if b_k > 0 else 0
+                        allocated += disc
+                    it['discount_k'] = disc
+                    it['final_price_k'] = max(0, it.get('base_price_k', it.get('final_price_k', 0)) - disc)
+                
+                pct_str = f" *(Giảm {pct_val:.0f}%)*" if is_pct else ""
+                changes.append(f"Giảm giá: **-{d_k*1000:,.0f} đ (-{d_k:,}k)**{pct_str} ➔ Thực thu: **{payload['total_final_k']*1000:,.0f} đ**")
         else:
             _, p_num = parse_vietnamese_currency(user_text)
             if p_num <= 0:
@@ -1379,12 +1398,25 @@ def handle_wizard_step(user_text, session_id):
                         q = it.get('quantity', 1)
                         qty_lbl = f"{q} bộ " if q > 1 else ""
                         unit_str = f" *({q}x {it.get('unit_price_k', it.get('base_price_k', 0)//q)*1000:,.0f} đ)*" if q > 1 else ""
-                        item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{it.get('final_price_k', 0) * 1000:,.0f} đ ({it.get('final_price_k', 0):,}k)**{unit_str}")
+                        if it.get('discount_k', 0) > 0:
+                            b_pk = it.get('base_price_k', it.get('final_price_k', 0))
+                            f_pk = it.get('final_price_k', 0)
+                            item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: ~~{b_pk * 1000:,.0f} đ~~ ➔ **{f_pk * 1000:,.0f} đ ({f_pk:,}k)**{unit_str}")
+                        else:
+                            item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{it.get('final_price_k', 0) * 1000:,.0f} đ ({it.get('final_price_k', 0):,}k)**{unit_str}")
                     items_text = "\n".join(item_lines)
                     items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
 
                     phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
                     plate_line = f"• 🚘 **Biển số:** **{plate}**\n" if plate else ""
+                    disc_k = payload.get('discount_k', 0)
+                    total_base_k = payload.get('total_base_k', total_f)
+                    disc_line = ""
+                    if disc_k > 0:
+                        disc_line = (
+                            f"• 💵 **Tổng tiền gốc:** ~~{total_base_k * 1000:,.0f} đ~~\n"
+                            f"• 🎁 **Giảm giá / Bớt tiền:** **-{disc_k * 1000:,.0f} đ**\n"
+                        )
 
                     updated_card = (
                         f"✏️ **ĐÃ CẬP NHẬT THÔNG TIN THEO YÊU CẦU CỦA BẠN:**\n"
@@ -1396,7 +1428,8 @@ def handle_wizard_step(user_text, session_id):
                         + plate_line
                         + phone_line
                         + f"{items_header}{items_text}\n"
-                        f"• 💰 **DOANH THU THỰC THU:** **{total_f * 1000:,.0f} đ**\n"
+                        + disc_line
+                        + f"• 💰 **DOANH THU THỰC THU:** **{total_f * 1000:,.0f} đ**\n"
                         f"• 📅 **Ngày lắp:** **{order_date}**\n"
                         f"───────────────────────────────────────\n"
                         f"👉 Bấm **[✅ OK / Lưu]** để ghi sổ ngay, hoặc tiếp tục nhắn thông tin cần sửa!"
