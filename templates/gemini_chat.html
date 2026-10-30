@@ -1858,7 +1858,10 @@
         gdemRecalcTotal();
 
         const modal = document.getElementById('garageDraftEditModal');
-        if (modal) modal.style.display = 'flex';
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.zIndex = '10000000';
+        }
     }
 
     function closeGarageDraftEditModal() {
@@ -2026,11 +2029,11 @@
 <!-- ==========================================
      MODAL CHỈNH SỬA ĐƠN ĐÈN TRỰC QUAN (INTERACTIVE DRAFT EDIT MODAL)
      ========================================== -->
-<div id="garageDraftEditModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:100000; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;">
-  <div style="background:#131826; border:1px solid rgba(255,255,255,0.18); border-radius:18px; width:100%; max-width:540px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.85); color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow:hidden;">
+<div id="garageDraftEditModal" onclick="if(event.target===this) closeGarageDraftEditModal();" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100%; height:100dvh; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:10000000; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;">
+  <div style="background:#131826; border:1px solid rgba(255,255,255,0.18); border-radius:18px; width:100%; max-width:540px; max-height:92vh; max-height:92dvh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.85); color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow:hidden;">
     
     <!-- Modal Header -->
-    <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1e293b, #0f172a);">
+    <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1e293b, #0f172a); flex-shrink:0;">
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:1.25rem;">✏️</span>
         <div>
@@ -2149,7 +2152,7 @@
     </div>
 
     <!-- Modal Footer -->
-    <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,0.1); background:#0f172a; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+    <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,0.1); background:#0f172a; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
       <button type="button" onclick="closeGarageDraftEditModal()" style="background:#334155; color:#cbd5e1; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer;">
         Đóng
       </button>
