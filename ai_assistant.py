@@ -1288,9 +1288,7 @@ def handle_wizard_step(user_text, session_id):
                     WIZARD_SESSIONS['default_user'] = session
 
                     items = payload.get('items', [])
-                    matched_lamp = items[0].get('product_name', 'ĐÈN Ô TÔ') if items else 'ĐÈN Ô TÔ'
-                    final_p = items[0].get('final_price_k', 0) if items else 0
-                    total_f = payload.get('total_final_k', final_p)
+                    total_f = payload.get('total_final_k', sum(it.get('final_price_k', 0) for it in items))
                     cust_name = payload.get('cust_name', 'Khách lẻ')
                     found_car = payload.get('found_car', 'XE Ô TÔ')
                     plate = payload.get('plate', '')
@@ -1299,6 +1297,18 @@ def handle_wizard_step(user_text, session_id):
 
                     changes_bullet = "\n".join([f"• ✏️ {c}" for c in changes])
 
+                    item_lines = []
+                    for i, it in enumerate(items, 1):
+                        q = it.get('quantity', 1)
+                        qty_lbl = f"{q} bộ " if q > 1 else ""
+                        unit_str = f" *({q}x {it.get('unit_price_k', it.get('base_price_k', 0)//q)*1000:,.0f} đ)*" if q > 1 else ""
+                        item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{it.get('final_price_k', 0) * 1000:,.0f} đ ({it.get('final_price_k', 0):,}k)**{unit_str}")
+                    items_text = "\n".join(item_lines)
+                    items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
+
+                    phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
+                    plate_line = f"• 🚘 **Biển số:** **{plate}**\n" if plate else ""
+
                     updated_card = (
                         f"✏️ **ĐÃ CẬP NHẬT THÔNG TIN THEO YÊU CẦU CỦA BẠN:**\n"
                         f"{changes_bullet}\n\n"
@@ -1306,9 +1316,9 @@ def handle_wizard_step(user_text, session_id):
                         f"───────────────────────────────────────\n"
                         f"• 👤 **Khách hàng:** **{cust_name}**\n"
                         f"• 🚗 **Dòng xe:** **{found_car.upper()}**\n"
-                        + (f"• 🚘 **Biển số:** **{plate}**\n" if plate else "")
-                        + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
-                        + f"• 📦 **Sản phẩm lắp đặt:**\n  1. **{matched_lamp}**: **{final_p * 1000:,.0f} đ ({final_p:,}k)**\n"
+                        + plate_line
+                        + phone_line
+                        + f"{items_header}{items_text}\n"
                         f"• 💰 **DOANH THU THỰC THU:** **{total_f * 1000:,.0f} đ**\n"
                         f"• 📅 **Ngày lắp:** **{order_date}**\n"
                         f"───────────────────────────────────────\n"

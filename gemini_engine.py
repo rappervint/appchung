@@ -8046,10 +8046,11 @@ def scan_car_warranty_photo(image_data, user_caption="", session_id="default_use
     """
     Tự động phân tích ảnh nghiệm thu / bảo hành xe bằng Gemini Vision:
     1. Trích xuất thời gian chụp (EXIF gốc hoặc file.lastModified).
-    2. Nhận diện biển số, hãng xe, dòng xe, sản phẩm / hộp đèn trên capo qua Gemini Vision.
-    3. Tự động đối soát khách hàng & xe từ cơ sở dữ liệu gara (tiem_lap_do.db / gara_knowledge.db).
-    4. Tự động tra cứu giá niêm yết từ kho hàng hoặc lịch sử gara.
-    5. Thiết lập phiên xác nhận (Wizard Session) và trả về Phiếu Xác Nhận Lên Đơn với nút [✅ OK / Lưu] | [🛑 Hủy].
+    2. Nhận diện biển số, hãng xe, dòng xe, DANH SÁCH TẤT CẢ VỎ HỘP ĐÈN trên capo qua Gemini Vision.
+    3. Tự động nhận diện nhiều món hàng (multi-item) hoặc gộp số lượng nếu 2 hộp đèn cùng loại.
+    4. Tự động đối soát khách hàng & xe từ cơ sở dữ liệu gara (tiem_lap_do.db / gara_knowledge.db).
+    5. Tự động tra cứu giá niêm yết từng món từ kho hàng hoặc lịch sử gara & tính tổng doanh thu.
+    6. Thiết lập phiên xác nhận (Wizard Session) và trả về Phiếu Xác Nhận Lên Đơn với nút [✅ OK / Lưu] | [🛑 Hủy].
     """
     import base64
     import io
@@ -8073,22 +8074,36 @@ def scan_car_warranty_photo(image_data, user_caption="", session_id="default_use
     # 2. Trích xuất ngày giờ chụp ảnh
     order_date, date_note = extract_photo_capture_date(image_bytes, file_timestamp=file_timestamp, user_caption=user_caption)
 
-    # 3. Phân tích ảnh qua Gemini Vision
+    # 3. Phân tích ảnh qua Gemini Vision (Hỗ trợ đa hộp đèn & gộp số lượng thông minh)
     raw_vision_text = ""
     prompt = f"""Bạn là chuyên gia thẩm định xe & nghiệm thu phụ kiện gara Trần Bình Auto.
-Hãy phân tích bức ảnh nghiệm thu phụ kiện xe hơi này và trích xuất thông tin dưới dạng JSON chuẩn:
+Hãy phân tích bức ảnh nghiệm thu phụ kiện xe hơi này và trích xuất thông tin dưới dạng JSON chuẩn.
+
+QUAN SÁT KỸ TẤT CẢ VỎ HỘP ĐÈN ĐẶT TRÊN NẮP CAPO / KHĂN TRẢI XE:
+- Có thể có 1 hộp hoặc NHIỀU HỘP ĐÈN đặt cạnh nhau.
+- Hãy đếm chính xác từng hộp và đọc tên thương hiệu / mã model trên từng vỏ hộp (ví dụ: X-Light V20 Base, Naoevo S3 Pro / S3, F10 Pro V2, M20 Ultra V2, F10 Turbo, Titan, X-Light...).
+- QUY TẮC NHẬN DIỆN SỐ LƯỢNG:
+  + Nếu có nhiều hộp đèn KHÁC NHAU (ví dụ 1 hộp V20 Base, 1 hộp S3, 1 hộp F10 Pro): trích xuất thành từng món riêng biệt trong danh sách "danh_sach_hop_den", mỗi món có "so_luong": 1.
+  + Nếu có 2 hoặc nhiều hộp CÙNG MỘT MÃ HÀNG (ví dụ 2 hộp M20 Ultra đặt cạnh nhau): hãy gộp lại thành 1 món duy nhất với "so_luong" là tổng số lượng hộp đó (ví dụ: 2).
+
 LƯU Ý CỦA NGƯỜI DÙNG NẾU CÓ: "{user_caption}"
+
 YÊU CẦU TRẢ VỀ JSON:
 {{
-  "bien_so": "Biển số xe chính giữa bức ảnh (ví dụ 63C-237.12 hoặc 63C23712)",
-  "hang_xe": "Hãng xe (ví dụ KIA, TOYOTA, HONDA, VINFAST, MAZDA, FORD, MITSUBISHI, HYUNDAI...)",
-  "dong_xe": "Dòng xe (ví dụ Carens, City, Vios, VF3, CX5, Ranger, Xpander, Santafe...)",
-  "ten_san_pham": "Tên sản phẩm/hộp đèn đặt trên nắp capo hoặc được lắp đặt (ví dụ F10 TURBO V2, F10 TURBO, TITAN F1, S3 PRO, V20...)",
+  "bien_so": "Biển số xe chính giữa bức ảnh (ví dụ 63A-041.32, 71A-214.72, 63C-237.12...)",
+  "hang_xe": "Hãng xe (TOYOTA, MG, KIA, HYUNDAI, VINFAST, HONDA, MAZDA, FORD...)",
+  "dong_xe": "Dòng xe (Fortuner, MG5, Carens, Elantra, Vios, Accent, VF3...)",
+  "danh_sach_hop_den": [
+    {{
+      "ten_san_pham": "Tên sản phẩm/mã đèn trên vỏ hộp (ví dụ V20 BASE, S3 PRO, F10 PRO V2, M20 ULTRA V2, F10 TURBO...)",
+      "so_luong": 1
+    }}
+  ],
   "nghiem_thu": "Trạng thái nghiệm thu ngắn gọn của hệ thống đèn đã hoàn thiện và bật sáng"
 }}
 Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
-    # Ưu tiên dùng SDK Client
+    # Ưu tiên dùng SDK Client với gemini-3.5-flash-lite / gemini-3.5-flash
     client = get_gemini_client()
     model = CURRENT_CONFIG.get('preferred_model') or 'gemini-3.5-flash-lite'
     
@@ -8168,8 +8183,6 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         if m_h: data['hang_xe'] = m_h.group(1)
         m_d = re.search(r'"dong_xe"\s*:\s*"([^"]+)"', raw_vision_text)
         if m_d: data['dong_xe'] = m_d.group(1)
-        m_p = re.search(r'"ten_san_pham"\s*:\s*"([^"]+)"', raw_vision_text)
-        if m_p: data['ten_san_pham'] = m_p.group(1)
         m_n = re.search(r'"nghiem_thu"\s*:\s*"([^"]+)"', raw_vision_text)
         if m_n: data['nghiem_thu'] = m_n.group(1)
 
@@ -8177,24 +8190,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
     hang_xe = data.get('hang_xe', '').strip()
     dong_xe = data.get('dong_xe', '').strip()
     full_car = f"{hang_xe} {dong_xe}".strip().upper() if hang_xe or dong_xe else "CHƯA RÕ DÒNG XE"
-    raw_prod = data.get('ten_san_pham', '').strip()
     nghiem_thu_txt = data.get('nghiem_thu', 'Đã lắp đặt hoàn thiện, đèn bật sáng tốt.')
-
-    # 5. Chuẩn hóa tên sản phẩm: ưu tiên lời nhắn của người dùng nếu có (ví dụ "gắn f10 turbo v2")
-    matched_lamp = raw_prod.upper()
-    if user_caption:
-        for pat, cname, _ in LAMP_CATALOG:
-            if re.search(pat, user_caption, re.IGNORECASE):
-                matched_lamp = cname
-                break
-    else:
-        for pat, cname, _ in LAMP_CATALOG:
-            if re.search(pat, raw_prod, re.IGNORECASE):
-                matched_lamp = cname
-                break
-
-    if not matched_lamp:
-        matched_lamp = "F10 TURBO"
 
     # Chuẩn hóa biển số nếu có trong user_caption
     if not plate and user_caption:
@@ -8202,47 +8198,110 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         m_p = extract_license_plate(user_caption)
         if m_p: plate = m_p
 
-    # 6. Tra cứu cơ sở dữ liệu Gara (Khách hàng & Dòng xe)
+    # 5. Phân tích danh sách hộp đèn & gộp số lượng nếu cùng mã hàng
+    raw_boxes = data.get('danh_sach_hop_den', [])
+    if not raw_boxes and data.get('ten_san_pham'):
+        raw_boxes = [{'ten_san_pham': data.get('ten_san_pham'), 'so_luong': 1}]
+    if not raw_boxes:
+        raw_boxes = [{'ten_san_pham': 'F10 TURBO', 'so_luong': 1}]
+
+    DEFAULT_LAMP_PRICES = {
+        'F10 TURBO': 6000,
+        'F10 PRO V2': 5500,
+        'F10 PRO': 5500,
+        'F10 HYPER': 5500,
+        'F10 NEW 2.0': 4500,
+        'F10 BA MÀU': 4200,
+        'M20 ULTRA V2': 4500,
+        'M20 ULTRA': 4500,
+        'M30 ULTRA': 5500,
+        'M40 ULTRA': 6500,
+        'V20 BASE': 4500,
+        'BI LED V20': 6500,
+        'S3 PRO': 1500,
+        'S3': 1500,
+        'S6 PRO': 1800,
+        'S8 PRO': 2500,
+        'S9 PRO': 3000,
+    }
+
+    matched_boxes = []
+    for box in raw_boxes:
+        b_name = box.get('ten_san_pham', '').strip()
+        b_qty = int(box.get('so_luong', 1) or 1)
+        if b_qty <= 0: b_qty = 1
+
+        matched_name = b_name.upper()
+        for pat, cname, _ in LAMP_CATALOG:
+            if re.search(pat, b_name, re.IGNORECASE):
+                matched_name = cname
+                break
+
+        if 'X-LIGHT' in matched_name and 'V20' not in matched_name:
+            matched_name = 'V20 BASE'
+        elif 'M20' in matched_name:
+            matched_name = 'M20 ULTRA V2'
+
+        matched_boxes.append({'name': matched_name, 'qty': b_qty})
+
+    # Gộp các sản phẩm trùng tên
+    merged_items = {}
+    for box in matched_boxes:
+        n = box['name']
+        merged_items[n] = merged_items.get(n, 0) + box['qty']
+
     from ai_assistant import (
         lookup_customer_and_car_by_identifier,
         get_lamp_price_from_memory,
         WIZARD_SESSIONS
     )
 
+    items = []
+    for name, qty in merged_items.items():
+        price_k = get_lamp_price_from_memory(name)
+        if price_k <= 0:
+            for k_pat, def_p in DEFAULT_LAMP_PRICES.items():
+                if k_pat in name or name in k_pat:
+                    price_k = def_p
+                    break
+        if price_k <= 0:
+            price_k = 4500
+
+        total_item_k = price_k * qty
+        items.append({
+            'product_name': name,
+            'quantity': qty,
+            'unit_price_k': price_k,
+            'base_price_k': total_item_k,
+            'final_price_k': total_item_k,
+            'discount_k': 0,
+            'is_default': True
+        })
+
+    total_base_k = sum(it['base_price_k'] for it in items)
+    total_final_k = sum(it['final_price_k'] for it in items)
+
+    # 6. Tra cứu cơ sở dữ liệu Gara (Khách hàng & Dòng xe)
     cust_info = lookup_customer_and_car_by_identifier(plate) if plate else {}
     auto_found = cust_info.get('found', False)
     cust_name = cust_info.get('customer_name') if auto_found else f"Khách xe {plate}"
     phone = cust_info.get('phone', '') if auto_found else ""
-    if cust_info.get('car_model') and cust_info.get('car_model').upper() not in ["CHƯA RÕ", "CHƯA RÕ DÒNG XE", ""]:
+    if full_car in ["CHƯA RÕ", "CHƯA RÕ DÒNG XE", ""] and cust_info.get('car_model'):
         full_car = cust_info.get('car_model').upper()
 
-    # 7. Tra cứu giá niêm yết trong kho hàng / lịch sử gara
-    price_k = get_lamp_price_from_memory(matched_lamp)
-    if price_k <= 0 and "TURBO" in matched_lamp:
-        price_k = get_lamp_price_from_memory("F10 TURBO")
-    if price_k <= 0:
-        price_k = 6000  # Giá niêm yết mặc định cho F10 Turbo
-
-    # 8. Thiết lập Wizard Session chờ xác nhận an toàn dữ liệu
+    # 7. Thiết lập Wizard Session chờ xác nhận an toàn dữ liệu
     cust_record = f"{cust_name} ({plate})" if (plate and plate not in cust_name) else cust_name
-    
+
     session_payload = {
-        'items': [{
-            'product_name': matched_lamp,
-            'quantity': 1,
-            'final_price_k': price_k,
-            'base_price_k': price_k,
-            'discount_k': 0,
-            'is_default': True
-        }],
+        'items': items,
         'cust_name': cust_record,
         'found_car': full_car,
         'plate': plate,
         'phone': phone,
         'order_date': order_date,
         'discount_k': 0,
-        'total_base_k': price_k,
-        'total_final_k': price_k
+        'total_base_k': total_base_k,
+        'total_final_k': total_final_k
     }
 
     WIZARD_SESSIONS[session_id] = {
@@ -8250,10 +8309,9 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         'action_type': 'baocao_den',
         'payload': session_payload
     }
-    # Đồng bộ sang default_user để cửa sổ mini và tab chat dùng chung
     WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
 
-    # 9. Soạn phiếu xác nhận lên đơn trực quan
+    # 8. Soạn phiếu xác nhận lên đơn trực quan
     tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else " *(Khách mới theo biển số)*"
     date_badge = f" *({date_note})*"
 
@@ -8263,7 +8321,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
     if plate:
         try:
             from ai_assistant import check_duplicate_lamp_order
-            dup = check_duplicate_lamp_order(plate, order_date=order_date, product_name=matched_lamp)
+            main_prods = ", ".join(it['product_name'] for it in items)
+            dup = check_duplicate_lamp_order(plate, order_date=order_date, product_name=main_prods)
             if dup:
                 dup_id = dup.get('id')
                 dup_date = dup.get('order_date')
@@ -8272,28 +8331,40 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
                 is_same_d = (dup_date == order_date)
                 alert_type = "ĐƠN TRÙNG CÙNG NGÀY" if is_same_d else "XE NÀY ĐÃ TỪNG LẮP ĐÈN"
                 dup_warning = (
-                    f"\n⚠️ **CẢNH BÁO {alert_type}:**\n"
-                    f"Xe **{plate}** đã có đơn **#{dup_id}** ngày **{dup_date}** lắp **{dup_prod}** ({dup_price*1000:,.0f} đ).\n"
-                    f"👉 *Nếu là xe lắp thêm món mới/làm lần 2, bấm [✅ Vẫn Lưu Đơn]. Nếu gửi nhầm, bấm [🛑 Hủy].*\n"
+                    "\n⚠️ **CẢNH BÁO " + alert_type + ":**\n"
+                    "Xe **" + str(plate) + "** đã có đơn **#" + str(dup_id) + "** ngày **" + str(dup_date) + "** lắp **" + str(dup_prod) + "** (" + f"{dup_price*1000:,.0f} đ).\n"
+                    "👉 *Nếu là xe lắp thêm món mới/làm lần 2, bấm [✅ Vẫn Lưu Đơn]. Nếu gửi nhầm, bấm [🛑 Hủy].*\n"
                 )
                 btn_confirm_label = "✅ Vẫn Lưu Đơn Mới"
         except Exception as e_dup:
             print(f"[GeminiEngine] Lỗi check trùng: {e_dup}")
 
+    item_lines = []
+    for i, it in enumerate(items, 1):
+        q = it['quantity']
+        qty_lbl = f"{q} bộ " if q > 1 else ""
+        unit_str = f" *({q}x {it['unit_price_k']*1000:,.0f} đ)*" if q > 1 else ""
+        item_lines.append(f"  {i}. **{qty_lbl}{it['product_name']}**: **{it['final_price_k'] * 1000:,.0f} đ ({it['final_price_k']:,}k)**{unit_str}")
+    items_text = "\n".join(item_lines)
+    items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
+
+    phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
+    dup_line = (dup_warning + "───────────────────────────────────────\n") if dup_warning else ""
+
     card_msg = (
-        f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
-        f"───────────────────────────────────────\n"
-        + (dup_warning + f"───────────────────────────────────────\n" if dup_warning else "")
+        "❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+        "───────────────────────────────────────\n"
+        + dup_line
         + f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
         f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto}\n"
         f"• 🚗 **Dòng xe:** **{full_car}**\n"
         f"• 🚘 **Biển số:** **{plate}**\n"
-        + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
-        + f"• 📦 **Sản phẩm lắp đặt:**\n  1. **{matched_lamp}**: **{price_k * 1000:,.0f} đ ({price_k:,}k)** *(Giá niêm yết tự động)*\n"
-        f"• 💰 **DOANH THU THỰC THU:** **{price_k * 1000:,.0f} đ**\n"
+        + phone_line
+        + f"{items_header}{items_text}\n"
+        f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
         f"• 📅 **Ngày lắp:** **{order_date}**{date_badge}\n"
-        f"───────────────────────────────────────\n"
-        f"👉 Nhắn tin để sửa thông tin nếu cần (VD: *'sửa giá 6tr'*, *'đổi xe Carens'*, *'ngày 15/08'*, *'giảm 200k'*, *'tên Anh Tuấn'*)...\n"
+        "───────────────────────────────────────\n"
+        f"👉 Nhắn tin để sửa thông tin nếu cần (VD: *'sửa giá 10tr'*, *'đổi xe Carens'*, *'ngày 15/08'*, *'giảm 200k'*, *'tên Anh Tuấn'*)...\n"
         f"👉 Bấm **[{btn_confirm_label}]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
     )
 
@@ -8307,8 +8378,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         "meta": {
             "plate": plate,
             "car": full_car,
-            "product": matched_lamp,
-            "price_k": price_k,
+            "items": items,
+            "total_final_k": total_final_k,
             "order_date": order_date,
             "date_source": date_note,
             "auto_found": auto_found
