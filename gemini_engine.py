@@ -8256,11 +8256,11 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         m_n = re.search(r'"nghiem_thu"\s*:\s*"([^"]+)"', raw_vision_text)
         if m_n: data['nghiem_thu'] = m_n.group(1)
 
-    plate = data.get('bien_so', '').strip()
-    hang_xe = data.get('hang_xe', '').strip()
-    dong_xe = data.get('dong_xe', '').strip()
+    plate = str(data.get('bien_so') or '').strip()
+    hang_xe = str(data.get('hang_xe') or '').strip()
+    dong_xe = str(data.get('dong_xe') or '').strip()
     full_car = f"{hang_xe} {dong_xe}".strip().upper() if hang_xe or dong_xe else "CHƯA RÕ DÒNG XE"
-    nghiem_thu_txt = data.get('nghiem_thu', 'Đã lắp đặt hoàn thiện, đèn bật sáng tốt.')
+    nghiem_thu_txt = str(data.get('nghiem_thu') or 'Đã lắp đặt hoàn thiện, đèn bật sáng tốt.').strip()
 
     # Chuẩn hóa biển số nếu có trong user_caption
     if not plate and user_caption:
@@ -8297,7 +8297,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
     matched_boxes = []
     for box in raw_boxes:
-        b_name = box.get('ten_san_pham', '').strip()
+        b_name = str(box.get('ten_san_pham') or '').strip()
         b_qty = int(box.get('so_luong', 1) or 1)
         if b_qty <= 0: b_qty = 1
 
