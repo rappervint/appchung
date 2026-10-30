@@ -975,6 +975,47 @@ def commit_baocao_den_order(payload):
         return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
 
 
+
+def check_duplicate_lamp_order(plate, order_date="", product_name=""):
+    """
+    Kiểm tra xem biển số xe này đã có đơn đèn trong hệ thống hay chưa.
+    Trả về thông tin đơn cũ để cảnh báo người dùng tránh bị nhập trùng đơn.
+    """
+    if not plate or not os.path.exists(DB_DEN):
+        return None
+    clean_p = re.sub(r'[^A-Za-z0-9]', '', plate).upper()
+    if not clean_p:
+        return None
+    try:
+        conn = sqlite3.connect(DB_DEN, timeout=5)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("""
+            SELECT id, order_date, product_name, customer_name, car_model, quantity, price_k
+            FROM orders
+            ORDER BY id DESC LIMIT 500
+        """)
+        rows = c.fetchall()
+        conn.close()
+
+        duplicates = []
+        for r in rows:
+            c_str = re.sub(r'[^A-Za-z0-9]', '', f"{r['customer_name']} {r['car_model']}").upper()
+            if clean_p in c_str:
+                duplicates.append(dict(r))
+
+        if not duplicates:
+            return None
+
+        # Ưu tiên đơn trùng cả ngày
+        for d in duplicates:
+            if order_date and d['order_date'] == order_date:
+                return d
+        return duplicates[0]
+    except Exception as e:
+        print(f"[CheckDuplicate] Lỗi tra cứu trùng xe: {e}")
+        return None
+
 def execute_confirmed_action(action_type, payload, session_id="default_user"):
     """Thực thi hành động sau khi người dùng đã xác nhận đồng ý"""
     res = None

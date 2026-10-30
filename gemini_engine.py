@@ -8257,8 +8257,32 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
     tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else " *(Khách mới theo biển số)*"
     date_badge = f" *({date_note})*"
 
+    # Kiểm tra trùng đơn xe
+    dup_warning = ""
+    btn_confirm_label = "✅ OK / Lưu"
+    if plate:
+        try:
+            from ai_assistant import check_duplicate_lamp_order
+            dup = check_duplicate_lamp_order(plate, order_date=order_date, product_name=matched_lamp)
+            if dup:
+                dup_id = dup.get('id')
+                dup_date = dup.get('order_date')
+                dup_prod = dup.get('product_name')
+                dup_price = dup.get('price_k', 0)
+                is_same_d = (dup_date == order_date)
+                alert_type = "ĐƠN TRÙNG CÙNG NGÀY" if is_same_d else "XE NÀY ĐÃ TỪNG LẮP ĐÈN"
+                dup_warning = (
+                    f"\n⚠️ **CẢNH BÁO {alert_type}:**\n"
+                    f"Xe **{plate}** đã có đơn **#{dup_id}** ngày **{dup_date}** lắp **{dup_prod}** ({dup_price*1000:,.0f} đ).\n"
+                    f"👉 *Nếu là xe lắp thêm món mới/làm lần 2, bấm [✅ Vẫn Lưu Đơn]. Nếu gửi nhầm, bấm [🛑 Hủy].*\n"
+                )
+                btn_confirm_label = "✅ Vẫn Lưu Đơn Mới"
+        except Exception as e_dup:
+            print(f"[GeminiEngine] Lỗi check trùng: {e_dup}")
+
     card_msg = (
         f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+        + (dup_warning + f"───────────────────────────────────────\n" if dup_warning else "")
         f"───────────────────────────────────────\n"
         f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
         f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto}\n"
@@ -8276,7 +8300,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         "type": "wizard_step",
         "message": card_msg,
         "buttons": [
-            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+            {"text": btn_confirm_label, "action": "send_message", "value": "ok", "class": "btn-success"},
             {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
         ],
         "meta": {
