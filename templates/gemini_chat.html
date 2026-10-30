@@ -1335,25 +1335,68 @@
             processGeminiImageFile(file);
         }
 
-        function processGeminiImageFile(file) {
-            if (!file.type.startsWith('image/')) {
+        // Nén ảnh thông minh trước khi tải lên (Hỗ trợ 100% iPhone Safari, chống lỗi TypeError Load failed)
+        function compressImageFile(file, maxWidth = 1600, maxHeight = 1600, quality = 0.85) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > maxWidth || h > maxHeight) {
+                            if (w / h > maxWidth / maxHeight) {
+                                h = Math.round(h * (maxWidth / w));
+                                w = maxWidth;
+                            } else {
+                                w = Math.round(w * (maxHeight / h));
+                                h = maxHeight;
+                            }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        try {
+                            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                            resolve(dataUrl);
+                        } catch (err) {
+                            resolve(e.target.result);
+                        }
+                    };
+                    img.onerror = function() { resolve(e.target.result); };
+                    img.src = e.target.result;
+                };
+                reader.onerror = function() { resolve(null); };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function processGeminiImageFile(file) {
+            const isImg = (!file.type || file.type.startsWith('image/') || /\.(jpg|jpeg|png|heic|heif|webp|bmp)$/i.test(file.name || ''));
+            if (!isImg) {
                 alert('Vui lòng chọn một tệp hình ảnh hợp lệ!');
                 return;
             }
             selectedImageTimestamp = file.lastModified || Date.now();
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                selectedImageDataUrl = e.target.result;
-                document.getElementById('imagePreviewImg').src = selectedImageDataUrl;
-                document.getElementById('imagePreviewName').textContent = file.name || 'Ảnh nghiệm thu xe';
-                const d = new Date(selectedImageTimestamp);
-                const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
-                document.getElementById('imagePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Thời gian tệp: <strong>${dStr}</strong> • Gemini Vision sẵn sàng quét xe & biển số`;
-                document.getElementById('imagePreviewContainer').style.display = 'flex';
-                document.getElementById('btnSend').disabled = false;
-                document.getElementById('userInput').focus();
-            };
-            reader.readAsDataURL(file);
+            document.getElementById('imagePreviewName').textContent = file.name || 'Ảnh nghiệm thu xe';
+            document.getElementById('imagePreviewDate').innerHTML = `<i class="bi bi-arrow-repeat"></i> Đang nén & tối ưu hóa ảnh...`;
+            document.getElementById('imagePreviewContainer').style.display = 'flex';
+
+            const compressed = await compressImageFile(file, 1600, 1600, 0.85);
+            if (!compressed) {
+                alert('Không thể đọc hình ảnh. Vui lòng thử lại!');
+                clearSelectedImage();
+                return;
+            }
+            selectedImageDataUrl = compressed;
+            document.getElementById('imagePreviewImg').src = selectedImageDataUrl;
+            const d = new Date(selectedImageTimestamp);
+            const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+            document.getElementById('imagePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Thời gian tệp: <strong>${dStr}</strong> • Gemini Vision sẵn sàng`;
+            document.getElementById('btnSend').disabled = false;
+            document.getElementById('userInput').focus();
         }
 
         function clearSelectedImage() {

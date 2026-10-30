@@ -513,24 +513,67 @@
         processBubbleImage(file);
     }
 
-    function processBubbleImage(file) {
-        if (!file.type.startsWith('image/')) {
+    // Nén ảnh thông minh trước khi tải lên (Hỗ trợ 100% iPhone Safari, chống lỗi TypeError Load failed)
+    function compressImageFile(file, maxWidth = 1600, maxHeight = 1600, quality = 0.85) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxWidth || h > maxHeight) {
+                        if (w / h > maxWidth / maxHeight) {
+                            h = Math.round(h * (maxWidth / w));
+                            w = maxWidth;
+                        } else {
+                            w = Math.round(w * (maxHeight / h));
+                            h = maxHeight;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    try {
+                        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        resolve(dataUrl);
+                    } catch (err) {
+                        resolve(e.target.result);
+                    }
+                };
+                img.onerror = function() { resolve(e.target.result); };
+                img.src = e.target.result;
+            };
+            reader.onerror = function() { resolve(null); };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function processBubbleImage(file) {
+        const isImg = (!file.type || file.type.startsWith('image/') || /\.(jpg|jpeg|png|heic|heif|webp|bmp)$/i.test(file.name || ''));
+        if (!isImg) {
             alert('Vui lòng chọn tệp hình ảnh!');
             return;
         }
         bubbleSelectedImageTimestamp = file.lastModified || Date.now();
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            bubbleSelectedImageData = e.target.result;
-            document.getElementById('aiBubblePreviewImg').src = bubbleSelectedImageData;
-            document.getElementById('aiBubblePreviewName').textContent = file.name || 'Ảnh xe';
-            const d = new Date(bubbleSelectedImageTimestamp);
-            const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
-            document.getElementById('aiBubblePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Tệp: ${dStr}`;
-            document.getElementById('aiBubbleImagePreview').style.display = 'flex';
-            document.getElementById('aiInput').focus();
-        };
-        reader.readAsDataURL(file);
+        document.getElementById('aiBubblePreviewName').textContent = file.name || 'Ảnh xe';
+        document.getElementById('aiBubblePreviewDate').innerHTML = `<i class="bi bi-arrow-repeat"></i> Đang tối ưu hóa ảnh cho Safari & AI...`;
+        document.getElementById('aiBubbleImagePreview').style.display = 'flex';
+
+        const compressed = await compressImageFile(file, 1600, 1600, 0.85);
+        if (!compressed) {
+            alert('Không thể đọc hình ảnh. Vui lòng thử lại!');
+            clearBubbleImage();
+            return;
+        }
+        bubbleSelectedImageData = compressed;
+        document.getElementById('aiBubblePreviewImg').src = bubbleSelectedImageData;
+        const d = new Date(bubbleSelectedImageTimestamp);
+        const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+        document.getElementById('aiBubblePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Tệp: ${dStr} • Sẵn sàng quét`;
+        document.getElementById('aiInput').focus();
     }
 
     function clearBubbleImage() {

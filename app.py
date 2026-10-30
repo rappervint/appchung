@@ -31,6 +31,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 # Khởi tạo Flask Application chính
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 app.config['SECRET_KEY'] = 'gara-oto-tiem-lap-do-secret-key-2026'
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # 64MB
 
 # Ẩn bớt log mặc định của werkzeug
 werkzeug_logger = logging.getLogger('werkzeug')
@@ -110,6 +111,9 @@ def add_no_cache_headers(response):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-Requested-With"
+    response.headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,OPTIONS"
     return response
 
 # ── LOG KẾT NỐI THEO DÕI THIẾT BỊ TRUY CẬP (TIẾNG VIỆT) ──
@@ -285,8 +289,10 @@ def api_delete_app(app_id):
 # Biến WSGI chuẩn cho PythonAnywhere
 
 # ── API TRỢ LÝ AI ĐIỀU HÀNH TOÀN DIỆN (AI ASSISTANT) ──
-@app.route('/api/ai/chat', methods=['POST'])
+@app.route('/api/ai/chat', methods=['POST', 'OPTIONS'])
 def api_ai_chat():
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.json or {}
     if not data and request.form:
         data = request.form.to_dict()
