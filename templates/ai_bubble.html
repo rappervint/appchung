@@ -932,7 +932,7 @@
     }
 
     // Nén ảnh thông minh trước khi tải lên (Hỗ trợ 100% iPhone Safari, chống lỗi TypeError Load failed)
-    function compressImageFile(file, maxWidth = 1600, maxHeight = 1600, quality = 0.85) {
+    function compressImageFile(file, maxWidth = 1024, maxHeight = 1024, quality = 0.82) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -980,7 +980,7 @@
         document.getElementById('aiBubblePreviewDate').innerHTML = `<i class="bi bi-arrow-repeat"></i> Đang tối ưu hóa ảnh cho Safari & AI...`;
         document.getElementById('aiBubbleImagePreview').style.display = 'flex';
 
-        const compressed = await compressImageFile(file, 1600, 1600, 0.85);
+        const compressed = await compressImageFile(file, 1024, 1024, 0.82);
         if (!compressed) {
             alert('Không thể đọc hình ảnh. Vui lòng thử lại!');
             clearBubbleImage();

@@ -8046,6 +8046,27 @@ def scan_car_warranty_photo(image_data, user_caption="", session_id="default_use
     # 2. Trích xuất ngày giờ chụp ảnh
     order_date, date_note = extract_photo_capture_date(image_bytes, file_timestamp=file_timestamp, user_caption=user_caption)
 
+    # 2.5. Tối ưu hóa kích thước & nén ảnh chuẩn cho Gemini Vision (max 1024px, giảm 60% Vision Tiles để tăng tốc)
+    if PIL_AVAILABLE and Image is not None:
+        try:
+            im = Image.open(io.BytesIO(image_bytes))
+            w, h = im.size
+            max_dim = 1024
+            if max(w, h) > max_dim:
+                if w > h:
+                    nw, nh = max_dim, int(h * max_dim / w)
+                else:
+                    nw, nh = int(w * max_dim / h), max_dim
+                im = im.resize((nw, nh), Image.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                if im.mode in ('RGBA', 'P'):
+                    im = im.convert('RGB')
+                im.save(buf, format='JPEG', quality=82, optimize=True)
+                image_bytes = buf.getvalue()
+                b64_str = base64.b64encode(image_bytes).decode('utf-8')
+        except Exception as e_opt:
+            print(f"[GeminiVision] Lỗi tối ưu kích thước ảnh: {e_opt}")
+
     # 3. Phân tích ảnh qua Gemini Vision (Hỗ trợ đa hộp đèn & gộp số lượng thông minh)
     raw_vision_text = ""
     prompt = f"""Bạn là chuyên gia thẩm định xe & nghiệm thu phụ kiện gara Trần Bình Auto.
@@ -8079,22 +8100,34 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
     client = get_gemini_client()
     model = CURRENT_CONFIG.get('preferred_model') or 'gemini-3.5-flash-lite'
     
+    # Cấu hình Ép Xuất JSON Trực Tiếp (Structured Outputs) siêu tốc (< 2s, không sinh ký tự thừa)
+    gen_config = None
+    try:
+        from google.genai import types
+        gen_config = types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=300,
+            response_mime_type="application/json"
+        )
+    except Exception:
+        gen_config = None
+
     if client and PIL_AVAILABLE and Image is not None:
         try:
             pil_img = Image.open(io.BytesIO(image_bytes))
-            resp = client.models.generate_content(
-                model=model,
-                contents=[pil_img, prompt]
-            )
+            call_kwargs = {"model": model, "contents": [pil_img, prompt]}
+            if gen_config:
+                call_kwargs["config"] = gen_config
+            resp = client.models.generate_content(**call_kwargs)
             raw_vision_text = resp.text.strip()
         except Exception as e_sdk:
             print(f"[GeminiVision-SDK] Lỗi với model {model}: {e_sdk}. Thử fallback sang gemini-3.5-flash...")
             try:
                 pil_img = Image.open(io.BytesIO(image_bytes))
-                resp = client.models.generate_content(
-                    model='gemini-3.5-flash',
-                    contents=[pil_img, prompt]
-                )
+                call_kwargs_fb = {"model": "gemini-3.5-flash", "contents": [pil_img, prompt]}
+                if gen_config:
+                    call_kwargs_fb["config"] = gen_config
+                resp = client.models.generate_content(**call_kwargs_fb)
                 raw_vision_text = resp.text.strip()
             except Exception as e_sdk_fb:
                 print(f"[GeminiVision-SDK] Fallback SDK lỗi: {e_sdk_fb}")
@@ -8118,7 +8151,12 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
                             }
                         ]
                     }
-                ]
+                ],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 300,
+                    "responseMimeType": "application/json"
+                }
             }
             try:
                 req = urllib.request.Request(
