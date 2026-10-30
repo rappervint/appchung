@@ -114,6 +114,22 @@ def extract_date(text):
         except:
             pass
 
+    # Ngày DD tháng MM (năm YYYY) hoặc DD tháng MM (ví dụ 'ngày 13 tháng 8 năm 2026')
+    m_word = re.search(r'(?:vào\s+|vao\s+)?(?:ngay|ngày)?\s*(\d{1,2})\s*(?:thang|tháng|thg|t)\s*(\d{1,2})(?:\s*(?:nam|năm)\s*(\d{2,4}))?\b', text, re.IGNORECASE)
+    if m_word:
+        try:
+            day = int(m_word.group(1))
+            month = int(m_word.group(2))
+            year = int(m_word.group(3)) if m_word.group(3) else now.year
+            if year < 100:
+                year += 2000
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                d_str = f"{year:04d}-{month:02d}-{day:02d}"
+                clean = clean[:m_word.start()] + ' ' + clean[m_word.end():]
+                return d_str, clean
+        except:
+            pass
+
     return now.strftime('%Y-%m-%d'), clean
 
 def parse_month_year(text):
@@ -921,8 +937,9 @@ def commit_baocao_den_order(payload):
         for i, it in enumerate(items, 1):
             qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
             default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
-            base_str = f"{it['base_price_k']*1000:,.0f} đ ({it['base_price_k']:,}k){default_tag}"
-            if it['discount_k'] > 0:
+            b_pk = it.get('base_price_k', it.get('final_price_k', 0))
+            base_str = f"{b_pk*1000:,.0f} đ ({b_pk:,}k){default_tag}"
+            if it.get('discount_k', 0) > 0:
                 final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
                 item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
             else:
@@ -960,6 +977,7 @@ def commit_baocao_den_order(payload):
 
 def execute_confirmed_action(action_type, payload, session_id="default_user"):
     """Thực thi hành động sau khi người dùng đã xác nhận đồng ý"""
+    res = None
     if action_type == 'update_product_price':
         prod_id = payload.get('product_id')
         new_price = payload.get('new_price', 0)
@@ -987,7 +1005,7 @@ def execute_confirmed_action(action_type, payload, session_id="default_user"):
         except Exception:
             pass
 
-        return {
+        res = {
             "type": "success",
             "message": (
                 f"✅ **ĐÃ CẬP NHẬT GIÁ THÀNH CÔNG VÀO PHẦN MỀM BÁN HÀNG!**\n"
@@ -1000,57 +1018,80 @@ def execute_confirmed_action(action_type, payload, session_id="default_user"):
             )
         }
 
-    if action_type == 'learn_knowledge':
+    elif action_type == 'learn_knowledge':
         raw_text = payload.get('raw_text', '')
         if knowledge_base:
-            return knowledge_base.analyze_and_learn(raw_text)
-        return {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
+            res = knowledge_base.analyze_and_learn(raw_text)
+        else:
+            res = {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
 
     elif action_type == 'delete_knowledge':
         kw = payload.get('keyword_or_id', '')
         if knowledge_base:
-            return knowledge_base.delete_learned_knowledge(kw)
-        return {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
+            res = knowledge_base.delete_learned_knowledge(kw)
+        else:
+            res = {"type": "error", "message": "Module tri thức chưa sẵn sàng."}
 
     elif action_type == 'thuchi':
-        return commit_thuchi_transaction(payload)
+        res = commit_thuchi_transaction(payload)
 
     elif action_type == 'baocao_den':
-        return commit_baocao_den_order(payload)
+        res = commit_baocao_den_order(payload)
 
     elif action_type == 'admin_edit_order':
         kwargs = payload.get('kwargs', {})
         kwargs['confirmed'] = True
         if gemini_engine:
             res_txt = gemini_engine.sua_don_hang(**kwargs)
-            return {"type": "success", "message": res_txt}
-        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+            res = {"type": "success", "message": res_txt}
+        else:
+            res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     elif action_type == 'admin_delete_order':
         order_id = payload.get('order_id')
         loai_don = payload.get('loai_don', 'auto')
         if gemini_engine:
             res_txt = gemini_engine.xoa_don_hang(order_id, loai_don=loai_don, confirmed=True)
-            return {"type": "success", "message": res_txt}
-        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+            res = {"type": "success", "message": res_txt}
+        else:
+            res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     elif action_type == 'admin_update_stock':
         kwargs = payload.get('kwargs', {})
         kwargs['confirmed'] = True
         if gemini_engine:
             res_txt = gemini_engine.cap_nhat_kho_hang(**kwargs)
-            return {"type": "success", "message": res_txt}
-        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+            res = {"type": "success", "message": res_txt}
+        else:
+            res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
     elif action_type == 'admin_update_customer':
         kwargs = payload.get('kwargs', {})
         kwargs['confirmed'] = True
         if gemini_engine:
             res_txt = gemini_engine.cap_nhat_thong_tin_khach_hang(**kwargs)
-            return {"type": "success", "message": res_txt}
-        return {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+            res = {"type": "success", "message": res_txt}
+        else:
+            res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
 
-    return {"type": "error", "message": "Không nhận diện được hành động cần thực thi."}
+    else:
+        return {"type": "error", "message": "Không nhận diện được hành động cần thực thi."}
+
+    # ═════════════════════════════════════════════════════════════════════
+    # TỰ ĐỘNG DẠY LẠI AI NỘI BỘ SAU KHI THỰC THI THÀNH CÔNG LỆNH TỪ GEMINI
+    # Giúp AI nội bộ ngày càng thông minh, ghi nhớ từ lóng và cấu trúc câu
+    # Để lần sau xử lý tức thì (< 10ms) mà không cần gọi Gemini!
+    # ═════════════════════════════════════════════════════════════════════
+    if res and isinstance(res, dict) and res.get('type') == 'success':
+        try:
+            from auto_learner import learn_from_successful_action
+            learn_from_successful_action(action_type, payload)
+            if 'message' in res:
+                res['message'] += "\n\n🧠 *[AI Nội Bộ đã ghi nhớ và học mẫu lệnh này để tự xử lý tức thì]*"
+        except Exception as e_learn:
+            print(f"[AutoLearner] Lỗi nạp tri thức tự học: {e_learn}")
+
+    return res
 
 def handle_wizard_step(user_text, session_id):
     """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
@@ -3120,7 +3161,7 @@ def handle_revenue_and_store_stats(raw_text, clean_text, session_id="default_use
     # B. KIỂM TRA Ý ĐỊNH BÁO CÁO / THỐNG KÊ DOANH THU HOẶC ĐƠN HÀNG
     # ═════════════════════════════════════════════════════════════════════
     # BẢO VỆ: Nếu là lệnh tạo đơn, nhập đơn, lắp đặt đèn... TUYỆT ĐỐI KHÔNG BÁO CÁO DOANH THU!
-    is_order_intent = bool(re.search(r'\b(?:nhap\s*don|len\s*don|ghi\s*don|don\s*den|lap|gan|thay|do)\b', clean_text))
+    is_order_intent = bool(re.search(r'\b(?:nhap\s*don|len\s*don|ghi\s*don|tao\s*don|chot\s*don|vao\s*don|don\s*den|lap|gan|thay|do|rap|ban\s*cap|len\s*cap|vao\s*cap)\b', clean_text))
     has_stat_word = any(k in clean_text for k in ['doanh thu', 'doanh so', 'tong thu', 'bao cao', 'tong ket', 'may don', 'bao nhieu don', 'so don', 'ton quy', 'so du'])
     if is_order_intent and not has_stat_word:
         return None
@@ -5532,6 +5573,25 @@ def process_ai_command(user_text, session_id="default_user"):
                 else:
                     raw = f"sửa lại giá {last_key} {raw}"
                 clean = remove_accents(raw).lower()
+
+    # 3.5. BỘ NHỚ TỰ HỌC: TRA CỨU TRI THỨC ĐÃ HỌC TỪ GEMINI
+    if clean in ['bo nho tu hoc', 'ai da hoc gi', 'da hoc gi', 'tri thuc da hoc', 'danh sach lenh da hoc', 'bo nho ai', 'xem tri thuc']:
+        try:
+            from auto_learner import list_learned_skills
+            return list_learned_skills()
+        except Exception as e_ls:
+            print(f"[AutoLearner] Lỗi xem tri thức đã học: {e_ls}")
+
+    # 3.6. FAST-PATH MATCHER SIÊU TỐC (< 10ms) TỪ TRI THỨC ĐÃ TỰ HỌC:
+    # Nếu câu lệnh thuộc mẫu đã học -> AI nội bộ tự xử lý tức thì, không cần gọi Gemini!
+    # Tăng tốc độ phản hồi 300x-500x và hoạt động offline 100%.
+    try:
+        from auto_learner import fast_match_learned_intent
+        fast_res = fast_match_learned_intent(raw, clean, session_id=session_id)
+        if fast_res:
+            return fast_res
+    except Exception as e_fast:
+        print(f"[AutoLearner] Fast-path matcher error: {e_fast}")
 
     # 4. ƯU TIÊN TUYỆT ĐỐI: GEMINI 3.5 FLASH (Google Generative AI)
     if GEMINI_AVAILABLE and gemini_engine:

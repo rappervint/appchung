@@ -300,7 +300,8 @@ def sua_don_hang(
                                     'gia_tien_moi': gia_tien_moi,
                                     'ngay_moi': ngay_moi,
                                     'confirmed': True
-                                }
+                                },
+                                'original_prompt': CURRENT_USER_MESSAGE
                             }
                         }
                     except Exception as e:
@@ -392,7 +393,8 @@ def sua_don_hang(
                                     'gia_tien_moi': gia_tien_moi,
                                     'ngay_moi': ngay_moi,
                                     'confirmed': True
-                                }
+                                },
+                                'original_prompt': CURRENT_USER_MESSAGE
                             }
                         }
                     except Exception as e:
@@ -451,7 +453,8 @@ def xoa_don_hang(ma_don_hang: int, loai_don: str = "auto", confirmed: bool = Fal
                         'payload': {
                             'order_id': ma_don_hang,
                             'loai_don': 'den',
-                            'confirmed': True
+                            'confirmed': True,
+                            'original_prompt': CURRENT_USER_MESSAGE
                         }
                     }
                 except Exception as e:
@@ -493,7 +496,8 @@ def xoa_don_hang(ma_don_hang: int, loai_don: str = "auto", confirmed: bool = Fal
                         'payload': {
                             'order_id': ma_don_hang,
                             'loai_don': 'banhang',
-                            'confirmed': True
+                            'confirmed': True,
+                            'original_prompt': CURRENT_USER_MESSAGE
                         }
                     }
                 except Exception as e:
@@ -591,6 +595,10 @@ def cap_nhat_kho_hang(
                 'flow': 'confirm_action',
                 'action_type': 'admin_update_stock',
                 'payload': {
+                    'code': code,
+                    'name': name,
+                    'new_price': gia_ban_moi,
+                    'raw_product_kw': ma_hoac_ten_sp,
                     'kwargs': {
                         'ma_hoac_ten_sp': code,
                         'ton_kho_moi': ton_kho_moi,
@@ -598,7 +606,8 @@ def cap_nhat_kho_hang(
                         'gia_von_moi': gia_von_moi,
                         'thoi_han_bao_hanh_thang': thoi_han_bao_hanh_thang,
                         'confirmed': True
-                    }
+                    },
+                    'original_prompt': CURRENT_USER_MESSAGE
                 }
             }
         except Exception as e:
@@ -687,7 +696,8 @@ def cap_nhat_thong_tin_khach_hang(
                         'sdt_moi': sdt_moi,
                         'bien_so_moi': bien_so_moi,
                         'confirmed': True
-                    }
+                    },
+                    'original_prompt': CURRENT_USER_MESSAGE
                 }
             }
         except Exception as e:
@@ -1038,7 +1048,8 @@ def ghi_so_thu_chi(
                     'trans_type': clean_type,
                     'amount': so_tien,
                     'note': noi_dung,
-                    'date_str': now_date
+                    'date_str': now_date,
+                    'original_prompt': CURRENT_USER_MESSAGE
                 }
             }
         except Exception as e:
@@ -1220,7 +1231,7 @@ def len_don_bao_cao_den_nhanh(
                 'flow': 'confirm_action',
                 'action_type': 'baocao_den',
                 'payload': {
-                    'items': [{'product_name': matched_name, 'quantity': so_luong, 'final_price_k': p_k}],
+                    'items': [{'product_name': matched_name, 'quantity': so_luong, 'final_price_k': p_k, 'base_price_k': p_k, 'discount_k': 0}],
                     'cust_name': cust_record,
                     'found_car': dong_xe.strip().upper(),
                     'plate': bien_so_xe,
@@ -1228,7 +1239,8 @@ def len_don_bao_cao_den_nhanh(
                     'order_date': order_date,
                     'discount_k': 0,
                     'total_base_k': p_k * so_luong,
-                    'total_final_k': p_k * so_luong
+                    'total_final_k': p_k * so_luong,
+                    'original_prompt': CURRENT_USER_MESSAGE
                 }
             }
         except Exception as e:
