@@ -8282,9 +8282,9 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
     card_msg = (
         f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
-        + (dup_warning + f"───────────────────────────────────────\n" if dup_warning else "")
         f"───────────────────────────────────────\n"
-        f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
+        + (dup_warning + f"───────────────────────────────────────\n" if dup_warning else "")
+        + f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
         f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto}\n"
         f"• 🚗 **Dòng xe:** **{full_car}**\n"
         f"• 🚘 **Biển số:** **{plate}**\n"
