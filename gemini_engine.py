@@ -8372,13 +8372,20 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         "type": "wizard_step",
         "message": card_msg,
         "buttons": [
+            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
             {"text": btn_confirm_label, "action": "send_message", "value": "ok", "class": "btn-success"},
             {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
         ],
         "meta": {
-            "plate": plate,
+            "customer": cust_name,
+            "cust_name": cust_name,
+            "phone": phone,
             "car": full_car,
+            "found_car": full_car,
+            "plate": plate,
             "items": items,
+            "discount_k": 0,
+            "total_base_k": total_base_k,
             "total_final_k": total_final_k,
             "order_date": order_date,
             "date_source": date_note,

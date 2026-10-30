@@ -977,6 +977,73 @@ def commit_baocao_den_order(payload):
 
 
 
+
+def format_baocao_den_card_from_payload(payload, title="❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**"):
+    """Tạo thông báo thẻ xác nhận trực quan kèm đầy đủ 3 nút bấm (Sửa Trực Quan, OK/Lưu, Hủy) và meta."""
+    items = payload.get('items', [])
+    cust_name = payload.get('cust_name') or payload.get('customer') or 'Khách lẻ'
+    found_car = (payload.get('found_car') or payload.get('car') or 'XE Ô TÔ').upper()
+    plate = payload.get('plate', '')
+    phone = payload.get('phone', '')
+    order_date = payload.get('order_date') or datetime.now().strftime('%Y-%m-%d')
+    discount_k = float(payload.get('discount_k', 0))
+    total_final_k = float(payload.get('total_final_k', sum(it.get('final_price_k', 0) for it in items)))
+    total_base_k = float(payload.get('total_base_k', sum(it.get('unit_price_k', it.get('final_price_k', 0)) * it.get('quantity', 1) for it in items)))
+
+    item_lines = []
+    for i, it in enumerate(items, 1):
+        q = int(it.get('quantity', 1))
+        qty_lbl = f"{q} bộ " if q > 1 else ""
+        unit_p = float(it.get('unit_price_k', it.get('final_price_k', 0) / q if q else 0))
+        unit_str = f" *({q}x {unit_p * 1000:,.0f} đ)*" if q > 1 else ""
+        item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{it.get('final_price_k', 0) * 1000:,.0f} đ ({it.get('final_price_k', 0):,.0f}k)**{unit_str}")
+    items_text = "\n".join(item_lines)
+    items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
+
+    phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
+    plate_line = f"• 🚘 **Biển số:** **{plate}**\n" if plate else ""
+    disc_line = f"• 🎁 **Giảm giá / Bớt tiền:** **-{discount_k * 1000:,.0f} đ**\n" if discount_k > 0 else ""
+
+    card_msg = (
+        f"{title}\n"
+        "───────────────────────────────────────\n"
+        f"• 👤 **Khách hàng:** **{cust_name}**\n"
+        f"• 🚗 **Dòng xe:** **{found_car}**\n"
+        + plate_line
+        + phone_line
+        + f"{items_header}{items_text}\n"
+        + disc_line
+        + f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
+        f"• 📅 **Ngày lắp:** **{order_date}**\n"
+        "───────────────────────────────────────\n"
+        "👉 Bấm **[✏️ Sửa Trực Quan]** để đổi giá, khách, số lượng, xe, ngày...\n"
+        "👉 Bấm **[✅ OK / Lưu]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
+    )
+
+    return {
+        "type": "wizard_step",
+        "message": card_msg,
+        "buttons": [
+            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+        ],
+        "meta": {
+            "customer": cust_name,
+            "cust_name": cust_name,
+            "phone": phone,
+            "car": found_car,
+            "found_car": found_car,
+            "plate": plate,
+            "order_date": order_date,
+            "items": items,
+            "discount_k": discount_k,
+            "total_base_k": total_base_k,
+            "total_final_k": total_final_k
+        }
+    }
+
+
 def check_duplicate_lamp_order(plate, order_date="", product_name=""):
     """
     Kiểm tra xem biển số xe này đã có đơn đèn trong hệ thống hay chưa.
@@ -1329,9 +1396,23 @@ def handle_wizard_step(user_text, session_id):
                         "type": "wizard_step",
                         "message": updated_card,
                         "buttons": [
+                            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
                             {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
                             {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
-                        ]
+                        ],
+                        "meta": {
+                            "customer": cust_name,
+                            "cust_name": cust_name,
+                            "phone": phone,
+                            "car": found_car,
+                            "found_car": found_car,
+                            "plate": plate,
+                            "order_date": order_date,
+                            "items": items,
+                            "discount_k": payload.get('discount_k', 0),
+                            "total_base_k": payload.get('total_base_k', total_f),
+                            "total_final_k": total_f
+                        }
                     }
 
             del WIZARD_SESSIONS[session_id]
@@ -1400,24 +1481,44 @@ def handle_wizard_step(user_text, session_id):
             f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
         )
 
+        payload_fill = {
+            'items': items,
+            'cust_name': cust_name,
+            'found_car': found_car,
+            'plate': plate,
+            'phone': phone,
+            'order_date': order_date,
+            'discount_k': discount_k,
+            'total_base_k': total_base_k,
+            'total_final_k': total_final_k
+        }
         WIZARD_SESSIONS[session_id] = {
             'flow': 'confirm_action',
             'action_type': 'baocao_den',
-            'payload': {
-                'items': items,
-                'cust_name': cust_name,
-                'found_car': found_car,
-                'plate': plate,
-                'phone': phone,
-                'order_date': order_date,
-                'discount_k': discount_k,
-                'total_base_k': total_base_k,
-                'total_final_k': total_final_k
-            }
+            'payload': payload_fill
         }
+        WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
         return {
-            "type": "clarify",
-            "message": confirm_msg
+            "type": "wizard_step",
+            "message": confirm_msg,
+            "buttons": [
+                {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+                {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+                {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+            ],
+            "meta": {
+                "customer": cust_name,
+                "cust_name": cust_name,
+                "phone": phone,
+                "car": found_car,
+                "found_car": found_car,
+                "plate": plate,
+                "order_date": order_date,
+                "items": items,
+                "discount_k": discount_k,
+                "total_base_k": total_base_k,
+                "total_final_k": total_final_k
+            }
         }
 
     # ══════════════════════════════════════════
@@ -2299,24 +2400,44 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
         f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
     )
 
+    payload_sess = {
+        'items': items,
+        'cust_name': cust_name,
+        'found_car': found_car,
+        'plate': plate,
+        'phone': phone,
+        'order_date': order_date,
+        'discount_k': discount_k,
+        'total_base_k': total_base_k,
+        'total_final_k': total_final_k
+    }
     WIZARD_SESSIONS[session_id] = {
         'flow': 'confirm_action',
         'action_type': 'baocao_den',
-        'payload': {
-            'items': items,
-            'cust_name': cust_name,
-            'found_car': found_car,
-            'plate': plate,
-            'phone': phone,
-            'order_date': order_date,
-            'discount_k': discount_k,
-            'total_base_k': total_base_k,
-            'total_final_k': total_final_k
-        }
+        'payload': payload_sess
     }
+    WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
     return {
-        "type": "clarify",
-        "message": confirm_msg
+        "type": "wizard_step",
+        "message": confirm_msg,
+        "buttons": [
+            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+        ],
+        "meta": {
+            "customer": cust_name,
+            "cust_name": cust_name,
+            "phone": phone,
+            "car": found_car,
+            "found_car": found_car,
+            "plate": plate,
+            "order_date": order_date,
+            "items": items,
+            "discount_k": discount_k,
+            "total_base_k": total_base_k,
+            "total_final_k": total_final_k
+        }
     }
 
 # ─────────────────────────────────────────────────────────────────────────────

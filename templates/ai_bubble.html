@@ -360,7 +360,422 @@
         </button>
     </div>
 </div>
+
+<!-- ==========================================
+     MODAL CHỈNH SỬA ĐƠN ĐÈN TRỰC QUAN (INTERACTIVE DRAFT EDIT MODAL)
+     ========================================== -->
+<div id="garageDraftEditModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:100000; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;">
+  <div style="background:#131826; border:1px solid rgba(255,255,255,0.18); border-radius:18px; width:100%; max-width:540px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.85); color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow:hidden;">
+    
+    <!-- Modal Header -->
+    <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1e293b, #0f172a);">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.25rem;">✏️</span>
+        <div>
+          <div style="font-weight:700; font-size:1rem; color:#f8fafc;">Chỉnh Sửa Đơn Đèn Trực Quan</div>
+          <div style="font-size:0.75rem; color:#94a3b8;">Đổi giá, tên khách, số lượng, giảm giá, dòng xe, ngày lắp</div>
+        </div>
+      </div>
+      <button type="button" onclick="closeGarageDraftEditModal()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer; line-height:1; padding:4px 8px;">✕</button>
+    </div>
+
+    <!-- Modal Body (Scrollable) -->
+    <div style="padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      
+      <!-- Section: Thông tin Khách & Xe -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:0.8rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <i class="bi bi-person-badge"></i> 1. Thông Tin Khách & Xe
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">👤 Khách hàng</label>
+            <input type="text" id="gdem_customer" placeholder="Tên khách..." style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">📞 Số điện thoại</label>
+            <input type="tel" id="gdem_phone" placeholder="09xxxxxxxxx" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">🚗 Dòng xe</label>
+            <input type="text" id="gdem_car" list="gdem_car_list" placeholder="VD: MG5, FORTUNER..." style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px; text-transform:uppercase;">
+            <datalist id="gdem_car_list">
+              <option value="MG5">
+              <option value="FORTUNER">
+              <option value="ELANTRA">
+              <option value="ACCENT">
+              <option value="VIOS">
+              <option value="CITY">
+              <option value="XPANDER">
+              <option value="RANGER">
+              <option value="SANTAFE">
+              <option value="TUCSON">
+              <option value="CX5">
+              <option value="CRV">
+              <option value="EVEREST">
+              <option value="SORENTO">
+              <option value="CARNIVAL">
+              <option value="CARENS">
+              <option value="INNOVA">
+              <option value="HILUX">
+              <option value="NAVARA">
+              <option value="TRITON">
+              <option value="CAMRY">
+              <option value="COROLLA CROSS">
+              <option value="VELOZ">
+              <option value="RAIZE">
+              <option value="ATTRAGE">
+              <option value="ALMERA">
+              <option value="K3">
+              <option value="CERATO">
+              <option value="SELTOS">
+              <option value="SONET">
+              <option value="MAZDA 2">
+              <option value="MAZDA 3">
+              <option value="MAZDA 6">
+              <option value="OUTLANDER">
+            </datalist>
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">🚘 Biển số xe</label>
+            <input type="text" id="gdem_plate" placeholder="VD: 71A-214.72" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#facc15; font-weight:bold; font-size:16px; text-transform:uppercase;">
+          </div>
+          <div style="grid-column:1 / -1;">
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">📅 Ngày lắp đặt</label>
+            <input type="date" id="gdem_date" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Danh Sách Sản Phẩm Lắp Đặt -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="font-size:0.8rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px;">
+            <i class="bi bi-box-seam"></i> 2. Sản Phẩm Lắp Đặt (Đèn / Món)
+          </div>
+          <button type="button" onclick="gdemAddItemRow()" style="background:#0284c7; color:#fff; border:none; border-radius:8px; padding:4px 10px; font-size:0.75rem; font-weight:600; cursor:pointer;">
+            + Thêm Mã Đèn
+          </button>
+        </div>
+        
+        <div id="gdem_items_container" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Items inserted dynamically -->
+        </div>
+      </div>
+
+      <!-- Section: Giảm Giá & Tổng Thực Thu -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center;">
+          <div>
+            <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px;">🎁 Giảm giá / Bớt tiền</label>
+            <div style="position:relative;">
+              <input type="number" id="gdem_discount" value="0" step="50" min="0" oninput="gdemRecalcTotal()" placeholder="0k" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 30px 8px 10px; color:#f87171; font-weight:bold; font-size:16px;">
+              <span style="position:absolute; right:8px; top:8px; color:#94a3b8; font-size:0.78rem;">k</span>
+            </div>
+            <div style="font-size:0.7rem; color:#94a3b8; margin-top:2px;">(VD: 200 = giảm 200.000 đ)</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:0.75rem; color:#94a3b8; text-transform:uppercase; margin-bottom:2px;">Doanh Thu Thực Thu</div>
+            <div id="gdem_total_display" style="font-size:1.35rem; font-weight:800; color:#4ade80; text-shadow:0 0 12px rgba(74,222,128,0.3);">
+              0 đ
+            </div>
+            <div id="gdem_base_display" style="font-size:0.72rem; color:#94a3b8;">Gốc: 0 đ</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,0.1); background:#0f172a; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+      <button type="button" onclick="closeGarageDraftEditModal()" style="background:#334155; color:#cbd5e1; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer;">
+        Đóng
+      </button>
+      <div style="display:flex; gap:8px;">
+        <button type="button" onclick="gdemSubmitUpdateCard()" style="background:#d97706; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px;">
+          🔄 Cập Nhật Thẻ
+        </button>
+        <button type="button" onclick="gdemSubmitSaveImmediately()" style="background:#16a34a; color:#fff; border:none; border-radius:10px; padding:8px 16px; font-size:0.88rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 4px 14px rgba(22,163,74,0.4);">
+          💾 Lưu Vào Sổ Ngay
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <script>
+
+    window.lastAIMeta = null;
+
+    function openGarageDraftEditModal(meta) {
+        meta = meta || window.lastAIMeta || {};
+        window.currentDraftMeta = meta;
+
+        const custInput = document.getElementById('gdem_customer');
+        const phoneInput = document.getElementById('gdem_phone');
+        const carInput = document.getElementById('gdem_car');
+        const plateInput = document.getElementById('gdem_plate');
+        const dateInput = document.getElementById('gdem_date');
+        const discInput = document.getElementById('gdem_discount');
+
+        if (custInput) custInput.value = meta.customer || meta.cust_name || '';
+        if (phoneInput) phoneInput.value = meta.phone || '';
+        if (carInput) carInput.value = meta.car || meta.found_car || '';
+        if (plateInput) plateInput.value = meta.plate || '';
+        if (dateInput) dateInput.value = meta.order_date || new Date().toISOString().slice(0, 10);
+        if (discInput) discInput.value = meta.discount_k || 0;
+
+        const container = document.getElementById('gdem_items_container');
+        if (container) {
+            container.innerHTML = '';
+            const items = (meta.items && meta.items.length > 0) ? meta.items : [{ product_name: 'BI LED', quantity: 1, unit_price_k: 4500 }];
+            items.forEach(it => {
+                const q = it.quantity || 1;
+                const up = it.unit_price_k || (it.final_price_k ? it.final_price_k / q : 4500);
+                gdemAddItemRow(it.product_name, q, up);
+            });
+        }
+        gdemRecalcTotal();
+
+        const modal = document.getElementById('garageDraftEditModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeGarageDraftEditModal() {
+        const modal = document.getElementById('garageDraftEditModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function gdemAddItemRow(name = '', qty = 1, unitPriceK = 4500) {
+        const container = document.getElementById('gdem_items_container');
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'gdem-item-row';
+        row.style.cssText = 'background:#0f172a; border-radius:8px; padding:8px 10px; border:1px solid rgba(255,255,255,0.08); display:grid; grid-template-columns:1.6fr 1fr 1.2fr auto; gap:8px; align-items:center;';
+        row.innerHTML = `
+            <div>
+                <input type="text" class="gdem-item-name" value="${(name || '').replace(/"/g, '&quot;')}" placeholder="Mã đèn..." style="width:100%; box-sizing:border-box; background:#1e293b; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 8px; color:#fff; font-size:16px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:3px;">
+                <button type="button" onclick="gdemChangeQty(this, -1)" style="background:#334155; color:#fff; border:none; border-radius:4px; width:26px; height:28px; font-weight:bold; cursor:pointer; font-size:16px;">-</button>
+                <input type="number" class="gdem-item-qty" value="${qty}" min="1" max="50" oninput="gdemRecalcTotal()" style="width:36px; text-align:center; background:#1e293b; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:4px 0; color:#fff; font-weight:bold; font-size:16px;">
+                <button type="button" onclick="gdemChangeQty(this, 1)" style="background:#334155; color:#fff; border:none; border-radius:4px; width:26px; height:28px; font-weight:bold; cursor:pointer; font-size:16px;">+</button>
+            </div>
+            <div style="position:relative;">
+                <input type="number" class="gdem-item-unitprice" value="${unitPriceK}" step="50" min="0" oninput="gdemRecalcTotal()" style="width:100%; box-sizing:border-box; background:#1e293b; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 22px 6px 6px; color:#facc15; font-weight:bold; font-size:16px;">
+                <span style="position:absolute; right:6px; top:6px; color:#94a3b8; font-size:0.75rem;">k</span>
+            </div>
+            <div>
+                <button type="button" onclick="gdemRemoveItemRow(this)" style="background:#ef4444; color:#fff; border:none; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px;" title="Xóa món">✕</button>
+            </div>
+        `;
+        container.appendChild(row);
+        gdemRecalcTotal();
+    }
+
+    function gdemChangeQty(btn, delta) {
+        const row = btn.closest('.gdem-item-row');
+        if (!row) return;
+        const inp = row.querySelector('.gdem-item-qty');
+        if (inp) {
+            let val = parseInt(inp.value) || 1;
+            val = Math.max(1, val + delta);
+            inp.value = val;
+            gdemRecalcTotal();
+        }
+    }
+
+    function gdemRemoveItemRow(btn) {
+        const row = btn.closest('.gdem-item-row');
+        const container = document.getElementById('gdem_items_container');
+        if (!container || !row) return;
+        if (container.querySelectorAll('.gdem-item-row').length <= 1) {
+            row.querySelector('.gdem-item-name').value = '';
+            row.querySelector('.gdem-item-qty').value = 1;
+            row.querySelector('.gdem-item-unitprice').value = 0;
+        } else {
+            row.remove();
+        }
+        gdemRecalcTotal();
+    }
+
+    function gdemRecalcTotal() {
+        let sumBaseK = 0;
+        document.querySelectorAll('.gdem-item-row').forEach(row => {
+            const qty = Math.max(1, parseInt(row.querySelector('.gdem-item-qty')?.value) || 1);
+            const unitK = Math.max(0, parseFloat(row.querySelector('.gdem-item-unitprice')?.value) || 0);
+            sumBaseK += (qty * unitK);
+        });
+
+        const discInput = document.getElementById('gdem_discount');
+        const discK = Math.max(0, parseFloat(discInput?.value) || 0);
+        const totalFinalK = Math.max(0, sumBaseK - discK);
+
+        const totEl = document.getElementById('gdem_total_display');
+        const baseEl = document.getElementById('gdem_base_display');
+        if (totEl) totEl.innerText = (totalFinalK * 1000).toLocaleString('vi-VN') + ' đ';
+        if (baseEl) baseEl.innerText = 'Tiền gốc: ' + (sumBaseK * 1000).toLocaleString('vi-VN') + ' đ' + (discK > 0 ? ` (Bớt ${discK}k)` : '');
+    }
+
+    function gdemGetPayload() {
+        const items = [];
+        document.querySelectorAll('.gdem-item-row').forEach(row => {
+            const name = (row.querySelector('.gdem-item-name')?.value || '').trim() || 'ĐÈN';
+            const qty = Math.max(1, parseInt(row.querySelector('.gdem-item-qty')?.value) || 1);
+            const unitK = Math.max(0, parseFloat(row.querySelector('.gdem-item-unitprice')?.value) || 0);
+            const finalK = unitK * qty;
+            items.push({
+                product_name: name,
+                quantity: qty,
+                unit_price_k: unitK,
+                final_price_k: finalK,
+                base_price_k: finalK
+            });
+        });
+
+        const discK = Math.max(0, parseFloat(document.getElementById('gdem_discount')?.value) || 0);
+        const sumBaseK = items.reduce((s, it) => s + it.final_price_k, 0);
+        const totalFinalK = Math.max(0, sumBaseK - discK);
+
+        const sessId = (typeof getBubbleSessionId === 'function') ? getBubbleSessionId() : (typeof currentSessionId !== 'undefined' ? currentSessionId : 'default_user');
+
+        return {
+            session_id: sessId,
+            cust_name: (document.getElementById('gdem_customer')?.value || '').trim() || 'Khách lẻ',
+            customer: (document.getElementById('gdem_customer')?.value || '').trim() || 'Khách lẻ',
+            phone: (document.getElementById('gdem_phone')?.value || '').trim(),
+            found_car: (document.getElementById('gdem_car')?.value || '').trim().toUpperCase() || 'XE Ô TÔ',
+            car: (document.getElementById('gdem_car')?.value || '').trim().toUpperCase() || 'XE Ô TÔ',
+            plate: (document.getElementById('gdem_plate')?.value || '').trim().toUpperCase(),
+            order_date: document.getElementById('gdem_date')?.value || new Date().toISOString().slice(0, 10),
+            discount_k: discK,
+            total_base_k: sumBaseK,
+            total_final_k: totalFinalK,
+            items: items
+        };
+    }
+
+    async function gdemSubmitSaveImmediately() {
+        const payload = gdemGetPayload();
+        closeGarageDraftEditModal();
+
+        const msgContainer = document.getElementById('aiMessages');
+        if (msgContainer) {
+            const savingDiv = document.createElement('div');
+            savingDiv.className = 'ai-msg ai-msg-bot';
+            savingDiv.innerHTML = '<em><i class="bi bi-hourglass-split"></i> Đang lưu đơn vào Sổ Báo Cáo Doanh Thu Đèn...</em>';
+            msgContainer.appendChild(savingDiv);
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            try {
+                const res = await fetch('/api/ai/draft/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                savingDiv.remove();
+
+                const resDiv = document.createElement('div');
+                resDiv.className = 'ai-msg ai-msg-bot';
+                if (data.type === 'success' || data.success) {
+                    resDiv.style.borderColor = '#22c55e';
+                    resDiv.innerHTML = formatAIMessage(data.message || '✅ Đã lưu đơn thành công!');
+                } else {
+                    resDiv.style.borderColor = '#ef4444';
+                    resDiv.innerHTML = '❌ ' + (data.message || 'Lỗi khi lưu đơn');
+                }
+                msgContainer.appendChild(resDiv);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+                if (typeof saveMessageToSessionsArchive === 'function') {
+                    saveMessageToSessionsArchive('bot', data.message || 'Đã lưu đơn thành công!');
+                }
+            } catch (err) {
+                savingDiv.remove();
+                alert('Lỗi kết nối khi lưu đơn: ' + err);
+            }
+        }
+    }
+
+    async function gdemSubmitUpdateCard() {
+        const payload = gdemGetPayload();
+        closeGarageDraftEditModal();
+
+        const msgContainer = document.getElementById('aiMessages');
+        if (msgContainer) {
+            const updDiv = document.createElement('div');
+            updDiv.className = 'ai-msg ai-msg-bot';
+            updDiv.innerHTML = '<em><i class="bi bi-arrow-repeat"></i> Đang cập nhật thẻ xác nhận...</em>';
+            msgContainer.appendChild(updDiv);
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            try {
+                const res = await fetch('/api/ai/draft/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                updDiv.remove();
+
+                window.lastAIMeta = data.meta || payload;
+
+                const botDiv = document.createElement('div');
+                botDiv.className = 'ai-msg ai-msg-bot';
+                botDiv.innerHTML = formatAIMessage(data.message || 'Đã cập nhật thông tin!');
+
+                if (data.buttons && data.buttons.length > 0) {
+                    const btnGroup = document.createElement('div');
+                    btnGroup.style.display = 'flex';
+                    btnGroup.style.flexWrap = 'wrap';
+                    btnGroup.style.gap = '6px';
+                    btnGroup.style.marginTop = '8px';
+                    data.buttons.forEach(b => {
+                        const btn = document.createElement('button');
+                        btn.textContent = b.text;
+                        btn.style.padding = '4px 10px';
+                        btn.style.fontSize = '0.78rem';
+                        btn.style.fontWeight = 'bold';
+                        btn.style.borderRadius = '14px';
+                        btn.style.border = 'none';
+                        btn.style.cursor = 'pointer';
+                        if (b.class === 'btn-danger') {
+                            btn.style.background = '#ef4444';
+                            btn.style.color = '#fff';
+                        } else if (b.class === 'btn-warning') {
+                            btn.style.background = '#eab308';
+                            btn.style.color = '#000';
+                        } else {
+                            btn.style.background = '#22c55e';
+                            btn.style.color = '#fff';
+                        }
+                        btn.onclick = () => {
+                            if (b.action === 'open_edit_modal') {
+                                openGarageDraftEditModal(data.meta || window.lastAIMeta);
+                            } else {
+                                const inp = document.getElementById('aiInput');
+                                if (inp) inp.value = b.value;
+                                if (typeof sendAIMessage === 'function') sendAIMessage();
+                            }
+                        };
+                        btnGroup.appendChild(btn);
+                    });
+                    botDiv.appendChild(btnGroup);
+                }
+
+                msgContainer.appendChild(botDiv);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+                if (typeof saveMessageToSessionsArchive === 'function') {
+                    saveMessageToSessionsArchive('bot', data.message || 'Đã cập nhật thẻ!');
+                }
+            } catch (err) {
+                updDiv.remove();
+                alert('Lỗi cập nhật: ' + err);
+            }
+        }
+    }
+
     const SESSIONS_STORAGE_KEY = 'gemini_garage_sessions_v2';
     let currentBubbleSessionId = null;
 
@@ -690,6 +1105,10 @@
             const botReply = data.message || 'Đã thực hiện yêu cầu!';
             botDiv.innerHTML = formatAIMessage(botReply);
 
+            if (data.meta) {
+                window.lastAIMeta = data.meta;
+            }
+
             // Nút bấm xác nhận nhanh nếu có
             if (data.buttons && data.buttons.length > 0) {
                 const btnGroup = document.createElement('div');
@@ -706,11 +1125,23 @@
                     btn.style.borderRadius = '14px';
                     btn.style.border = 'none';
                     btn.style.cursor = 'pointer';
-                    btn.style.background = b.class === 'btn-danger' ? '#ef4444' : '#22c55e';
-                    btn.style.color = '#fff';
+                    if (b.class === 'btn-danger') {
+                        btn.style.background = '#ef4444';
+                        btn.style.color = '#fff';
+                    } else if (b.class === 'btn-warning') {
+                        btn.style.background = '#eab308';
+                        btn.style.color = '#000';
+                    } else {
+                        btn.style.background = '#22c55e';
+                        btn.style.color = '#fff';
+                    }
                     btn.onclick = () => {
-                        document.getElementById('aiInput').value = b.value;
-                        sendAIMessage();
+                        if (b.action === 'open_edit_modal') {
+                            openGarageDraftEditModal(data.meta || window.lastAIMeta);
+                        } else {
+                            document.getElementById('aiInput').value = b.value;
+                            sendAIMessage();
+                        }
                     };
                     btnGroup.appendChild(btn);
                 });
@@ -725,7 +1156,8 @@
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
 
-            const isNetErr = (err + '').toLowerCase().includes('load failed') || (err + '').toLowerCase().includes('failed to fetch');
+            const errStr = (err + '').toLowerCase();
+            const isNetErr = errStr.includes('load failed') || errStr.includes('failed to fetch') || errStr.includes('network') || errStr.includes('abort');
             const errDiv = document.createElement('div');
             errDiv.className = 'ai-msg ai-msg-bot';
             errDiv.style.borderColor = '#ef4444';
