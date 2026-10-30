@@ -472,6 +472,7 @@ CAR_MODELS_LIST = [
     'XPANDER', 'INNOVA', 'SOLATI', 'TRANSIT', 'SANTAFE', 'TUCSON', 'CERATO', 'SORENTO', 'SEDONA',
     'ACCENT', 'ELANTRA', 'RANGER', 'CAMRY', 'MAZDA 3', 'MAZDA 2', 'MORNING', 'ERTIGA', 'CUSTIN',
     'VIOS', 'CITY', 'KONA', 'CROSS', 'HILUX', 'RAIZE', 'CRETA', 'SELTOS', 'SONET', 'MPV7',
+    'CARENS', 'KIA CARENS', 'HYUNDAI ELANTRA', 'HYUNDAI ACCENT', 'HYUNDAI TUCSON',
     'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'CX5', 'CX8', 'BRV', 'CRV', 'MG5', 'I10', 'XL7', 'K3',
     'SOLUTO', 'ATTRAGE', 'VELOZ', 'AVANZA', 'ALTIS', 'RUSH', 'WIGO', 'ALMERA', 'CIVIC', 'ACCORD',
     'LUX A', 'LUX SA', 'FADIL', 'TRITON', 'NAVARA', 'BT50', 'PAJERO', 'SWIFT', 'TRAILBLAZER', 'COLORADO',
@@ -1134,6 +1135,103 @@ def execute_confirmed_action(action_type, payload, session_id="default_user"):
 
     return res
 
+
+def modify_draft_baocao_den(payload, user_text):
+    """
+    Hỗ trợ người dùng chỉnh sửa trực tiếp thông tin đơn đèn trên phiếu xác nhận:
+    - Giá tiền: 'sửa giá 6tr', 'đổi giá 5.5tr', 'giá 6000k'
+    - Giảm giá: 'giảm 500k', 'bớt 200k'
+    - Dòng xe: 'sửa xe Accent', 'đổi xe Elantra', 'xe Tucson'
+    - Biển số: 'sửa biển 63A-999.99'
+    - Ngày lắp: 'sửa ngày 15/08', 'đổi ngày hôm qua'
+    - Tên khách / SĐT: 'khách tên Anh Tuấn', 'sđt 0912345678'
+    - Tên đèn: 'sửa đèn F10 Turbo', 'đổi sang V20 Base'
+    """
+    changes = []
+    clean = user_text.lower()
+
+    # 1. Sửa giá tiền hoặc giảm giá
+    is_price_intent = any(k in clean for k in ['gia', 'giá', 'tien', 'tiền', 'giam', 'giảm', 'bot', 'bớt', 'thanh', 'thành', 'la', 'là', 'tr', 'trieu', 'triệu', 'k'])
+    if is_price_intent:
+        from knowledge_base import parse_vietnamese_currency
+        if any(k in clean for k in ['giam', 'giảm', 'bot', 'bớt']):
+            _, d_num = parse_vietnamese_currency(user_text)
+            if d_num > 0:
+                d_k = int(d_num / 1000) if d_num > 50000 else int(d_num)
+                payload['discount_k'] = d_k
+                b_k = payload.get('total_base_k', 0)
+                payload['total_final_k'] = max(0, b_k - d_k)
+                for it in payload.get('items', []):
+                    it['final_price_k'] = max(0, it.get('base_price_k', 0) - d_k)
+                changes.append(f"Giảm giá: **-{d_k*1000:,.0f} đ (-{d_k:,}k)** ➔ Thực thu: **{payload['total_final_k']*1000:,.0f} đ**")
+        else:
+            _, p_num = parse_vietnamese_currency(user_text)
+            if p_num <= 0:
+                p_num = parse_vietnamese_money(user_text, default_thousands=True)
+            if p_num > 0:
+                p_k = int(p_num / 1000) if p_num > 50000 else int(p_num)
+                for it in payload.get('items', []):
+                    it['final_price_k'] = p_k
+                    it['base_price_k'] = p_k
+                    it['is_default'] = False
+                qty = payload.get('items', [{}])[0].get('quantity', 1)
+                payload['total_base_k'] = p_k * qty
+                payload['total_final_k'] = p_k * qty
+                changes.append(f"Mức giá: **{p_k * 1000:,.0f} đ ({p_k:,}k)**")
+
+    # 2. Sửa dòng xe
+    for cm in CAR_MODELS_LIST:
+        if re.search(r'\b' + re.escape(cm.lower()) + r'\b', clean):
+            payload['found_car'] = cm.upper()
+            changes.append(f"Dòng xe: **{cm.upper()}**")
+            break
+
+    # 3. Sửa biển số xe
+    m_p = extract_license_plate(user_text)
+    if m_p:
+        payload['plate'] = m_p
+        changes.append(f"Biển số xe: **{m_p}**")
+
+    # 4. Sửa ngày lắp đặt
+    has_date_intent = any(k in clean for k in ['ngay', 'ngày', 'hom qua', 'hôm qua', 'hom nay', 'hôm nay']) or bool(re.search(r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b', user_text))
+    if has_date_intent:
+        d_p, _ = extract_date(user_text)
+        if d_p:
+            payload['order_date'] = d_p
+            changes.append(f"Ngày lắp đặt: **{d_p}**")
+
+    # 5. Sửa tên khách hàng / SĐT
+    m_kh = re.search(r'(?:khach|khách|ten|tên)\s*(?:la|là)?\s*([A-Za-zÀ-ỹ0-9\s]+?)(?:\s+(?:sdt|xe|gia|bien)|$)', user_text, re.IGNORECASE)
+    if m_kh:
+        c_val = m_kh.group(1).strip().title()
+        if len(c_val) >= 2:
+            payload['cust_name'] = c_val
+            changes.append(f"Khách hàng: **{c_val}**")
+
+    m_phone = re.search(r'\b(0\d{9,10})\b', user_text)
+    if m_phone:
+        payload['phone'] = m_phone.group(1)
+        changes.append(f"Số điện thoại: **{m_phone.group(1)}**")
+
+    # 6. Sửa đèn / Sản phẩm
+    if any(k in clean for k in ['den', 'đèn', 'san pham', 'sản phẩm', 'lap', 'lắp', 'thay', 'doi', 'đổi']):
+        if gemini_engine and hasattr(gemini_engine, 'LAMP_CATALOG'):
+            for pat, cname, _ in gemini_engine.LAMP_CATALOG:
+                if re.search(pat, user_text, re.IGNORECASE):
+                    payload['items'][0]['product_name'] = cname
+                    mem_p = get_lamp_price_from_memory(cname)
+                    if mem_p > 0:
+                        payload['items'][0]['final_price_k'] = mem_p
+                        payload['items'][0]['base_price_k'] = mem_p
+                        payload['total_base_k'] = mem_p
+                        payload['total_final_k'] = mem_p
+                        changes.append(f"Sản phẩm: **{cname}** (Giá: {mem_p*1000:,.0f} đ)")
+                    else:
+                        changes.append(f"Sản phẩm: **{cname}**")
+                    break
+
+    return changes
+
 def handle_wizard_step(user_text, session_id):
     """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
     session = WIZARD_SESSIONS.get(session_id)
@@ -1179,6 +1277,53 @@ def handle_wizard_step(user_text, session_id):
                 "message": "🛑 **ĐÃ HỦY THAO TÁC!**\nKhông có bất kỳ dữ liệu nào bị thay đổi trong hệ thống."
             }
         else:
+            # KIỂM TRA CHỈNH SỬA THÔNG TIN ĐƠN ĐÈN TRỰC TIẾP TRÊN PHIẾU XÁC NHẬN
+            action_type = session.get('action_type')
+            if action_type == 'baocao_den':
+                payload = session.get('payload', {})
+                changes = modify_draft_baocao_den(payload, user_text)
+                if changes:
+                    session['payload'] = payload
+                    WIZARD_SESSIONS[session_id] = session
+                    WIZARD_SESSIONS['default_user'] = session
+
+                    items = payload.get('items', [])
+                    matched_lamp = items[0].get('product_name', 'ĐÈN Ô TÔ') if items else 'ĐÈN Ô TÔ'
+                    final_p = items[0].get('final_price_k', 0) if items else 0
+                    total_f = payload.get('total_final_k', final_p)
+                    cust_name = payload.get('cust_name', 'Khách lẻ')
+                    found_car = payload.get('found_car', 'XE Ô TÔ')
+                    plate = payload.get('plate', '')
+                    phone = payload.get('phone', '')
+                    order_date = payload.get('order_date', datetime.now().strftime('%Y-%m-%d'))
+
+                    changes_bullet = "\n".join([f"• ✏️ {c}" for c in changes])
+
+                    updated_card = (
+                        f"✏️ **ĐÃ CẬP NHẬT THÔNG TIN THEO YÊU CẦU CỦA BẠN:**\n"
+                        f"{changes_bullet}\n\n"
+                        f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+                        f"───────────────────────────────────────\n"
+                        f"• 👤 **Khách hàng:** **{cust_name}**\n"
+                        f"• 🚗 **Dòng xe:** **{found_car.upper()}**\n"
+                        + (f"• 🚘 **Biển số:** **{plate}**\n" if plate else "")
+                        + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
+                        + f"• 📦 **Sản phẩm lắp đặt:**\n  1. **{matched_lamp}**: **{final_p * 1000:,.0f} đ ({final_p:,}k)**\n"
+                        f"• 💰 **DOANH THU THỰC THU:** **{total_f * 1000:,.0f} đ**\n"
+                        f"• 📅 **Ngày lắp:** **{order_date}**\n"
+                        f"───────────────────────────────────────\n"
+                        f"👉 Bấm **[✅ OK / Lưu]** để ghi sổ ngay, hoặc tiếp tục nhắn thông tin cần sửa!"
+                    )
+
+                    return {
+                        "type": "wizard_step",
+                        "message": updated_card,
+                        "buttons": [
+                            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+                            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+                        ]
+                    }
+
             del WIZARD_SESSIONS[session_id]
             return None
 
@@ -5601,7 +5746,7 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
 
     if session_id in WIZARD_SESSIONS:
         # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
-        is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|sua gia|doi gia|bao gia)\b', clean))
+        is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|bao gia)\b', clean)) and WIZARD_SESSIONS[session_id].get('flow') != 'confirm_action'
         if is_new_command_intent and clean not in ['ok', 'luu', 'huy', 'cancel', 'dung', 'co']:
             del WIZARD_SESSIONS[session_id]
         else:

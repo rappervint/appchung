@@ -8293,7 +8293,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         f"• 💰 **DOANH THU THỰC THU:** **{price_k * 1000:,.0f} đ**\n"
         f"• 📅 **Ngày lắp:** **{order_date}**{date_badge}\n"
         f"───────────────────────────────────────\n"
-        f"👉 Bấm **[✅ OK / Lưu]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn thay đổi."
+        f"👉 Nhắn tin để sửa thông tin nếu cần (VD: *'sửa giá 6tr'*, *'đổi xe Carens'*, *'ngày 15/08'*, *'giảm 200k'*, *'tên Anh Tuấn'*)...\n"
+        f"👉 Bấm **[{btn_confirm_label}]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
     )
 
     return {
