@@ -314,7 +314,12 @@
                 <div style="font-size: 0.72rem; color: #30d158; font-weight: 500;">● Sẵn sàng nhận lệnh giọng nói / chữ</div>
             </div>
         </div>
-        <button class="ai-chat-close-btn" onclick="toggleAIChat()">✕</button>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/chat/" class="btn btn-sm btn-outline-info rounded-pill py-0 px-2 text-decoration-none" style="font-size: 0.72rem; border-color: rgba(56,189,248,0.4); color: #38bdf8;" title="Mở giao diện AI toàn màn hình chuẩn Gemini">
+                <i class="bi bi-arrows-fullscreen"></i> Mở Tab Gemini
+            </a>
+            <button class="ai-chat-close-btn" onclick="toggleAIChat()">✕</button>
+        </div>
     </div>
 
     <div class="ai-chat-messages" id="aiMessages">
@@ -342,8 +347,8 @@
     </div>
 
     <div class="ai-chat-footer">
-        <input type="text" class="ai-chat-input" id="aiInput" placeholder="Nhập lệnh (vd: chi 100k mua đồ, lắp f10...)" onkeydown="if(event.key==='Enter') sendAIMessage()">
-        <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">
+        <textarea class="ai-chat-input" id="aiInput" rows="1" placeholder="Nhập lệnh... (Shift + Enter để xuống dòng)" style="resize: none; max-height: 120px; min-height: 38px; padding: 8px 12px; font-family: inherit; line-height: 1.4;" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight, 120)+'px';" onkeydown="if(event.key==='Enter' && !event.shiftKey && !event.ctrlKey){event.preventDefault(); sendAIMessage();}"></textarea>
+        <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()" title="Gửi tin nhắn (Enter)">
             <i class="bi bi-send-fill"></i>
         </button>
     </div>
@@ -451,6 +456,7 @@
         msgContainer.appendChild(userDiv);
 
         input.value = '';
+        input.style.height = 'auto';
         input.disabled = true;
         sendBtn.disabled = true;
 

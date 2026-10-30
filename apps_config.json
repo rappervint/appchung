@@ -52,5 +52,21 @@
       "Quản lý chốt kỳ & tạo bảng trắng mới",
       "Xem lại lịch sử & số dư tất cả các kỳ"
     ]
+  },
+  {
+    "id": "chat",
+    "name": "Trợ Lý AI Gara",
+    "prefix": "/chat",
+    "module": "",
+    "desc": "Trò chuyện điều hành Gara chuẩn giao diện Google Gemini. Xuống dòng thoải mái, nhập liệu dài, lên đơn đèn & thu chi tức thì.",
+    "icon": "bi-stars",
+    "theme_color": "blue",
+    "status": "active",
+    "features": [
+      "Giao diện chuẩn Google Gemini gần gũi",
+      "Hỗ trợ gõ nhiều dòng (Shift + Enter)",
+      "Tự động học từ lóng & phản hồi siêu tốc",
+      "Xác nhận an toàn tuyệt đối trước khi lưu"
+    ]
   }
 ]

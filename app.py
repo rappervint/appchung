@@ -69,6 +69,10 @@ def register_dynamic_apps():
         if item.get('status') == 'disabled':
             continue
         mod_name = item.get('module')
+        if not mod_name:
+            # Ứng dụng tích hợp sẵn (ví dụ Trợ lý AI Gara /chat)
+            REGISTERED_APPS.append(item)
+            continue
         bp_var = item.get('blueprint_var', 'bp')
         prefix = item.get('prefix')
         init_func = item.get('init_func', 'init_db')
@@ -141,12 +145,22 @@ def log_access():
         print(f"  💡 [{now_str}] {dev_name} -> ⚡ Mở Báo Cáo Doanh Thu Đèn", flush=True)
     elif path == '/thuchi/' or path == '/thuchi':
         print(f"  💰 [{now_str}] {dev_name} -> 💵 Mở Sổ Quản Lý Thu Chi", flush=True)
+    elif path.startswith('/chat') or path.startswith('/ai'):
+        print(f"  ✨ [{now_str}] {dev_name} -> 🤖 Mở Trợ Lý AI Gara", flush=True)
 
 # ── CỔNG ĐIỀU HƯỚNG TRUNG TÂM (HUB PORTAL) ──
 @app.route('/')
 def portal():
     apps = load_apps_config()
     return render_template('portal.html', apps=apps)
+
+# ── GIAO DIỆN CHAT TRỢ LÝ AI CHUẨN GEMINI (FULLSCREEN GEMINI UI) ──
+@app.route('/chat')
+@app.route('/chat/')
+@app.route('/ai')
+@app.route('/ai/')
+def page_gemini_chat():
+    return render_template('gemini_chat.html')
 
 # ── API QUẢN TRỊ ỨNG DỤNG (THÊM / BẬT TẮT / XÓA) ──
 

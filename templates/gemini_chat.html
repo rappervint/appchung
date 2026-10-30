@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Trợ Lý AI Gara • Google Gemini | Trần Bình Auto</title>
+
+    <!-- Bootstrap 5 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- Marked.js để hiển thị Markdown siêu chuẩn -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #131314;
+            --bg-surface: #1e1f20;
+            --bg-surface-hover: #282a2c;
+            --bg-input: #1e1f20;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-focus: #4285f4;
+            --text-primary: #e3e3e3;
+            --text-secondary: #9aa0a6;
+            --text-muted: #6e7681;
+            --gemini-blue: #4285f4;
+            --gemini-purple: #9b51e0;
+            --gemini-pink: #ea4335;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* ── Top Bar & Navigation Tabs ── */
+        .gemini-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(19, 19, 20, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 10px 20px;
+        }
+
+        .gemini-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #fff;
+        }
+
+        .gemini-sparkle-logo {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #4285f4 0%, #9b51e0 50%, #ea4335 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(155, 81, 224, 0.35);
+            animation: pulseGlow 3s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 10px rgba(66, 133, 244, 0.4); }
+            100% { box-shadow: 0 0 20px rgba(155, 81, 224, 0.6); }
+        }
+
+        .brand-title {
+            font-weight: 800;
+            font-size: 1.05rem;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-badge {
+            background: rgba(66, 133, 244, 0.15);
+            color: #8ab4f8;
+            border: 1px solid rgba(66, 133, 244, 0.3);
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .badge-pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: #34a853;
+            border-radius: 50%;
+            animation: pulseDot 1.5s infinite;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* ── Navigation Tabs ── */
+        .hub-nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            padding: 4px;
+            border-radius: 14px;
+        }
+
+        .hub-tab-btn {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .hub-tab-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .hub-tab-btn.active {
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.25), rgba(155, 81, 224, 0.25));
+            color: #fff;
+            border: 1px solid rgba(138, 180, 248, 0.4);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .top-action-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .top-action-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        /* ── Main Chat Stream ── */
+        .chat-container {
+            flex: 1;
+            max-width: 880px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 16px 160px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ── Welcome Greeting (Khi chưa có tin nhắn) ── */
+        .gemini-welcome {
+            padding: 40px 0 20px;
+            text-align: left;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .welcome-greeting-title {
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #4285f4 0%, #9b51e0 50%, #ea4335 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .welcome-greeting-sub {
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 30px;
+        }
+
+        .suggestions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 14px;
+            margin-top: 10px;
+        }
+
+        .suggestion-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 110px;
+        }
+
+        .suggestion-card:hover {
+            background: var(--bg-surface-hover);
+            border-color: rgba(66, 133, 244, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .sug-title {
+            font-weight: 700;
+            font-size: 0.92rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .sug-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.45;
+        }
+
+        /* ── Message Bubbles ── */
+        .msg-row {
+            display: flex;
+            gap: 14px;
+            width: 100%;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-row.user {
+            justify-content: flex-end;
+        }
+
+        .msg-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .avatar-gemini {
+            background: linear-gradient(135deg, #4285f4, #9b51e0);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
+        }
+
+        .avatar-user {
+            background: rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+        }
+
+        .msg-content-wrapper {
+            max-width: 82%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .msg-bubble-user {
+            background: #2b2d30;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f1f5f9;
+            padding: 12px 18px;
+            border-radius: 20px;
+            border-top-right-radius: 6px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        .msg-bubble-gemini {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            line-height: 1.65;
+            word-break: break-word;
+            padding-top: 4px;
+        }
+
+        .msg-bubble-gemini p { margin-bottom: 10px; }
+        .msg-bubble-gemini p:last-child { margin-bottom: 0; }
+        .msg-bubble-gemini strong { color: #8ab4f8; font-weight: 700; }
+        .msg-bubble-gemini em { color: #ffd60a; font-style: normal; }
+        .msg-bubble-gemini ul, .msg-bubble-gemini ol { padding-left: 20px; margin-bottom: 12px; }
+        .msg-bubble-gemini li { margin-bottom: 4px; }
+        .msg-bubble-gemini hr { border-color: rgba(255, 255, 255, 0.1); margin: 14px 0; }
+        
+        .msg-bubble-gemini a {
+            color: #8ab4f8;
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(138, 180, 248, 0.5);
+        }
+        .msg-bubble-gemini a:hover {
+            color: #d2e3fc;
+            border-bottom-style: solid;
+        }
+
+        /* ── Action Buttons bên trong tin nhắn phản hồi ── */
+        .msg-actions-card {
+            margin-top: 14px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-confirm-action {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            color: #fff;
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            border-radius: 12px;
+            padding: 8px 18px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .btn-confirm-action:hover {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(22, 163, 74, 0.5);
+            color: #fff;
+        }
+
+        .btn-cancel-action {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 12px;
+            padding: 8px 18px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-cancel-action:hover {
+            background: rgba(239, 68, 68, 0.25);
+            color: #fff;
+        }
+
+        /* Thanh công cụ phụ dưới tin nhắn của Bot */
+        .msg-footer-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding-top: 6px;
+        }
+
+        .tool-icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tool-icon-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ── Typing Indicator (Hiệu ứng Gemini đang suy nghĩ) ── */
+        .gemini-thinking {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 0;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+        }
+
+        .thinking-sparkle {
+            animation: rotateSparkle 2s linear infinite;
+            color: #8ab4f8;
+            font-size: 18px;
+        }
+
+        @keyframes rotateSparkle {
+            0% { transform: rotate(0deg) scale(0.9); }
+            50% { transform: rotate(180deg) scale(1.15); }
+            100% { transform: rotate(360deg) scale(0.9); }
+        }
+
+        /* ── FLOATING INPUT CAPSULE (Chuẩn Google Gemini) ── */
+        .floating-input-bar {
+            position: fixed;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 32px);
+            max-width: 860px;
+            z-index: 1000;
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 28px;
+            padding: 8px 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .floating-input-bar:focus-within {
+            border-color: var(--border-focus);
+            background: #232528;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 3px rgba(66, 133, 244, 0.25);
+        }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .gemini-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 15.5px;
+            line-height: 1.5;
+            resize: none;
+            max-height: 220px;
+            min-height: 26px;
+            padding: 6px 2px;
+            overflow-y: auto;
+        }
+
+        .gemini-textarea::-webkit-scrollbar { width: 5px; }
+        .gemini-textarea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+
+        .gemini-textarea::placeholder {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .input-btn-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding-bottom: 2px;
+        }
+
+        .btn-input-tool {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-input-tool:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-input-tool.recording {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+            animation: pulseRecord 1s infinite;
+        }
+
+        @keyframes pulseRecord {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
+        .btn-send {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: none;
+            background: #4285f4;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
+        }
+
+        .btn-send:hover {
+            background: #3367d6;
+            transform: scale(1.05);
+        }
+
+        .btn-send:disabled {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.25);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-subhint {
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* ── Toast Copy ── */
+        .gemini-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-30px);
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 99999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .gemini-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ── Responsive Mobile ── */
+        @media (max-width: 768px) {
+            .gemini-topbar { padding: 8px 12px; }
+            .hub-nav-tabs { display: none; } /* Ẩn tabs dài trên màn hình nhỏ */
+            .brand-title { font-size: 0.95rem; }
+            .welcome-greeting-title { font-size: 1.8rem; }
+            .welcome-greeting-sub { font-size: 1.1rem; }
+            .chat-container { padding: 16px 12px 140px; }
+            .msg-content-wrapper { max-width: 90%; }
+            .floating-input-bar {
+                width: calc(100% - 16px);
+                bottom: 10px;
+                border-radius: 22px;
+                padding: 6px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ── TOPBAR & NAVIGATION TABS ── -->
+    <header class="gemini-topbar">
+        <div class="d-flex align-items-center justify-content-between">
+            <a href="/" class="gemini-brand">
+                <div class="gemini-sparkle-logo">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div>
+                    <div class="brand-title">
+                        <span>TRẦN BÌNH AUTO</span>
+                        <span class="brand-badge">
+                            <span class="badge-pulse-dot"></span>
+                            Gemini 3.5 & AI Nội Bộ
+                        </span>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Thanh Tabs Chuyển Nhanh Giữa Các Phân Hệ -->
+            <nav class="hub-nav-tabs">
+                <a href="/" class="hub-tab-btn" title="Cổng điều hành trung tâm">
+                    <i class="bi bi-house-door-fill"></i> Trang Chủ
+                </a>
+                <a href="/banhang/" class="hub-tab-btn" title="Phần mềm bán hàng & kho">
+                    <i class="bi bi-cart3"></i> Bán Hàng
+                </a>
+                <a href="/den/" class="hub-tab-btn" title="Báo cáo doanh thu đèn">
+                    <i class="bi bi-lightbulb-fill"></i> Báo Cáo Đèn
+                </a>
+                <a href="/thuchi/" class="hub-tab-btn" title="Sổ quản lý thu chi">
+                    <i class="bi bi-wallet2"></i> Thu Chi
+                </a>
+                <a href="/chat/" class="hub-tab-btn active" title="Trợ lý AI Gemini">
+                    <i class="bi bi-stars"></i> Trợ Lý AI
+                </a>
+            </nav>
+
+            <!-- Nút thao tác góc phải -->
+            <div class="d-flex align-items-center gap-2">
+                <button class="top-action-btn" onclick="startNewChat()" title="Bắt đầu phiên trò chuyện mới">
+                    <i class="bi bi-plus-lg"></i>
+                    <span class="d-none d-sm-inline">Đoạn Chat Mới</span>
+                </button>
+                <a href="/" class="top-action-btn" title="Về trang chủ Hub">
+                    <i class="bi bi-grid-fill"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── CHAT CONTAINER ── -->
+    <main class="chat-container" id="chatContainer">
+        
+        <!-- Màn hình chào ban đầu (Khi chưa có tin nhắn) -->
+        <div class="gemini-welcome" id="welcomeSection">
+            <h1 class="welcome-greeting-title">Xin chào, Anh Bình 👋</h1>
+            <div class="welcome-greeting-sub">Hôm nay em có thể hỗ trợ gì cho Gara Trần Bình Auto?</div>
+
+            <div class="suggestions-grid">
+                <div class="suggestion-card" onclick="useSuggestion('lắp Titan F1 Turbo S cho xe City 63A36001 vào ngày 13/8/2026')">
+                    <div>
+                        <div class="sug-title"><i class="bi bi-lightning-charge-fill text-warning"></i> Lên đơn đèn nhanh</div>
+                        <div class="sug-desc">"Lắp Titan F1 Turbo S cho xe City 63A36001 vào ngày 13/8"</div>
+                    </div>
+                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tự tra cứu giá & hồ sơ</small>
+                </div>
+
+                <div class="suggestion-card" onclick="useSuggestion('giá bi gầm F10 2.0 và kiểm tra tồn kho còn bao nhiêu bộ')">
+                    <div>
+                        <div class="sug-title"><i class="bi bi-box-seam-fill text-info"></i> Tra cứu giá & tồn kho</div>
+                        <div class="sug-desc">"Giá bi gầm F10 2.0 và kiểm tra tồn kho còn bao nhiêu bộ"</div>
+                    </div>
+                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tra cứu 2.780+ sản phẩm</small>
+                </div>
+
+                <div class="suggestion-card" onclick="useSuggestion('chi 350k mua cơm trưa cho anh em thợ hôm nay')">
+                    <div>
+                        <div class="sug-title"><i class="bi bi-cash-stack text-success"></i> Ghi sổ thu chi</div>
+                        <div class="sug-desc">"Chi 350k mua cơm trưa cho anh em thợ hôm nay"</div>
+                    </div>
+                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Tự động vào sổ quỹ</small>
+                </div>
+
+                <div class="suggestion-card" onclick="useSuggestion('bộ nhớ tự học')">
+                    <div>
+                        <div class="sug-title"><i class="bi bi-cpu-fill text-primary"></i> Bộ nhớ tự học</div>
+                        <div class="sug-desc">"Xem danh sách các từ lóng và mẫu lệnh AI đã tự học từ Gemini"</div>
+                    </div>
+                    <small class="text-white-50 mt-2"><i class="bi bi-arrow-right-short"></i> Phản hồi siêu tốc &lt; 15ms</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danh sách tin nhắn trò chuyện -->
+        <div id="messagesList" style="display: flex; flex-direction: column; gap: 20px;"></div>
+
+    </main>
+
+    <!-- ── FLOATING INPUT BAR (GEMINI CAPSULE) ── -->
+    <div class="floating-input-bar">
+        <div class="input-row">
+            <!-- Nút Giọng nói Microphone -->
+            <button class="btn-input-tool" id="btnMic" onclick="toggleSpeechRecognition()" title="Nói tiếng Việt (Nhận diện giọng nói)">
+                <i class="bi bi-mic-fill"></i>
+            </button>
+
+            <!-- Textarea tự động co giãn nhiều dòng -->
+            <textarea 
+                class="gemini-textarea" 
+                id="userInput" 
+                rows="1" 
+                placeholder="Nhập mệnh lệnh điều hành, thông tin xe, dán bảng biểu... (Shift + Enter để xuống dòng)"
+                oninput="handleTextareaInput(this)"
+                onkeydown="handleTextareaKeydown(event)"
+            ></textarea>
+
+            <!-- Nhóm nút hành động phụ & nút Gửi -->
+            <div class="input-btn-group">
+                <button class="btn-input-tool" id="btnClearInput" onclick="clearInput()" title="Xóa nội dung" style="display: none;">
+                    <i class="bi bi-x-circle-fill"></i>
+                </button>
+                <button class="btn-send" id="btnSend" onclick="sendMessage()" disabled title="Gửi tin nhắn (Enter)">
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="input-subhint">
+            <span>✨ Trợ lý AI kết hợp <strong>Gemini 3.5 Flash</strong> & <strong>AI Nội Bộ</strong>. Mọi thay đổi dữ liệu luôn yêu cầu xác nhận.</span>
+        </div>
+    </div>
+
+    <!-- Toast Thông Báo -->
+    <div class="gemini-toast" id="geminiToast"></div>
+
+    <script>
+        // Cấu hình Marked.js
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        const STORAGE_KEY = 'gemini_garage_chat_history';
+        const SESSION_ID_KEY = 'gemini_garage_session_id';
+
+        function getSessionId() {
+            let sid = localStorage.getItem(SESSION_ID_KEY);
+            if (!sid) {
+                sid = 'gemini_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+                localStorage.setItem(SESSION_ID_KEY, sid);
+            }
+            return sid;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('geminiToast');
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2200);
+        }
+
+        // Tự động điều chỉnh độ cao Textarea
+        function handleTextareaInput(el) {
+            el.style.height = 'auto';
+            const newHeight = Math.min(el.scrollHeight, 220);
+            el.style.height = newHeight + 'px';
+
+            const hasText = el.value.trim().length > 0;
+            document.getElementById('btnSend').disabled = !hasText;
+            document.getElementById('btnClearInput').style.display = hasText ? 'flex' : 'none';
+        }
+
+        // Bắt phím Enter / Shift + Enter
+        function handleTextareaKeydown(e) {
+            // Nhấn Enter mà KHÔNG giữ Shift / Ctrl -> GỬI TIN NHẮN
+            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                // Trên thiết bị cảm ứng (Mobile), cho phép Enter xuống dòng nếu người dùng muốn
+                if (window.innerWidth <= 768 && e.isComposing) {
+                    return;
+                }
+                e.preventDefault();
+                sendMessage();
+            }
+            // Nhấn Shift + Enter hoặc Ctrl + Enter -> TỰ ĐỘNG XUỐNG DÒNG (mặc định của browser)
+        }
+
+        function clearInput() {
+            const inp = document.getElementById('userInput');
+            inp.value = '';
+            handleTextareaInput(inp);
+            inp.focus();
+        }
+
+        function useSuggestion(promptText) {
+            const inp = document.getElementById('userInput');
+            inp.value = promptText;
+            handleTextareaInput(inp);
+            sendMessage();
+        }
+
+        // Khởi tạo lịch sử chat từ localStorage
+        function loadChatHistory() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const list = JSON.parse(raw);
+                    if (Array.isArray(list) && list.length > 0) {
+                        document.getElementById('welcomeSection').style.display = 'none';
+                        list.forEach(item => {
+                            appendMessageUI(item.role, item.content, false);
+                        });
+                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    }
+                }
+            } catch (e) {
+                console.error("Lỗi đọc chat history:", e);
+            }
+        }
+
+        function saveChatHistory(role, content) {
+            try {
+                let list = [];
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) list = JSON.parse(raw);
+                list.push({ role, content, time: new Date().toISOString() });
+                if (list.length > 60) list = list.slice(-60);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+            } catch (e) {}
+        }
+
+        function startNewChat() {
+            if (confirm('Bắt đầu cuộc trò chuyện mới? (Lịch sử trao đổi cũ trên màn hình sẽ được làm mới).')) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(SESSION_ID_KEY);
+                document.getElementById('messagesList').innerHTML = '';
+                document.getElementById('welcomeSection').style.display = 'block';
+                const inp = document.getElementById('userInput');
+                inp.value = '';
+                handleTextareaInput(inp);
+                inp.focus();
+                showToast('✨ Đã bắt đầu cuộc trò chuyện mới!');
+            }
+        }
+
+        function appendMessageUI(role, content, shouldScroll = true) {
+            document.getElementById('welcomeSection').style.display = 'none';
+            const list = document.getElementById('messagesList');
+
+            const row = document.createElement('div');
+            row.className = `msg-row ${role}`;
+
+            if (role === 'user') {
+                row.innerHTML = `
+                    <div class="msg-content-wrapper">
+                        <div class="msg-bubble-user">${escapeHtml(content)}</div>
+                    </div>
+                    <div class="msg-avatar avatar-user">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                `;
+            } else {
+                // Kiểm tra xem phản hồi có phải là phiếu xác nhận hay không
+                const hasConfirm = content.includes('XÁC NHẬN') || content.includes('👉 Anh có chắc chắn') || content.includes('👉 Bạn có chắc chắn');
+                
+                let confirmButtonsHtml = '';
+                if (hasConfirm) {
+                    confirmButtonsHtml = `
+                        <div class="msg-actions-card">
+                            <button class="btn-confirm-action" onclick="quickActionReply('ok')">
+                                <i class="bi bi-check-circle-fill"></i> ✅ OK / Lưu Vào Hệ Thống
+                            </button>
+                            <button class="btn-cancel-action" onclick="quickActionReply('hủy')">
+                                <i class="bi bi-x-circle"></i> 🛑 Hủy Bỏ
+                            </button>
+                        </div>
+                    `;
+                }
+
+                // Render markdown
+                const parsedHtml = marked.parse(content);
+
+                row.innerHTML = `
+                    <div class="msg-avatar avatar-gemini">
+                        <i class="bi bi-stars"></i>
+                    </div>
+                    <div class="msg-content-wrapper">
+                        <div class="msg-bubble-gemini">
+                            ${parsedHtml}
+                            ${confirmButtonsHtml}
+                        </div>
+                        <div class="msg-footer-tools">
+                            <button class="tool-icon-btn" onclick="copyMessageText(this)" title="Sao chép nội dung">
+                                <i class="bi bi-copy"></i> Sao chép
+                            </button>
+                            <button class="tool-icon-btn" onclick="speakMessageText(this)" title="Đọc to bằng giọng nói">
+                                <i class="bi bi-volume-up"></i> Nghe
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            list.appendChild(row);
+            if (shouldScroll) {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function quickActionReply(act) {
+            const inp = document.getElementById('userInput');
+            inp.value = act;
+            sendMessage();
+        }
+
+        function copyMessageText(btn) {
+            const msgRow = btn.closest('.msg-row');
+            const bubble = msgRow.querySelector('.msg-bubble-gemini');
+            if (bubble) {
+                navigator.clipboard.writeText(bubble.innerText).then(() => {
+                    showToast('📋 Đã sao chép nội dung vào khay nhớ tạm!');
+                });
+            }
+        }
+
+        function speakMessageText(btn) {
+            const msgRow = btn.closest('.msg-row');
+            const bubble = msgRow.querySelector('.msg-bubble-gemini');
+            if (bubble && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(bubble.innerText);
+                utter.lang = 'vi-VN';
+                utter.rate = 1.05;
+                window.speechSynthesis.speak(utter);
+            }
+        }
+
+        // Gửi tin nhắn tới Server
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const btnSend = document.getElementById('btnSend');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 1. Render tin nhắn User
+            appendMessageUI('user', text);
+            saveChatHistory('user', text);
+
+            input.value = '';
+            handleTextareaInput(input);
+            btnSend.disabled = true;
+
+            // 2. Hiệu ứng Gemini đang xử lý
+            const list = document.getElementById('messagesList');
+            const thinkingRow = document.createElement('div');
+            thinkingRow.className = 'msg-row bot';
+            thinkingRow.id = 'thinkingIndicator';
+            thinkingRow.innerHTML = `
+                <div class="msg-avatar avatar-gemini">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div class="msg-content-wrapper">
+                    <div class="gemini-thinking">
+                        <i class="bi bi-stars thinking-sparkle"></i>
+                        <span>Gemini đang suy nghĩ & tra cứu dữ liệu gara...</span>
+                    </div>
+                </div>
+            `;
+            list.appendChild(thinkingRow);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+            try {
+                const res = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        session_id: getSessionId()
+                    })
+                });
+
+                const data = await res.json();
+                const thinkingEl = document.getElementById('thinkingIndicator');
+                if (thinkingEl) thinkingEl.remove();
+
+                const botReply = data.message || 'Dạ em đã hoàn thành yêu cầu của anh!';
+                appendMessageUI('bot', botReply);
+                saveChatHistory('bot', botReply);
+
+            } catch (err) {
+                const thinkingEl = document.getElementById('thinkingIndicator');
+                if (thinkingEl) thinkingEl.remove();
+
+                const errMsg = '⚠️ Gặp lỗi kết nối tới máy chủ AI: ' + err.message + '\nAnh vui lòng thử lại nhé!';
+                appendMessageUI('bot', errMsg);
+            } finally {
+                input.focus();
+            }
+        }
+
+        // Nhận diện giọng nói tiếng Việt
+        let recognition = null;
+        let isRecording = false;
+
+        function toggleSpeechRecognition() {
+            const btnMic = document.getElementById('btnMic');
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRec) {
+                alert('Trình duyệt của bạn chưa hỗ trợ nhận diện giọng nói. Hãy dùng Google Chrome hoặc Microsoft Edge!');
+                return;
+            }
+
+            if (isRecording && recognition) {
+                recognition.stop();
+                return;
+            }
+
+            recognition = new SpeechRec();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                btnMic.classList.add('recording');
+                showToast('🎙️ Đang lắng nghe... Anh hãy nói lệnh vào micro!');
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                const inp = document.getElementById('userInput');
+                inp.value = (inp.value ? inp.value + ' ' : '') + transcript;
+                handleTextareaInput(inp);
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Lỗi SpeechRecognition:", event.error);
+                isRecording = false;
+                btnMic.classList.remove('recording');
+            };
+
+            recognition.onend = function() {
+                isRecording = false;
+                btnMic.classList.remove('recording');
+            };
+
+            recognition.start();
+        }
+
+        // Tự động nạp khi trang tải
+        window.addEventListener('DOMContentLoaded', () => {
+            loadChatHistory();
+            document.getElementById('userInput').focus();
+        });
+    </script>
+</body>
+</html>
