@@ -288,11 +288,21 @@ def api_delete_app(app_id):
 @app.route('/api/ai/chat', methods=['POST'])
 def api_ai_chat():
     data = request.json or {}
+    if not data and request.form:
+        data = request.form.to_dict()
     message = data.get('message', '').strip()
     session_id = data.get('session_id', 'default_user')
+    image_data = data.get('image', None)
+    file_timestamp = data.get('file_timestamp', None)
+    if not image_data and request.files:
+        f = request.files.get('image') or request.files.get('file')
+        if f:
+            import base64
+            img_b = f.read()
+            image_data = f"data:{f.content_type};base64,{base64.b64encode(img_b).decode('utf-8')}"
     try:
         from ai_assistant import process_ai_command
-        result = process_ai_command(message, session_id=session_id)
+        result = process_ai_command(message, session_id=session_id, image_data=image_data, file_timestamp=file_timestamp)
         return jsonify(result)
     except Exception as e:
         return jsonify({

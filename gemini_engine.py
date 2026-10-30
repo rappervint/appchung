@@ -3978,3 +3978,329 @@ def ask_gemini(message: str, session_id: str = "default_user") -> dict:
 
     return ask_gemini_rest(message, session_id)
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TÍNH NĂNG ĐỘT PHÁ: GEMINI MULTIMODAL VISION - THẨM ĐỊNH & LÊN ĐƠN TỰ ĐỘNG
+# ═══════════════════════════════════════════════════════════════════════════
+
+def extract_photo_capture_date(image_bytes, file_timestamp=None, user_caption=""):
+    """
+    Trích xuất ngày giờ chụp ảnh nghiệm thu xe theo thứ tự ưu tiên:
+    1. EXIF Metadata gốc (DateTimeOriginal, DateTimeDigitized, DateTime) của camera điện thoại.
+    2. Thời gian sửa đổi tệp (file.lastModified / file_timestamp) gửi từ trình duyệt điện thoại/PC.
+    3. Ngày người dùng tự gõ trong lời nhắn kèm ảnh (vd: "lắp ngày 13/08", "hôm qua").
+    4. Mặc định là ngày hiện tại (Hôm nay).
+    """
+    detected_date = None
+    date_note = ""
+
+    # 1. Thẻ EXIF máy ảnh
+    try:
+        from PIL import Image
+        from PIL.ExifTags import TAGS
+        import io
+        img = Image.open(io.BytesIO(image_bytes))
+        ex = img._getexif() if hasattr(img, '_getexif') else None
+        if ex:
+            for tag_id, val in ex.items():
+                tag = TAGS.get(tag_id, tag_id)
+                if tag in ('DateTimeOriginal', 'DateTimeDigitized', 'DateTime'):
+                    m = re.search(r'(\d{4})[:/-](\d{2})[:/-](\d{2})', str(val))
+                    if m:
+                        detected_date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+                        date_note = f"EXIF máy ảnh chụp ({val})"
+                        break
+        if not detected_date:
+            ex2 = img.getexif()
+            if ex2:
+                for tag_id, val in ex2.items():
+                    tag = TAGS.get(tag_id, tag_id)
+                    if tag in ('DateTimeOriginal', 'DateTimeDigitized', 'DateTime'):
+                        m = re.search(r'(\d{4})[:/-](\d{2})[:/-](\d{2})', str(val))
+                        if m:
+                            detected_date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+                            date_note = f"EXIF máy ảnh chụp ({val})"
+                            break
+    except Exception as e:
+        print(f"[EXIF] Lỗi trích xuất EXIF: {e}")
+
+    # 2. File timestamp từ trình duyệt (file.lastModified)
+    if not detected_date and file_timestamp:
+        try:
+            ts = float(file_timestamp)
+            if ts > 1e11:  # ms to seconds
+                ts = ts / 1000.0
+            dt = datetime.fromtimestamp(ts)
+            detected_date = dt.strftime('%Y-%m-%d')
+            date_note = f"Thời gian tệp ảnh ({dt.strftime('%d/%m/%Y %H:%M')})"
+        except Exception as e:
+            print(f"[FileTimestamp] Lỗi phân tích timestamp: {e}")
+
+    # 3. Người dùng gõ ngày trong câu nhắn kèm ảnh
+    if not detected_date and user_caption:
+        try:
+            from ai_assistant import extract_date
+            d_p, _ = extract_date(user_caption)
+            if d_p:
+                detected_date = d_p
+                date_note = "Người dùng chỉ định"
+        except Exception:
+            pass
+
+    # 4. Mặc định hôm nay
+    if not detected_date:
+        detected_date = datetime.now().strftime('%Y-%m-%d')
+        date_note = "Hôm nay"
+
+    return detected_date, date_note
+
+
+def scan_car_warranty_photo(image_data, user_caption="", session_id="default_user", file_timestamp=None):
+    """
+    Tự động phân tích ảnh nghiệm thu / bảo hành xe bằng Gemini Vision:
+    1. Trích xuất thời gian chụp (EXIF gốc hoặc file.lastModified).
+    2. Nhận diện biển số, hãng xe, dòng xe, sản phẩm / hộp đèn trên capo qua Gemini Vision.
+    3. Tự động đối soát khách hàng & xe từ cơ sở dữ liệu gara (tiem_lap_do.db / gara_knowledge.db).
+    4. Tự động tra cứu giá niêm yết từ kho hàng hoặc lịch sử gara.
+    5. Thiết lập phiên xác nhận (Wizard Session) và trả về Phiếu Xác Nhận Lên Đơn với nút [✅ OK / Lưu] | [🛑 Hủy].
+    """
+    import base64
+    import io
+    from PIL import Image
+
+    # 1. Giải mã dữ liệu ảnh
+    try:
+        if isinstance(image_data, str):
+            if ',' in image_data and 'base64' in image_data:
+                b64_str = image_data.split(',', 1)[1]
+            else:
+                b64_str = image_data
+            image_bytes = base64.b64decode(b64_str)
+        elif isinstance(image_data, bytes):
+            image_bytes = image_data
+            b64_str = base64.b64encode(image_bytes).decode('utf-8')
+        else:
+            return {"type": "error", "message": "Định dạng dữ liệu ảnh không hợp lệ."}
+    except Exception as e_dec:
+        return {"type": "error", "message": f"Không thể giải mã hình ảnh: {e_dec}"}
+
+    # 2. Trích xuất ngày giờ chụp ảnh
+    order_date, date_note = extract_photo_capture_date(image_bytes, file_timestamp=file_timestamp, user_caption=user_caption)
+
+    # 3. Phân tích ảnh qua Gemini Vision
+    raw_vision_text = ""
+    prompt = f"""Bạn là chuyên gia thẩm định xe & nghiệm thu phụ kiện gara Trần Bình Auto.
+Hãy phân tích bức ảnh nghiệm thu phụ kiện xe hơi này và trích xuất thông tin dưới dạng JSON chuẩn:
+LƯU Ý CỦA NGƯỜI DÙNG NẾU CÓ: "{user_caption}"
+YÊU CẦU TRẢ VỀ JSON:
+{{
+  "bien_so": "Biển số xe chính giữa bức ảnh (ví dụ 63C-237.12 hoặc 63C23712)",
+  "hang_xe": "Hãng xe (ví dụ KIA, TOYOTA, HONDA, VINFAST, MAZDA, FORD, MITSUBISHI, HYUNDAI...)",
+  "dong_xe": "Dòng xe (ví dụ Carens, City, Vios, VF3, CX5, Ranger, Xpander, Santafe...)",
+  "ten_san_pham": "Tên sản phẩm/hộp đèn đặt trên nắp capo hoặc được lắp đặt (ví dụ F10 TURBO V2, F10 TURBO, TITAN F1, S3 PRO, V20...)",
+  "nghiem_thu": "Trạng thái nghiệm thu ngắn gọn của hệ thống đèn đã hoàn thiện và bật sáng"
+}}
+Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
+
+    # Ưu tiên dùng SDK Client
+    client = get_gemini_client()
+    model = CURRENT_CONFIG.get('preferred_model') or 'gemini-3.5-flash-lite'
+    
+    if client:
+        try:
+            pil_img = Image.open(io.BytesIO(image_bytes))
+            resp = client.models.generate_content(
+                model=model,
+                contents=[pil_img, prompt]
+            )
+            raw_vision_text = resp.text.strip()
+        except Exception as e_sdk:
+            print(f"[GeminiVision-SDK] Lỗi với model {model}: {e_sdk}. Thử fallback sang gemini-3.5-flash...")
+            try:
+                pil_img = Image.open(io.BytesIO(image_bytes))
+                resp = client.models.generate_content(
+                    model='gemini-3.5-flash',
+                    contents=[pil_img, prompt]
+                )
+                raw_vision_text = resp.text.strip()
+            except Exception as e_sdk_fb:
+                print(f"[GeminiVision-SDK] Fallback SDK lỗi: {e_sdk_fb}")
+
+    # Nếu SDK không thành công, dùng Zero-Dependency REST API (hoạt động 100% trên PythonAnywhere)
+    if not raw_vision_text:
+        api_key = CURRENT_CONFIG.get('api_key') or DEFAULT_API_KEY
+        if api_key:
+            import urllib.request
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inline_data": {
+                                    "mime_type": "image/jpeg",
+                                    "data": b64_str
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            try:
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode('utf-8'),
+                    headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    res_json = json.loads(resp.read().decode('utf-8'))
+                    raw_vision_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
+            except Exception as e_rest:
+                print(f"[GeminiVision-REST] Lỗi REST API: {e_rest}")
+
+    if not raw_vision_text:
+        return {
+            "type": "error",
+            "message": "Không thể phân tích ảnh qua Gemini Vision. Vui lòng kiểm tra lại kết nối mạng hoặc API Key Gemini!"
+        }
+
+    # 4. Trích xuất JSON từ kết quả Gemini Vision
+    json_str = raw_vision_text
+    if "```json" in json_str:
+        json_str = json_str.split("```json")[1].split("```")[0].strip()
+    elif "```" in json_str:
+        json_str = json_str.split("```")[1].split("```")[0].strip()
+
+    try:
+        data = json.loads(json_str)
+    except Exception:
+        data = {}
+        m_b = re.search(r'"bien_so"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_b: data['bien_so'] = m_b.group(1)
+        m_h = re.search(r'"hang_xe"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_h: data['hang_xe'] = m_h.group(1)
+        m_d = re.search(r'"dong_xe"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_d: data['dong_xe'] = m_d.group(1)
+        m_p = re.search(r'"ten_san_pham"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_p: data['ten_san_pham'] = m_p.group(1)
+        m_n = re.search(r'"nghiem_thu"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_n: data['nghiem_thu'] = m_n.group(1)
+
+    plate = data.get('bien_so', '').strip()
+    hang_xe = data.get('hang_xe', '').strip()
+    dong_xe = data.get('dong_xe', '').strip()
+    full_car = f"{hang_xe} {dong_xe}".strip().upper() if hang_xe or dong_xe else "CHƯA RÕ DÒNG XE"
+    raw_prod = data.get('ten_san_pham', '').strip()
+    nghiem_thu_txt = data.get('nghiem_thu', 'Đã lắp đặt hoàn thiện, đèn bật sáng tốt.')
+
+    # 5. Chuẩn hóa tên sản phẩm: ưu tiên lời nhắn của người dùng nếu có (ví dụ "gắn f10 turbo v2")
+    matched_lamp = raw_prod.upper()
+    if user_caption:
+        for pat, cname, _ in LAMP_CATALOG:
+            if re.search(pat, user_caption, re.IGNORECASE):
+                matched_lamp = cname
+                break
+    else:
+        for pat, cname, _ in LAMP_CATALOG:
+            if re.search(pat, raw_prod, re.IGNORECASE):
+                matched_lamp = cname
+                break
+
+    if not matched_lamp:
+        matched_lamp = "F10 TURBO"
+
+    # Chuẩn hóa biển số nếu có trong user_caption
+    if not plate and user_caption:
+        from ai_assistant import extract_license_plate
+        m_p = extract_license_plate(user_caption)
+        if m_p: plate = m_p
+
+    # 6. Tra cứu cơ sở dữ liệu Gara (Khách hàng & Dòng xe)
+    from ai_assistant import (
+        lookup_customer_and_car_by_identifier,
+        get_lamp_price_from_memory,
+        WIZARD_SESSIONS
+    )
+
+    cust_info = lookup_customer_and_car_by_identifier(plate) if plate else {}
+    auto_found = cust_info.get('found', False)
+    cust_name = cust_info.get('customer_name') if auto_found else f"Khách xe {plate}"
+    phone = cust_info.get('phone', '') if auto_found else ""
+    if cust_info.get('car_model') and cust_info.get('car_model').upper() not in ["CHƯA RÕ", "CHƯA RÕ DÒNG XE", ""]:
+        full_car = cust_info.get('car_model').upper()
+
+    # 7. Tra cứu giá niêm yết trong kho hàng / lịch sử gara
+    price_k = get_lamp_price_from_memory(matched_lamp)
+    if price_k <= 0 and "TURBO" in matched_lamp:
+        price_k = get_lamp_price_from_memory("F10 TURBO")
+    if price_k <= 0:
+        price_k = 6000  # Giá niêm yết mặc định cho F10 Turbo
+
+    # 8. Thiết lập Wizard Session chờ xác nhận an toàn dữ liệu
+    cust_record = f"{cust_name} ({plate})" if (plate and plate not in cust_name) else cust_name
+    
+    session_payload = {
+        'items': [{
+            'product_name': matched_lamp,
+            'quantity': 1,
+            'final_price_k': price_k,
+            'base_price_k': price_k,
+            'discount_k': 0,
+            'is_default': True
+        }],
+        'cust_name': cust_record,
+        'found_car': full_car,
+        'plate': plate,
+        'phone': phone,
+        'order_date': order_date,
+        'discount_k': 0,
+        'total_base_k': price_k,
+        'total_final_k': price_k
+    }
+
+    WIZARD_SESSIONS[session_id] = {
+        'flow': 'confirm_action',
+        'action_type': 'baocao_den',
+        'payload': session_payload
+    }
+    # Đồng bộ sang default_user để cửa sổ mini và tab chat dùng chung
+    WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
+
+    # 9. Soạn phiếu xác nhận lên đơn trực quan
+    tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else " *(Khách mới theo biển số)*"
+    date_badge = f" *({date_note})*"
+
+    card_msg = (
+        f"❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+        f"───────────────────────────────────────\n"
+        f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
+        f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto}\n"
+        f"• 🚗 **Dòng xe:** **{full_car}**\n"
+        f"• 🚘 **Biển số:** **{plate}**\n"
+        + (f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else "")
+        + f"• 📦 **Sản phẩm lắp đặt:**\n  1. **{matched_lamp}**: **{price_k * 1000:,.0f} đ ({price_k:,}k)** *(Giá niêm yết tự động)*\n"
+        f"• 💰 **DOANH THU THỰC THU:** **{price_k * 1000:,.0f} đ**\n"
+        f"• 📅 **Ngày lắp:** **{order_date}**{date_badge}\n"
+        f"───────────────────────────────────────\n"
+        f"👉 Bấm **[✅ OK / Lưu]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn thay đổi."
+    )
+
+    return {
+        "type": "wizard_step",
+        "message": card_msg,
+        "buttons": [
+            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+        ],
+        "meta": {
+            "plate": plate,
+            "car": full_car,
+            "product": matched_lamp,
+            "price_k": price_k,
+            "order_date": order_date,
+            "date_source": date_note,
+            "auto_found": auto_found
+        }
+    }

@@ -5518,9 +5518,10 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     return ask_clarification(raw, clean, session_id)
 
 
-def process_ai_command(user_text, session_id="default_user"):
+def process_ai_command(user_text, session_id="default_user", image_data=None, file_timestamp=None):
     """
     BỘ ĐIỀU PHỐI AI TRUNG TÂM GARA:
+    0. Ưu tiên xử lý phân tích ảnh nghiệm thu xe (Gemini Multimodal Vision).
     1. Ưu tiên xử lý xác nhận wizard/bước phỏng vấn đang mở (OK / Lưu / Hủy).
     2. Tự động nhận diện & nạp API Key Gemini mới nếu người dùng dán vào chat.
     3. ƯU TIÊN TUYỆT ĐỐI GEMINI 3.5 FLASH (Google Generative AI):
@@ -5530,10 +5531,27 @@ def process_ai_command(user_text, session_id="default_user"):
     4. DỰ PHÒNG AN TOÀN (OFFLINE FAILOVER):
        - Nếu Gemini tắt, mất mạng, hết quota hoặc lỗi model: tự động chuyển sang bộ máy quy tắc nội bộ (_process_ai_command_internal).
     """
-    if not user_text:
+    # 0. PHÂN TÍCH ẢNH BẢO HÀNH / NGHIỆM THU XE BẰNG GEMINI VISION
+    if image_data:
+        if gemini_engine and hasattr(gemini_engine, 'scan_car_warranty_photo'):
+            try:
+                return gemini_engine.scan_car_warranty_photo(
+                    image_data,
+                    user_caption=user_text or "",
+                    session_id=session_id,
+                    file_timestamp=file_timestamp
+                )
+            except Exception as e_v:
+                print(f"[AIAssistant] Lỗi Gemini Vision: {e_v}")
+                return {
+                    "type": "error",
+                    "message": f"Gặp lỗi khi phân tích ảnh nghiệm thu xe: {e_v}"
+                }
+
+    if not user_text and not image_data:
         return _process_ai_command_internal(user_text, session_id=session_id)
 
-    raw = user_text.strip()
+    raw = (user_text or "").strip()
     clean = remove_accents(raw).lower()
 
     # 1. XỬ LÝ PHIÊN XÁC NHẬN HOẶC WIZARD ĐANG HOẠT ĐỘNG

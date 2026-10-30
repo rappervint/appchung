@@ -961,23 +961,40 @@
             </main>
 
             <!-- FLOATING INPUT BAR -->
-            <div class="floating-input-bar">
-                <textarea 
-                    class="gemini-textarea" 
-                    id="userInput" 
-                    placeholder="Hỏi bất kỳ điều gì, lên đơn đèn, tra cứu giá sàn đúc, ghi thu chi..." 
-                    rows="1"
-                    oninput="handleTextareaInput(this)"
-                    onkeydown="handleTextareaKeydown(event)"
-                ></textarea>
+            <div class="floating-input-bar flex-column align-items-stretch">
+                <!-- Preview ảnh khi người dùng tải lên, dán hoặc kéo thả -->
+                <div id="imagePreviewContainer" style="display:none; width:100%; padding:8px 14px; margin-bottom:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); border-radius:12px; align-items:center; gap:12px;">
+                    <img id="imagePreviewImg" src="" style="width:52px; height:52px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.25); box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+                    <div style="flex:1; overflow:hidden;">
+                        <div style="font-size:0.85rem; font-weight:700; color:#fff;" id="imagePreviewName">anh_nghiem_thu.jpg</div>
+                        <div style="font-size:0.75rem; color:#38bdf8;" id="imagePreviewDate"><i class="bi bi-camera"></i> Gemini Vision sẵn sàng quét xe, biển số, hộp đèn & ngày chụp</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearSelectedImage()" style="border-radius:8px; padding:3px 10px; font-weight:bold;" title="Xóa ảnh">✕ Hủy</button>
+                </div>
 
-                <div class="input-btn-group">
-                    <button class="btn-input-tool" id="btnMic" onclick="toggleSpeechRecognition()" title="Nói bằng giọng nói">
-                        <i class="bi bi-mic"></i>
-                    </button>
-                    <button class="btn-gemini-send" id="btnSend" onclick="sendMessage()" title="Gửi tin nhắn (Enter)">
-                        <i class="bi bi-arrow-up-short" style="font-size:24px;"></i>
-                    </button>
+                <input type="file" id="geminiImageInput" accept="image/*" style="display:none;" onchange="handleGeminiImageSelected(event)">
+
+                <div class="d-flex align-items-end w-100 position-relative">
+                    <textarea 
+                        class="gemini-textarea" 
+                        id="userInput" 
+                        placeholder="Hỏi bất kỳ điều gì, tải ảnh nghiệm thu xe, lên đơn đèn, tra giá sàn đúc..." 
+                        rows="1"
+                        oninput="handleTextareaInput(this)"
+                        onkeydown="handleTextareaKeydown(event)"
+                    ></textarea>
+
+                    <div class="input-btn-group">
+                        <button class="btn-input-tool" id="btnUploadImage" onclick="document.getElementById('geminiImageInput').click()" title="Tải ảnh bảo hành / nghiệm thu xe (AI tự nhận diện xe, đèn, biển số & ngày chụp)">
+                            <i class="bi bi-camera"></i>
+                        </button>
+                        <button class="btn-input-tool" id="btnMic" onclick="toggleSpeechRecognition()" title="Nói bằng giọng nói">
+                            <i class="bi bi-mic"></i>
+                        </button>
+                        <button class="btn-gemini-send" id="btnSend" onclick="sendMessage()" title="Gửi tin nhắn (Enter)">
+                            <i class="bi bi-arrow-up-short" style="font-size:24px;"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1309,7 +1326,78 @@
             sendMessage();
         }
 
-        function appendMessageUI(role, content, shouldScroll = true) {
+        let selectedImageDataUrl = null;
+        let selectedImageTimestamp = null;
+
+        function handleGeminiImageSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            processGeminiImageFile(file);
+        }
+
+        function processGeminiImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Vui lòng chọn một tệp hình ảnh hợp lệ!');
+                return;
+            }
+            selectedImageTimestamp = file.lastModified || Date.now();
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedImageDataUrl = e.target.result;
+                document.getElementById('imagePreviewImg').src = selectedImageDataUrl;
+                document.getElementById('imagePreviewName').textContent = file.name || 'Ảnh nghiệm thu xe';
+                const d = new Date(selectedImageTimestamp);
+                const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+                document.getElementById('imagePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Thời gian tệp: <strong>${dStr}</strong> • Gemini Vision sẵn sàng quét xe & biển số`;
+                document.getElementById('imagePreviewContainer').style.display = 'flex';
+                document.getElementById('btnSend').disabled = false;
+                document.getElementById('userInput').focus();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearSelectedImage() {
+            selectedImageDataUrl = null;
+            selectedImageTimestamp = null;
+            document.getElementById('imagePreviewContainer').style.display = 'none';
+            document.getElementById('geminiImageInput').value = '';
+            const inp = document.getElementById('userInput');
+            document.getElementById('btnSend').disabled = inp.value.trim().length === 0;
+        }
+
+        function sendQuickMessage(text) {
+            const inp = document.getElementById('userInput');
+            inp.value = text;
+            sendMessage();
+        }
+
+        // Hỗ trợ dán ảnh trực tiếp từ Clipboard (Ctrl + V)
+        window.addEventListener('paste', function(e) {
+            if (e.clipboardData && e.clipboardData.items) {
+                for (let i = 0; i < e.clipboardData.items.length; i++) {
+                    const item = e.clipboardData.items[i];
+                    if (item.type.indexOf('image') !== -1) {
+                        const file = item.getAsFile();
+                        processGeminiImageFile(file);
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Hỗ trợ kéo thả ảnh vào khung trò chuyện (Drag & Drop)
+        window.addEventListener('dragover', function(e) { e.preventDefault(); });
+        window.addEventListener('drop', function(e) {
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.type.startsWith('image/')) {
+                    e.preventDefault();
+                    processGeminiImageFile(file);
+                }
+            }
+        });
+
+        function appendMessageUI(role, content, shouldScroll = true, imageBase64 = null, buttons = null) {
             document.getElementById('welcomeSection').style.display = 'none';
             const list = document.getElementById('messagesList');
 
@@ -1317,9 +1405,16 @@
             row.className = `msg-row ${role}`;
 
             if (role === 'user') {
+                let imgHtml = '';
+                if (imageBase64) {
+                    imgHtml = `<div style="margin-bottom:8px;"><img src="${imageBase64}" style="max-width:280px; max-height:200px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,0.25); box-shadow:0 4px 14px rgba(0,0,0,0.4);"></div>`;
+                }
                 row.innerHTML = `
                     <div class="msg-content-wrapper">
-                        <div class="msg-bubble-user">${content}</div>
+                        <div class="msg-bubble-user">
+                            ${imgHtml}
+                            ${content ? `<div>${content}</div>` : ''}
+                        </div>
                     </div>
                     <div class="msg-avatar avatar-user">
                         <i class="bi bi-person-fill"></i>
@@ -1327,12 +1422,25 @@
                 `;
             } else {
                 let parsedHTML = marked.parse(content);
+                let btnHtml = '';
+                if (buttons && buttons.length > 0) {
+                    btnHtml = '<div class="d-flex flex-wrap gap-2 mt-3">';
+                    buttons.forEach(b => {
+                        const btnClass = b.class === 'btn-danger' ? 'btn-danger' : 'btn-success';
+                        const icon = b.value === 'ok' ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+                        btnHtml += `<button class="btn btn-sm ${btnClass} px-3 py-1 font-weight-bold d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.88rem; box-shadow:0 2px 6px rgba(0,0,0,0.3);" onclick="sendQuickMessage('${b.value}')"><i class="bi ${icon}"></i> ${b.text}</button>`;
+                    });
+                    btnHtml += '</div>';
+                }
                 row.innerHTML = `
                     <div class="msg-avatar avatar-gemini">
                         <i class="bi bi-stars"></i>
                     </div>
                     <div class="msg-content-wrapper">
-                        <div class="msg-bubble-bot">${parsedHTML}</div>
+                        <div class="msg-bubble-bot">
+                            ${parsedHTML}
+                            ${btnHtml}
+                        </div>
                     </div>
                 `;
             }
@@ -1347,10 +1455,16 @@
             const input = document.getElementById('userInput');
             const btnSend = document.getElementById('btnSend');
             const text = input.value.trim();
-            if (!text) return;
+            const hasImage = !!selectedImageDataUrl;
 
-            // 1. Thêm tin nhắn của User
-            appendMessageUI('user', text);
+            if (!text && !hasImage) return;
+
+            const imgToSend = selectedImageDataUrl;
+            const tsToSend = selectedImageTimestamp;
+            clearSelectedImage();
+
+            // 1. Thêm tin nhắn của User vào giao diện
+            appendMessageUI('user', text, true, imgToSend);
 
             const sessions = getAllSessions();
             let currentSess = sessions.find(s => s.id === activeSessionId);
@@ -1361,12 +1475,13 @@
 
             // Nếu đây là tin nhắn đầu tiên, tự động tạo tiêu đề session
             if (currentSess.messages.length === 0 || currentSess.title === 'Cuộc trò chuyện mới') {
-                currentSess.title = text.length > 34 ? text.substring(0, 34) + '...' : text;
+                const defaultTitle = text ? (text.length > 34 ? text.substring(0, 34) + '...' : text) : 'Ảnh nghiệm thu xe';
+                currentSess.title = defaultTitle;
             }
 
             const now = new Date();
             const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-            currentSess.messages.push({ role: 'user', content: text, time: timeStr });
+            currentSess.messages.push({ role: 'user', content: text, image: !!imgToSend, time: timeStr });
             currentSess.updatedAt = Date.now();
 
             // Đưa session này lên đầu danh sách
@@ -1384,6 +1499,7 @@
             const thinkingRow = document.createElement('div');
             thinkingRow.className = 'msg-row bot';
             thinkingRow.id = 'thinkingIndicator';
+            const thinkingMsg = imgToSend ? 'Gemini Vision đang thẩm định ảnh, đọc biển số xe & tra cứu giá...' : 'Gemini đang suy nghĩ & tra cứu dữ liệu gara...';
             thinkingRow.innerHTML = `
                 <div class="msg-avatar avatar-gemini">
                     <i class="bi bi-stars"></i>
@@ -1391,7 +1507,7 @@
                 <div class="msg-content-wrapper">
                     <div class="gemini-thinking">
                         <i class="bi bi-stars thinking-sparkle"></i>
-                        <span>Gemini đang suy nghĩ & tra cứu dữ liệu gara...</span>
+                        <span>${thinkingMsg}</span>
                     </div>
                 </div>
             `;
@@ -1404,6 +1520,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         message: text,
+                        image: imgToSend,
+                        file_timestamp: tsToSend,
                         session_id: activeSessionId
                     })
                 });
@@ -1413,7 +1531,7 @@
                 if (thinkingEl) thinkingEl.remove();
 
                 const botReply = data.message || 'Dạ em đã hoàn thành yêu cầu của anh!';
-                appendMessageUI('bot', botReply);
+                appendMessageUI('bot', botReply, true, null, data.buttons);
 
                 // Lưu phản hồi bot vào session
                 currentSess.messages.push({ role: 'bot', content: botReply, time: timeStr, usage: data.usage });

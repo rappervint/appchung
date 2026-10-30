@@ -338,8 +338,23 @@
         <span class="ai-prompt-chip" onclick="sendQuickPrompt('doanh thu đèn tháng này')">📊 Doanh số đèn</span>
         <span class="ai-prompt-chip" onclick="sendQuickPrompt('tổng kết quỹ')">💰 Sổ quỹ</span>
     </div>
-    <div class="ai-chat-footer">
-        <textarea class="ai-chat-input" id="aiInput" rows="1" placeholder="Nhập lệnh... (Shift + Enter để xuống dòng)" style="resize: none; max-height: 120px; min-height: 38px; padding: 8px 12px; font-family: inherit; line-height: 1.4;" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight, 120)+'px';" onkeydown="if(event.key==='Enter' && !event.shiftKey && !event.ctrlKey){event.preventDefault(); sendAIMessage();}"></textarea>
+    <!-- Preview ảnh mini khi chọn tải ảnh hoặc dán -->
+    <div id="aiBubbleImagePreview" style="display:none; padding:6px 10px; margin:0 12px 6px; background:rgba(255,255,255,0.08); border-radius:10px; border:1px solid rgba(255,255,255,0.15); align-items:center; gap:8px;">
+        <img id="aiBubblePreviewImg" src="" style="width:36px; height:36px; border-radius:6px; object-fit:cover; border:1px solid rgba(255,255,255,0.2);">
+        <div style="flex:1; overflow:hidden;">
+            <div style="font-size:0.75rem; color:#fff; font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;" id="aiBubblePreviewName">anh_xe.jpg</div>
+            <div style="font-size:0.68rem; color:#38bdf8;" id="aiBubblePreviewDate">Gemini Vision sẵn sàng quét xe & biển số</div>
+        </div>
+        <span onclick="clearBubbleImage()" style="cursor:pointer; color:#ef4444; font-weight:bold; font-size:14px; padding:0 4px;" title="Xóa ảnh">✕</span>
+    </div>
+
+    <input type="file" id="aiBubbleImageInput" accept="image/*" style="display:none;" onchange="handleBubbleImageSelected(event)">
+
+    <div class="ai-chat-footer" style="display:flex; align-items:flex-end; gap:6px;">
+        <button type="button" class="ai-camera-btn" onclick="document.getElementById('aiBubbleImageInput').click()" title="Tải ảnh bảo hành / nghiệm thu xe (AI tự đọc xe, biển số, đèn & ngày chụp)" style="background:none; border:none; color:#94a3b8; font-size:1.15rem; cursor:pointer; padding:6px 8px; border-radius:8px; display:flex; align-items:center; justify-content:center; transition:0.2s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">
+            <i class="bi bi-camera"></i>
+        </button>
+        <textarea class="ai-chat-input" id="aiInput" rows="1" placeholder="Nhập lệnh hoặc dán ảnh... (Shift + Enter để xuống dòng)" style="flex:1; resize: none; max-height: 120px; min-height: 38px; padding: 8px 12px; font-family: inherit; line-height: 1.4;" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight, 120)+'px';" onkeydown="if(event.key==='Enter' && !event.shiftKey && !event.ctrlKey){event.preventDefault(); sendAIMessage();}"></textarea>
         <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()" title="Gửi tin nhắn (Enter)">
             <i class="bi bi-send-fill"></i>
         </button>
@@ -489,20 +504,93 @@
         return html;
     }
 
+    let bubbleSelectedImageData = null;
+    let bubbleSelectedImageTimestamp = null;
+
+    function handleBubbleImageSelected(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        processBubbleImage(file);
+    }
+
+    function processBubbleImage(file) {
+        if (!file.type.startsWith('image/')) {
+            alert('Vui lòng chọn tệp hình ảnh!');
+            return;
+        }
+        bubbleSelectedImageTimestamp = file.lastModified || Date.now();
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            bubbleSelectedImageData = e.target.result;
+            document.getElementById('aiBubblePreviewImg').src = bubbleSelectedImageData;
+            document.getElementById('aiBubblePreviewName').textContent = file.name || 'Ảnh xe';
+            const d = new Date(bubbleSelectedImageTimestamp);
+            const dStr = d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+            document.getElementById('aiBubblePreviewDate').innerHTML = `<i class="bi bi-clock-history"></i> Tệp: ${dStr}`;
+            document.getElementById('aiBubbleImagePreview').style.display = 'flex';
+            document.getElementById('aiInput').focus();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearBubbleImage() {
+        bubbleSelectedImageData = null;
+        bubbleSelectedImageTimestamp = null;
+        document.getElementById('aiBubbleImagePreview').style.display = 'none';
+        document.getElementById('aiBubbleImageInput').value = '';
+    }
+
+    // Dán ảnh trực tiếp từ Clipboard trong mini bubble
+    document.addEventListener('paste', function(e) {
+        const widget = document.getElementById('aiChatWidget');
+        if (widget && widget.style.display !== 'none') {
+            if (e.clipboardData && e.clipboardData.items) {
+                for (let i = 0; i < e.clipboardData.items.length; i++) {
+                    const item = e.clipboardData.items[i];
+                    if (item.type.indexOf('image') !== -1) {
+                        const file = item.getAsFile();
+                        processBubbleImage(file);
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
     async function sendAIMessage() {
         const input = document.getElementById('aiInput');
         const sendBtn = document.getElementById('aiSendBtn');
         const msgContainer = document.getElementById('aiMessages');
         const query = (input.value || '').trim();
+        const hasImg = !!bubbleSelectedImageData;
 
-        if (!query) return;
+        if (!query && !hasImg) return;
+
+        const imgToSend = bubbleSelectedImageData;
+        const tsToSend = bubbleSelectedImageTimestamp;
+        clearBubbleImage();
 
         // 1. Thêm tin nhắn của User
         const userDiv = document.createElement('div');
         userDiv.className = 'ai-msg ai-msg-user';
-        userDiv.textContent = query;
+        if (imgToSend) {
+            const imgEl = document.createElement('img');
+            imgEl.src = imgToSend;
+            imgEl.style.maxWidth = '180px';
+            imgEl.style.maxHeight = '130px';
+            imgEl.style.borderRadius = '8px';
+            imgEl.style.display = 'block';
+            imgEl.style.marginBottom = '6px';
+            imgEl.style.border = '1px solid rgba(255,255,255,0.2)';
+            userDiv.appendChild(imgEl);
+        }
+        if (query) {
+            const txtEl = document.createElement('div');
+            txtEl.textContent = query;
+            userDiv.appendChild(txtEl);
+        }
         msgContainer.appendChild(userDiv);
-        saveMessageToSessionsArchive('user', query);
+        saveMessageToSessionsArchive('user', query || '[Gửi ảnh nghiệm thu xe]');
 
         input.value = '';
         input.style.height = 'auto';
@@ -513,7 +601,8 @@
         const typingDiv = document.createElement('div');
         typingDiv.className = 'ai-msg ai-msg-bot';
         typingDiv.id = 'aiTypingIndicator';
-        typingDiv.innerHTML = '<div class="ai-typing"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+        const typingLabel = imgToSend ? '<span style="font-size:0.75rem; color:#38bdf8; display:block; margin-bottom:4px;"><i class="bi bi-camera"></i> Gemini Vision đang quét ảnh xe & biển số...</span>' : '';
+        typingDiv.innerHTML = `${typingLabel}<div class="ai-typing"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>`;
         msgContainer.appendChild(typingDiv);
         msgContainer.scrollTop = msgContainer.scrollHeight;
 
@@ -521,7 +610,12 @@
             const res = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: query, session_id: getBubbleSessionId() })
+                body: JSON.stringify({
+                    message: query,
+                    image: imgToSend,
+                    file_timestamp: tsToSend,
+                    session_id: getBubbleSessionId()
+                })
             });
             const data = await res.json();
 
@@ -532,6 +626,34 @@
             botDiv.className = 'ai-msg ai-msg-bot';
             const botReply = data.message || 'Đã thực hiện yêu cầu!';
             botDiv.innerHTML = formatAIMessage(botReply);
+
+            // Nút bấm xác nhận nhanh nếu có
+            if (data.buttons && data.buttons.length > 0) {
+                const btnGroup = document.createElement('div');
+                btnGroup.style.display = 'flex';
+                btnGroup.style.flexWrap = 'wrap';
+                btnGroup.style.gap = '6px';
+                btnGroup.style.marginTop = '8px';
+                data.buttons.forEach(b => {
+                    const btn = document.createElement('button');
+                    btn.textContent = b.text;
+                    btn.style.padding = '4px 10px';
+                    btn.style.fontSize = '0.78rem';
+                    btn.style.fontWeight = 'bold';
+                    btn.style.borderRadius = '14px';
+                    btn.style.border = 'none';
+                    btn.style.cursor = 'pointer';
+                    btn.style.background = b.class === 'btn-danger' ? '#ef4444' : '#22c55e';
+                    btn.style.color = '#fff';
+                    btn.onclick = () => {
+                        document.getElementById('aiInput').value = b.value;
+                        sendAIMessage();
+                    };
+                    btnGroup.appendChild(btn);
+                });
+                botDiv.appendChild(btnGroup);
+            }
+
             msgContainer.appendChild(botDiv);
             saveMessageToSessionsArchive('bot', botReply);
             updateBubbleModelTokenBadge();
