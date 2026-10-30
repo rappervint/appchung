@@ -447,7 +447,7 @@ LAMP_CATALOG = [
     (r'\bf10\s*3\s*mau\b|\bf10\s*ba\s*mau\b', 'F10 BA MÀU', 0),
     # Dòng M Series
     (r'\bm10\s*ultra\b|\bm10\b', 'M10 ULTRA', 0),
-    (r'\bm20\s*ultra\b|\bm20\b', 'M20 ULTRA', 0),
+    (r'\bm20\s*ultra(?:\s*v2)?\b|\bm20\b', 'M20 ULTRA V2', 4200),
     (r'\bm30\s*ultra\b|\bm30\b', 'M30 ULTRA', 0),
     (r'\bm40\s*ultra\b|\bm40\b', 'M40 ULTRA', 0),
     # Dòng Titan & GTR
@@ -1161,6 +1161,15 @@ def execute_confirmed_action(action_type, payload, session_id="default_user"):
         loai_don = payload.get('loai_don', 'auto')
         if gemini_engine:
             res_txt = gemini_engine.xoa_don_hang(order_id, loai_don=loai_don, confirmed=True)
+            res = {"type": "success", "message": res_txt}
+        else:
+            res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
+
+    elif action_type == 'admin_add_product':
+        kwargs = payload.get('kwargs', {})
+        kwargs['confirmed'] = True
+        if gemini_engine:
+            res_txt = gemini_engine.them_san_pham_moi(**kwargs)
             res = {"type": "success", "message": res_txt}
         else:
             res = {"type": "error", "message": "Gemini engine chưa sẵn sàng."}
@@ -5533,7 +5542,45 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
 
     # ═════════════════════════════════════════════════════════════════════
     # ═════════════════════════════════════════════════════════════════════
-    # 0.05. CẬP NHẬT / SỬA GIÁ SẢN PHẨM TRỰC TIẾP TRONG KHO (TIEM_LAP_DO.DB)
+    # ═════════════════════════════════════════════════════════════════════
+    # 0.04. THÊM SẢN PHẨM MỚI VÀO PHẦN MỀM BÁN HÀNG & KHO HÀNG
+    # LỆNH: "thêm sản phẩm m20 ultra v2 giá 4200", "thêm đèn m20 ultra v2 4tr2"
+    # ═════════════════════════════════════════════════════════════════════
+    is_add_prod_intent = (
+        any(k in clean for k in ['them san pham', 'them mon', 'them hang', 'them den', 'them ma den', 'tao san pham', 'tao mon', 'tao den', 'nhap hang moi', 'them vao kho'])
+        and any(k in clean for k in ['gia', 'k', 'tr', 'trieu', 'nghin', 'vnd', 'dong', 'd'])
+    ) and not bool(re.search(r'\b(?:don|ma don|#\d+|cho xe|bien so)\b', clean))
+
+    if is_add_prod_intent:
+        from knowledge_base import parse_vietnamese_currency
+        p_disp, p_val = parse_vietnamese_currency(raw)
+        if p_val > 0:
+            prod_txt = raw
+            for pat in [
+                r'^(?:thêm\s*(?:mới\s*)?sản\s*phẩm|tạo\s*(?:mới\s*)?sản\s*phẩm|thêm\s*(?:mới\s*)?món|thêm\s*(?:mới\s*)?hàng|thêm\s*(?:mới\s*)?đèn|thêm\s*(?:mới\s*)?mã\s*đèn|nhập\s*hàng\s*mới|thêm\s*vào\s*kho|thêm|tạo)\s*',
+            ]:
+                prod_txt = re.sub(pat, '', prod_txt, flags=re.IGNORECASE).strip()
+
+            for pat in [
+                r'\s+(?:với\s*)?(?:thành|thanh|là|la|giá|gia|giá\s*bán|gia\s*ban)\s+.*$',
+                r'\s*[:=]\s*.*$',
+                r'\s+\d+(?:[.,]\d+)?\s*(?:tr|trieu|triệu|k|nghin|nghìn|vnd|đ|dong|đồng).*$',
+                r'\s+\d{3,7}\s*$',
+            ]:
+                prod_txt = re.sub(pat, '', prod_txt, flags=re.IGNORECASE).strip()
+
+            if prod_txt and gemini_engine:
+                confirm_txt = gemini_engine.them_san_pham_moi(ten_san_pham=prod_txt, gia_ban=p_val, confirmed=False)
+                return {
+                    "type": "clarify",
+                    "message": confirm_txt,
+                    "buttons": [
+                        {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+                        {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+                    ]
+                }
+
+        # 0.05. CẬP NHẬT / SỬA GIÁ SẢN PHẨM TRỰC TIẾP TRONG KHO (TIEM_LAP_DO.DB)
     # LỆNH: "sửa giá f10 new 2.0 thành 4500", "sửa lại giá a510 giá 3tr5", "đổi giá..."
     # ═════════════════════════════════════════════════════════════════════
     is_price_edit_intent = (

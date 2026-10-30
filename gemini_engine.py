@@ -1100,6 +1100,11 @@ def find_product_in_inventory(kw: str, context_text: str = ""):
 
 
 
+        # Tránh nhầm lẫn mã model khác nhau (vd: m20 vs m10, v20 vs v30, f10 vs f20)
+        t_models = {tok for tok in t_tokens if re.match(r'^[a-z]+\d+$|^\d+[a-z]+$', tok)}
+        r_models = {tok for tok in r_tokens if re.match(r'^[a-z]+\d+$|^\d+[a-z]+$', tok)}
+        if t_models and r_models and not (t_models & r_models):
+            return 0
         return len(t_tokens.intersection(r_tokens))
 
 
@@ -2990,6 +2995,161 @@ def cap_nhat_kho_hang(
 
 
 
+
+
+
+def them_san_pham_moi(
+    ten_san_pham: str,
+    gia_ban: float,
+    gia_von: float = 0,
+    ton_kho: int = 1,
+    thoi_han_bao_hanh_thang: int = 24,
+    danh_muc: str = "Đèn",
+    ma_sp: str = "",
+    confirmed: bool = False
+) -> str:
+    """Thêm một sản phẩm mới (đèn, phụ kiện, bi led, đồ chơi xe...) vào phần mềm bán hàng & kho hàng.
+    
+    Args:
+        ten_san_pham: Tên sản phẩm mới (ví dụ: 'Bi led trợ sáng TITAN M20 Ultra V2', 'M20 Ultra V2').
+        gia_ban: Giá bán lẻ (VNĐ), ví dụ: 4200000 hoặc 4200 (nếu nhập 4200 sẽ tự động tính thành 4.200.000 đ).
+        gia_von: Giá vốn nhập vào (VNĐ).
+        ton_kho: Số lượng tồn kho ban đầu (mặc định 1).
+        thoi_han_bao_hanh_thang: Số tháng bảo hành (mặc định 24).
+        danh_muc: Phân loại danh mục sản phẩm (mặc định 'Đèn').
+        ma_sp: Mã sản phẩm (nếu để trống hệ thống sẽ tự sinh mã SP...).
+        confirmed: Cờ xác nhận người dùng đã đồng ý lưu vào kho.
+    """
+    if not os.path.exists(DB_BANHANG):
+        return "⚠️ Không tìm thấy cơ sở dữ liệu kho hàng."
+        
+    p_name = ten_san_pham.strip()
+    if not p_name:
+        return "⚠️ Vui lòng cung cấp tên sản phẩm mới cần thêm."
+
+    try:
+        p_price = float(gia_ban)
+    except:
+        p_price = 0.0
+
+    if 0 < p_price < 10000:
+        p_price = p_price * 1000
+        
+    try:
+        p_cost = float(gia_von)
+    except:
+        p_cost = 0.0
+
+    if 0 < p_cost < 10000:
+        p_cost = p_cost * 1000
+
+    conn = sqlite3.connect(DB_BANHANG)
+    c = conn.cursor()
+
+    # Kiểm tra xem tên sản phẩm đã tồn tại chưa
+    c.execute("SELECT id, code, name, price, stock FROM products WHERE LOWER(name) = LOWER(?)", (p_name,))
+    existing = c.fetchone()
+    if existing:
+        conn.close()
+        return f"⚠️ Sản phẩm **'{existing[2]}'** (Mã: `{existing[1]}`) đã tồn tại trong kho với giá **{existing[3]:,.0f} đ** (Tồn kho: {existing[4]}). Nếu muốn đổi giá, hãy nhắn *'sửa giá {p_name} thành {p_price:,.0f}'*."
+
+    # Sinh mã sản phẩm nếu chưa có
+    code = (ma_sp or "").strip().upper()
+    if not code:
+        c.execute("SELECT COUNT(*) FROM products")
+        cnt = (c.fetchone()[0] or 0) + 1
+        code = f"SP{cnt:06d}"
+
+    if not confirmed:
+        conn.close()
+        try:
+            from ai_assistant import WIZARD_SESSIONS
+            WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID] = {
+                'flow': 'confirm_action',
+                'action_type': 'admin_add_product',
+                'payload': {
+                    'kwargs': {
+                        'ten_san_pham': p_name,
+                        'gia_ban': p_price,
+                        'gia_von': p_cost,
+                        'ton_kho': ton_kho,
+                        'thoi_han_bao_hanh_thang': thoi_han_bao_hanh_thang,
+                        'danh_muc': danh_muc,
+                        'ma_sp': code,
+                        'confirmed': True
+                    }
+                }
+            }
+            WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[CURRENT_ACTIVE_SESSION_ID]
+        except Exception as e_wz:
+            print(f"[GeminiEngine] Lỗi tạo wizard add product: {e_wz}")
+
+        return (
+            f"❓ **XÁC NHẬN THÊM SẢN PHẨM MỚI VÀO KHO HÀNG:**\n"
+            f"─────────────────────────────────────────\n"
+            f"• 📦 **Tên sản phẩm:** **{p_name}**\n"
+            f"• 🏷️ **Mã sản phẩm:** `{code}`\n"
+            f"• 💰 **Giá bán niêm yết:** **{p_price:,.0f} đ**\n"
+            + (f"• 💵 **Giá vốn nhập:** **{p_cost:,.0f} đ**\n" if p_cost > 0 else "")
+            + f"• 📊 **Tồn kho ban đầu:** **{ton_kho}**\n"
+            f"• 🛡️ **Bảo hành:** **{thoi_han_bao_hanh_thang} tháng**\n"
+            f"• 📂 **Danh mục:** **{danh_muc}**\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Bấm **[✅ OK / Lưu]** để thêm vào kho hàng, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
+        )
+
+    # Đã xác nhận: Thực thi INSERT vào products
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("""
+            INSERT INTO products (item_type, category, code, name, price, cost_price, stock, warranty_months, warranty_raw, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ('Hàng hóa', danh_muc, code, p_name, p_price, p_cost, ton_kho, thoi_han_bao_hanh_thang, f"{thoi_han_bao_hanh_thang} tháng", now_str))
+        conn.commit()
+        conn.close()
+
+        # Tự động ghi nhớ vào bảng tri thức Gara & cập nhật DEFAULT_LAMP_PRICES
+        try:
+            from ai_assistant import remove_accents
+            conn_k = sqlite3.connect(os.path.join(BASE_DIR, 'gara_knowledge.db'), timeout=5)
+            c_k = conn_k.cursor()
+            c_k.execute("""
+                INSERT OR REPLACE INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, formatted_reply, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                p_name,
+                remove_accents(p_name).lower(),
+                f"{remove_accents(p_name).lower()} {code.lower()}",
+                f"Sản phẩm {p_name} giá bán {p_price:,.0f} đ",
+                json.dumps({'price': p_price, 'warranty_months': thoi_han_bao_hanh_thang}),
+                f"Giá sản phẩm {p_name} là {p_price:,.0f} đ ({int(p_price/1000)}k), bảo hành {thoi_han_bao_hanh_thang} tháng.",
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
+            conn_k.commit()
+            conn_k.close()
+        except Exception as e_k:
+            print(f"[GeminiEngine] Lỗi ghi nhớ tri thức: {e_k}")
+
+        try:
+            DEFAULT_LAMP_PRICES[remove_accents(p_name).lower()] = int(p_price / 1000)
+            DEFAULT_LAMP_PRICES[p_name.lower()] = int(p_price / 1000)
+        except Exception:
+            pass
+
+        return (
+            f"✅ **ĐÃ THÊM THÀNH CÔNG SẢN PHẨM MỚI VÀO PHẦN MỀM BÁN HÀNG & KHO!**\n"
+            f"─────────────────────────────────────────\n"
+            f"• 📦 **Sản phẩm:** **{p_name}** (Mã: `{code}`)\n"
+            f"• 💰 **Giá bán niêm yết:** **{p_price:,.0f} đ**\n"
+            f"• 📊 **Tồn kho:** {ton_kho}\n"
+            f"• 🛡️ **Bảo hành:** {thoi_han_bao_hanh_thang} tháng\n"
+            f"─────────────────────────────────────────\n"
+            f"👉 Trợ lý AI và hệ thống Bán Hàng đã ghi nhớ mã hàng này. Từ giờ AI sẽ tự nhận diện đúng sản phẩm và giá khi quét ảnh hoặc lên đơn!"
+        )
+    except Exception as e:
+        conn.close()
+        return f"❌ Lỗi khi thêm sản phẩm vào kho: {str(e)}"
 
 
 def cap_nhat_thong_tin_khach_hang(
@@ -5797,6 +5957,7 @@ GARA_TOOLS = [
 
 
     cap_nhat_kho_hang,
+    them_san_pham_moi,
 
 
 
@@ -5936,7 +6097,9 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 
 
 
-3. QUẢN LÝ KHO HÀNG: Khi người dùng muốn cập nhật tồn kho, tăng/giảm số lượng sản phẩm, hoặc đổi giá bán/giá vốn, hãy gọi hàm `cap_nhat_kho_hang`.
+3. QUẢN LÝ KHO HÀNG & THÊM SẢN PHẨM MỚI:
+   - Khi người dùng muốn THÊM SẢN PHẨM MỚI (ví dụ: "thêm sản phẩm m20 ultra v2 giá 4200", "tạo sản phẩm mới...", "thêm đèn m20 ultra v2"): BẠN PHẢI GỌI HÀM `them_san_pham_moi`! TUYỆT ĐỐI KHÔNG ĐƯỢC gọi `cap_nhat_kho_hang` để gán vào sản phẩm khác!
+   - Khi người dùng muốn cập nhật tồn kho hoặc đổi giá của sản phẩm CÓ SẴN TRONG KHO: hãy gọi hàm `cap_nhat_kho_hang`.
 
 
 
@@ -6581,6 +6744,7 @@ TOOL_DISPATCH = {
 
 
     "cap_nhat_kho_hang": cap_nhat_kho_hang,
+    "them_san_pham_moi": them_san_pham_moi,
 
 
 
@@ -6756,7 +6920,23 @@ REST_TOOLS_DECLARATIONS = [
 
 
 
-    {
+        {
+        "name": "them_san_pham_moi",
+        "description": "Thêm một sản phẩm mới (đèn, bi led, phụ kiện, màn hình, đồ chơi...) vào phần mềm bán hàng & kho hàng của gara",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "ten_san_pham": {"type": "STRING", "description": "Tên sản phẩm mới (ví dụ: 'Bi led trợ sáng TITAN M20 Ultra V2', 'M20 Ultra V2')"},
+                "gia_ban": {"type": "NUMBER", "description": "Giá bán lẻ niêm yết (VNĐ hoặc k, ví dụ: 4200000 hoặc 4200)"},
+                "gia_von": {"type": "NUMBER", "description": "Giá vốn nhập vào (VNĐ, tùy chọn)"},
+                "ton_kho": {"type": "INTEGER", "description": "Số lượng tồn kho ban đầu (mặc định 1)"},
+                "thoi_han_bao_hanh_thang": {"type": "INTEGER", "description": "Thời hạn bảo hành tính theo tháng (mặc định 24)"},
+                "danh_muc": {"type": "STRING", "description": "Danh mục sản phẩm (mặc định 'Đèn')"}
+            },
+            "required": ["ten_san_pham", "gia_ban"]
+        }
+    },
+{
 
 
 
