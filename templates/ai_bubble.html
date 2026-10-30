@@ -600,6 +600,26 @@
         }
     });
 
+        async function fetchWithAutoRetry(url, options, maxRetries = 2) {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const res = await fetch(url, options);
+                return res;
+            } catch (err) {
+                if (attempt === maxRetries) throw err;
+                await new Promise(r => setTimeout(r, 150));
+            }
+        }
+    }
+
+    function retryBubblePrompt(text) {
+        const inp = document.getElementById('aiInput');
+        if (inp) {
+            inp.value = text;
+            sendAIMessage();
+        }
+    }
+
     async function sendAIMessage() {
         const input = document.getElementById('aiInput');
         const sendBtn = document.getElementById('aiSendBtn');
@@ -650,7 +670,7 @@
         msgContainer.scrollTop = msgContainer.scrollHeight;
 
         try {
-            const res = await fetch('/api/ai/chat', {
+            const res = await fetchWithAutoRetry('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -705,10 +725,25 @@
             const typingEl = document.getElementById('aiTypingIndicator');
             if (typingEl) typingEl.remove();
 
+            const isNetErr = (err + '').toLowerCase().includes('load failed') || (err + '').toLowerCase().includes('failed to fetch');
             const errDiv = document.createElement('div');
             errDiv.className = 'ai-msg ai-msg-bot';
             errDiv.style.borderColor = '#ef4444';
-            errDiv.innerHTML = '❌ Lỗi kết nối trợ lý AI: ' + err;
+
+            if (isNetErr) {
+                errDiv.innerHTML = `
+                    <div style="color:#ef4444; font-weight:700; margin-bottom:4px;">❌ Mất kết nối tới máy chủ Gara!</div>
+                    <div style="font-size:0.78rem; color:#cbd5e1; line-height:1.4;">
+                        • Vui lòng kiểm tra điện thoại đã kết nối <strong>Wi-Fi Gara</strong> chưa (nếu máy đang bật 4G/5G sẽ không truy cập được appchung.local).<br>
+                        • Sau khi bật Wi-Fi, bấm nút thử lại:
+                    </div>
+                    <button type="button" class="btn btn-sm btn-warning mt-2" onclick="retryBubblePrompt('${query.replace(/'/g, "\\'")}')" style="border-radius:12px; font-weight:bold; font-size:0.8rem; padding:4px 12px; border:none; cursor:pointer; background:#eab308; color:#000;">
+                        🔄 Bấm để gửi lại lệnh
+                    </button>
+                `;
+            } else {
+                errDiv.innerHTML = '❌ Lỗi kết nối trợ lý AI: ' + err;
+            }
             msgContainer.appendChild(errDiv);
         } finally {
             input.disabled = false;

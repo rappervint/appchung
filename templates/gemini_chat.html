@@ -1494,6 +1494,18 @@
             }
         }
 
+                async function fetchWithAutoRetry(url, options, maxRetries = 2) {
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    const res = await fetch(url, options);
+                    return res;
+                } catch (err) {
+                    if (attempt === maxRetries) throw err;
+                    await new Promise(r => setTimeout(r, 150));
+                }
+            }
+        }
+
         async function sendMessage() {
             const input = document.getElementById('userInput');
             const btnSend = document.getElementById('btnSend');
@@ -1558,7 +1570,7 @@
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
             try {
-                const res = await fetch('/api/ai/chat', {
+                const res = await fetchWithAutoRetry('/api/ai/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1587,7 +1599,11 @@
                 const thinkingEl = document.getElementById('thinkingIndicator');
                 if (thinkingEl) thinkingEl.remove();
 
-                const errMsg = '⚠️ Gặp lỗi kết nối tới máy chủ AI: ' + err.message + '\nAnh vui lòng thử lại nhé!';
+                const isNetErr = (err + '').toLowerCase().includes('load failed') || (err + '').toLowerCase().includes('failed to fetch');
+                let errMsg = '⚠️ Gặp lỗi kết nối tới máy chủ AI: ' + err.message + '\nAnh vui lòng thử lại nhé!';
+                if (isNetErr) {
+                    errMsg = '❌ **MẤT KẾT NỐI TỚI MÁY CHỦ GARA!**\n\n• Vui lòng kiểm tra thiết bị đã kết nối đúng vào **Wi-Fi của Gara** chưa nhé (nếu máy đang bật mạng di động 4G/5G sẽ không vào được appchung.local).\n• Sau khi bật lại Wi-Fi, anh hãy thử gửi lại tin nhắn nhé!';
+                }
                 appendMessageUI('bot', errMsg);
             } finally {
                 input.focus();
