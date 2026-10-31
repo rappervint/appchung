@@ -1276,17 +1276,24 @@ def modify_draft_baocao_den(payload, user_text):
                 changes.append(f"Mức giá: **{p_k * 1000:,.0f} đ ({p_k:,}k)**")
 
     # 2. Sửa dòng xe
-    for cm in CAR_MODELS_LIST:
-        if re.search(r'\b' + re.escape(cm.lower()) + r'\b', clean):
-            payload['found_car'] = cm.upper()
-            changes.append(f"Dòng xe: **{cm.upper()}**")
-            break
+    has_car_edit_intent = any(k in clean for k in ['xe', 'dong xe', 'dòng xe', 'sua xe', 'sửa xe', 'doi xe', 'đổi xe', 'cho xe', 'sang xe'])
+    if has_car_edit_intent:
+        for cm in CAR_MODELS_LIST:
+            if re.search(r'\b' + re.escape(cm.lower()) + r'\b', clean):
+                payload['found_car'] = cm.upper()
+                changes.append(f"Dòng xe: **{cm.upper()}**")
+                break
 
-    # 3. Sửa biển số xe
-    m_p = extract_license_plate(user_text)
-    if m_p:
-        payload['plate'] = m_p
-        changes.append(f"Biển số xe: **{m_p}**")
+    # 3. Sửa biển số xe (Yêu cầu có từ khóa sửa/đổi biển để tránh nhầm lệnh tra cứu số xe)
+    has_plate_edit_intent = (
+        any(k in clean for k in ['bien so', 'biển số', 'bien xe', 'biển xe', 'so xe', 'số xe', 'bks', 'doi bien', 'đổi biển', 'sua bien', 'sửa biển', 'bien la', 'biển là', 'thanh bien', 'thành biển'])
+        or clean.startswith('bien ') or clean.startswith('biển ')
+    )
+    if has_plate_edit_intent:
+        m_p = extract_license_plate(user_text)
+        if m_p:
+            payload['plate'] = m_p
+            changes.append(f"Biển số xe: **{m_p}**")
 
     # 4. Sửa ngày lắp đặt
     has_date_intent = any(k in clean for k in ['ngay', 'ngày', 'hom qua', 'hôm qua', 'hom nay', 'hôm nay']) or bool(re.search(r'\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b', user_text))
@@ -1304,10 +1311,12 @@ def modify_draft_baocao_den(payload, user_text):
             payload['cust_name'] = c_val
             changes.append(f"Khách hàng: **{c_val}**")
 
-    m_phone = re.search(r'\b(0\d{9,10})\b', user_text)
-    if m_phone:
-        payload['phone'] = m_phone.group(1)
-        changes.append(f"Số điện thoại: **{m_phone.group(1)}**")
+    has_phone_edit_intent = any(k in clean for k in ['sdt', 'sđt', 'so dien thoai', 'số điện thoại', 'dien thoai', 'điện thoại', 'sua sdt', 'sửa sđt', 'doi sdt', 'đổi sđt']) or clean.startswith('sdt ') or clean.startswith('sđt ')
+    if has_phone_edit_intent:
+        m_phone = re.search(r'\b(0\d{9,10})\b', user_text)
+        if m_phone:
+            payload['phone'] = m_phone.group(1)
+            changes.append(f"Số điện thoại: **{m_phone.group(1)}**")
 
     # 6. Sửa đèn / Sản phẩm
     if any(k in clean for k in ['den', 'đèn', 'san pham', 'sản phẩm', 'lap', 'lắp', 'thay', 'doi', 'đổi']):
@@ -6065,6 +6074,31 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
 
     raw = (user_text or "").strip()
     clean = remove_accents(raw).lower()
+
+    # 0.5. FAST-PATH: TRA CỨU BẢO HÀNH & LỊCH SỬ XE KHI NHẬP BIỂN SỐ / SĐT / LỆNH TRA CỨU
+    # Nhận diện: biển số gõ liền (70a65741, 63a22471...), 4-5 số đuôi xe (39465, 01492...), SĐT, câu hỏi/tra cứu xe
+    plate_candidate = extract_license_plate(raw)
+    phone_candidate = extract_phone(raw)
+    is_pure_plate = False
+    clean_raw_alphanumeric = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
+    if plate_candidate:
+        clean_p = clean_plate_raw(plate_candidate)
+        if clean_p and (clean_p == clean_raw_alphanumeric or f"XE{clean_p}" == clean_raw_alphanumeric):
+            is_pure_plate = True
+    is_pure_phone = bool(phone_candidate and re.sub(r'\D', '', raw) == phone_candidate)
+    is_explicit_lookup = any(k in clean for k in ['bao hanh', 'tra cuu', 'lich su xe', 'kiem tra xe', 'check xe', 'xem xe', 'tim xe', 'hoi bien', 'kiem tra', 'hoi xe'])
+    is_not_order_intent = not bool(re.search(r'\b(?:nhap don|len don|ghi don|tao don|lap|gan|thay|do|nhap)\b', clean))
+    is_not_edit_intent = not bool(re.search(r'\b(?:sua|doi|chinh|cap nhat|thanh|la|gia|tien|giam|bot|tang)\b', clean))
+
+    if (is_pure_plate or is_pure_phone or is_explicit_lookup) and is_not_order_intent and is_not_edit_intent:
+        res_fast_search = handle_search_warranty_and_orders(raw, clean)
+        if res_fast_search:
+            # Nếu người dùng đang tra cứu thông tin xe khác, tự động hủy phiên wizard dở dang cũ để tránh kẹt
+            if session_id in WIZARD_SESSIONS:
+                del WIZARD_SESSIONS[session_id]
+            if 'default_user' in WIZARD_SESSIONS:
+                del WIZARD_SESSIONS['default_user']
+            return res_fast_search
 
     # 1. XỬ LÝ PHIÊN XÁC NHẬN HOẶC WIZARD ĐANG HOẠT ĐỘNG
     if session_id not in WIZARD_SESSIONS and 'default_user' in WIZARD_SESSIONS:
