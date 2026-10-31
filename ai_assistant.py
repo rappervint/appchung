@@ -38,7 +38,14 @@ import re
 import json
 import sqlite3
 from datetime import datetime, timedelta, date
-from dateutil.relativedelta import relativedelta
+try:
+    from dateutil.relativedelta import relativedelta
+except ImportError:
+    class relativedelta:
+        def __init__(self, months=0):
+            self.days = months * 30.4375
+        def __radd__(self, other):
+            return other + timedelta(days=int(self.days))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -2093,7 +2100,17 @@ def handle_baocao_den(raw_text, clean_text, session_id='default_user'):
     - Hỗ trợ các khách hàng đặc biệt: 'mua về', 'xe đi xét', 'thầy đức', 'chú ba'
     - Hỗ trợ combo nhiều món & tự động phân bổ chiết khấu / giảm giá
     """
-    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam|m10|m20|f150|cb150|f1)\b', clean_text))
+    # Phân biệt chặt chẽ giữa giới từ "đến" (từ X đến Y) và sản phẩm "đèn"
+    clean_no_range = re.sub(r'\b(?:tu\s+)?\d+(?:[.,]\d+)?\s*(?:tr|trieu|triệu|k)?\s*den\s*\d+', '', clean_text)
+    clean_no_range = re.sub(r'\btu\s+.*?\s+den\b', '', clean_no_range)
+
+    # Nếu câu hỏi về màn hình hoặc android box mà không có mã đèn thực thụ -> Không phải đơn đèn!
+    has_screen_or_box = any(k in clean_text for k in ['man hinh', 'man android', 'dvd', 'android box'])
+    has_real_lamp = any(k in clean_text for k in ['f10', 'v20', 's3', 's6', 's8', 's9', 'turbo', 'hyper', 'titan', 'naoevo', '301', 'bi gam', 'bi led', 'bi pha', 'bong led'])
+    if has_screen_or_box and not has_real_lamp:
+        return None
+
+    is_den = bool(re.search(r'\b(den|bi|bi gam|bi led|bi pha|f10|naoevo|s3|s6|s8|s9|turbo|hyper|v20|m30|m40|titan|bong|pha|gam|m10|m20|f150|cb150|f1)\b', clean_no_range))
     if not is_den:
         return None
 
@@ -3370,6 +3387,106 @@ def handle_search_warranty_and_orders(raw_text, clean_text):
 # 6. TRA CỨU TỒN KHO & GIÁ BÁN
 # ─────────────────────────────────────────────────────────────────────────────
 
+def parse_price_range_query(text: str):
+    """
+    Bóc tách các dạng truy vấn khoảng giá, tầm giá, giá rẻ trong câu hỏi tự nhiên tiếng Việt:
+    - Khoảng giá: 'từ 5 đến 7 triệu', '5-7tr', 'từ 5tr - 7tr', '5 đến 7 triệu'
+    - Dưới X: 'dưới 6 triệu', 'dưới 6tr', '< 6tr'
+    - Trên X: 'trên 10 triệu', '> 10tr'
+    - Tầm X: 'tầm 5 triệu', 'khoảng 5tr', 'cỡ 5 triệu'
+    - Giá rẻ / bình dân: 'giá rẻ', 'bình dân', 'rẻ nhất', 'tiết kiệm'
+    - Cao cấp / VIP: 'cao cấp', 'xịn nhất', 'đắt nhất'
+    Trả về: (clean_kw, gia_min, gia_max, sap_xep, is_price_filtered)
+    """
+    t = str(text or "").strip()
+    gia_min = 0.0
+    gia_max = 0.0
+    sap_xep = 'mac_dinh'
+    is_price_filtered = False
+
+    # 1. Khoảng giá: từ X đến Y
+    m_range = re.search(r'(?:từ|tu)?\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|triệu|k)?\s*(?:đến|den|-)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?\b', t, re.IGNORECASE)
+    if m_range:
+        v1 = float(m_range.group(1).replace(',', '.'))
+        v2 = float(m_range.group(2).replace(',', '.'))
+        unit = (m_range.group(3) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if (unit in ['đ', 'd', 'vnd', 'dong', 'đồng'] and v2 > 1000) or (not unit and v2 > 100000) else 1000000.0)
+        gia_min = min(v1, v2) * mul
+        gia_max = max(v1, v2) * mul
+        sap_xep = 'gia_tang_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_range.start()] + ' ' + t[m_range.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    # 2. Dưới X
+    m_under = re.search(r'(?:dưới|duoi|<|nhỏ hơn|nho hon|thấp hơn|thap hon)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?\b', t, re.IGNORECASE)
+    if m_under:
+        v = float(m_under.group(1).replace(',', '.'))
+        unit = (m_under.group(2) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if v >= 100000 else 1000000.0)
+        gia_max = v * mul
+        sap_xep = 'gia_tang_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_under.start()] + ' ' + t[m_under.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    # 3. Trên X
+    m_above = re.search(r'(?:trên|tren|>|lớn hơn|lon hon|cao hơn|cao hon)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?\b', t, re.IGNORECASE)
+    if m_above:
+        v = float(m_above.group(1).replace(',', '.'))
+        unit = (m_above.group(2) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if v >= 100000 else 1000000.0)
+        gia_min = v * mul
+        sap_xep = 'gia_tang_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_above.start()] + ' ' + t[m_above.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    # 4. Tầm X, khoảng X
+    m_approx = re.search(r'(?:tầm|tam|khoảng|khoang|co|cỡ|quanh)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?\b', t, re.IGNORECASE)
+    if m_approx:
+        v = float(m_approx.group(1).replace(',', '.'))
+        unit = (m_approx.group(2) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if v >= 100000 else 1000000.0)
+        center = v * mul
+        margin = max(1000000.0, center * 0.2)
+        gia_min = max(0.0, center - margin)
+        gia_max = center + margin
+        sap_xep = 'gia_tang_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_approx.start()] + ' ' + t[m_approx.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    # 5. Giá rẻ, bình dân
+    m_cheap = re.search(r'\b(giá\s*rẻ|gia\s*re|rẻ\s*nhất|re\s*nhat|bình\s*dân|binh\s*dan|tiết\s*kiệm|tiet\s*kiem|rẻ|re)\b', t, re.IGNORECASE)
+    if m_cheap:
+        sap_xep = 'gia_tang_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_cheap.start()] + ' ' + t[m_cheap.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    # 6. Cao cấp, xịn nhất
+    m_lux = re.search(r'\b(cao\s*cấp|cao\s*cap|xịn\s*nhất|xin\s*nhat|đắt\s*nhất|dat\s*nhat|vip)\b', t, re.IGNORECASE)
+    if m_lux:
+        sap_xep = 'gia_giam_dan'
+        is_price_filtered = True
+        clean_kw = t[:m_lux.start()] + ' ' + t[m_lux.end():]
+        clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+        clean_kw = re.sub(r'^(?:xem|cho|tim|co|tư vấn|báo giá|hỏi)\s+', '', clean_kw, flags=re.IGNORECASE).strip()
+        return clean_kw, gia_min, gia_max, sap_xep, is_price_filtered
+
+    return t, 0.0, 0.0, 'mac_dinh', False
+
 def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
     """
     Tra cứu sản phẩm trong kho hàng cực kỳ thông minh (Fuzzy Search):
@@ -3398,6 +3515,111 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
     raw_q = raw_text.strip()
     if not raw_q or len(raw_q) < 2:
         return None
+
+    # Ưu tiên bóc tách khoảng giá & truy vấn phân khúc mặt hàng chuẩn gara
+    kw_parsed, p_min, p_max, sort_order, is_price_filtered = parse_price_range_query(raw_q)
+    clean_kw_parsed = remove_accents(kw_parsed).lower()
+
+    is_screen_query = any(k in clean_kw_parsed for k in ['man hinh', 'man android', 'dvd', 'man']) and not any(k in clean_kw_parsed for k in ['box', 'android box'])
+    is_box_query = any(k in clean_kw_parsed for k in ['android box', 'box android', 'carplay box', 'box'])
+
+    if is_price_filtered or is_screen_query or is_box_query:
+        try:
+            conn_f = sqlite3.connect(DB_BANHANG, timeout=10)
+            conn_f.row_factory = sqlite3.Row
+            c_f = conn_f.cursor()
+
+            if is_screen_query:
+                c_f.execute("SELECT id, code, name, category, price, cost_price, stock, warranty_months, warranty_raw FROM products WHERE (UPPER(name) LIKE '%MÀN HÌNH%' OR UPPER(name) LIKE '%MÀN ANDROID%' OR UPPER(category) LIKE '%MÀN HÌNH%')")
+                raw_rows = [dict(r) for r in c_f.fetchall()]
+                screen_negative_words = [
+                    'android box', 'carplay box', 'box', 'chuot', 'chuột', 'duong', 'dưỡng',
+                    'chuyen nguon', 'chuyển nguồn', 'camera', 'odo', 'kep', 'kẹp', 'goi', 'gối',
+                    'tran', 'trần', 'bom', 'bơm', 'guong', 'gương', 'day nguon', 'dây nguồn', 'canbus'
+                ]
+                filtered = []
+                for p in raw_rows:
+                    p_name_clean = remove_accents(p['name'] or '').lower()
+                    if any(neg in p_name_clean for neg in screen_negative_words):
+                        continue
+                    pr = float(p['price'] or 0)
+                    cp = float(p['cost_price'] or 0)
+                    if pr < 3000000:
+                        continue
+                    if pr < 4000000 and cp > pr:
+                        continue
+                    filtered.append(p)
+                prods_data = filtered
+                if p_max == 0 and (sort_order == 'gia_tang_dan' or 're' in clean_kw_parsed):
+                    p_max = 7000000.0  # Màn hình giá rẻ: <= 7 triệu
+            elif is_box_query:
+                c_f.execute("SELECT id, code, name, category, price, cost_price, stock, warranty_months, warranty_raw FROM products WHERE (UPPER(name) LIKE '%BOX%' OR UPPER(category) LIKE '%MÀN HÌNH%')")
+                raw_rows = [dict(r) for r in c_f.fetchall()]
+                filtered = []
+                for p in raw_rows:
+                    p_name_clean = remove_accents(p['name'] or '').lower()
+                    if any(k in p_name_clean for k in ['android box', 'carplay box', 'bs10', 'gb9', 'gb7', 'gb4', 'dx165', 'd12']):
+                        if 'chuot' not in p_name_clean and 'duong' not in p_name_clean:
+                            filtered.append(p)
+                prods_data = filtered
+            else:
+                words = [w for w in clean_kw_parsed.split() if len(w) > 1]
+                c_f.execute("SELECT id, code, name, category, price, cost_price, stock, warranty_months, warranty_raw FROM products")
+                raw_rows = [dict(r) for r in c_f.fetchall()]
+                filtered = []
+                for p in raw_rows:
+                    p_text = remove_accents(f"{p['code']} {p['name']} {p['category']}").lower()
+                    if all(w in p_text for w in words):
+                        filtered.append(p)
+                prods_data = filtered
+            conn_f.close()
+
+            # Lọc theo min/max
+            final_res = []
+            for p in prods_data:
+                pr = float(p['price'] or 0)
+                if p_min > 0 and pr < p_min:
+                    continue
+                if p_max > 0 and pr > p_max:
+                    continue
+                final_res.append(p)
+
+            # Sắp xếp
+            if sort_order == 'gia_tang_dan' or (p_min > 0 or p_max > 0):
+                final_res.sort(key=lambda x: (x['price'], -x['stock']))
+            elif sort_order == 'gia_giam_dan':
+                final_res.sort(key=lambda x: (-x['price'], -x['stock']))
+            else:
+                final_res.sort(key=lambda x: (-x['stock'], x['price']))
+
+            if final_res:
+                top_matches = final_res[:10]
+                range_badge = ""
+                if p_min > 0 and p_max > 0:
+                    range_badge = f" ({p_min/1000000:,.1f}TR - {p_max/1000000:,.1f}TR)"
+                elif p_max > 0:
+                    range_badge = f" (DƯỚI {p_max/1000000:,.1f}TR)"
+                elif p_min > 0:
+                    range_badge = f" (TRÊN {p_min/1000000:,.1f}TR)"
+                elif sort_order == 'gia_tang_dan':
+                    range_badge = " (PHÂN KHÚC GIÁ RẺ)"
+
+                reply = f"🏷️ **BÁO GIÁ MẶT HÀNG TRONG KHO: '{kw_parsed.upper()}'{range_badge}**\n\n"
+                for p in top_matches:
+                    war_m = p['warranty_months'] or 0
+                    war_badge = f"{war_m} tháng" if war_m > 0 else (p['warranty_raw'] or 'Theo nhà SX')
+                    stock_val = p.get('stock') or 0
+                    stock_badge = f"🟢 Còn hàng: **{int(stock_val)}**" if stock_val > 0 else "🔴 *Tạm hết (Đặt về trong ngày)*"
+                    reply += f"• **{p['name']}** `({p['code'] or 'SP'})`\n"
+                    reply += f"  - 💰 Giá bán: **{p['price']:,.0f} đ** | 🛡️ BH: **{war_badge}** | {stock_badge}\n\n"
+                reply += "👉 [Xem danh sách kho hàng](/banhang/)"
+                return {
+                    "type": "success",
+                    "module": "banhang",
+                    "message": reply
+                }
+        except Exception as e_rf:
+            print(f"[StockPriceRange] Lỗi tra cứu khoảng giá: {e_rf}")
 
     # Tách từ khóa
     clean_q = remove_accents(raw_q).lower()
@@ -5913,6 +6135,19 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
             }
 
     # ═════════════════════════════════════════════════════════════════════
+    # 2.0.8. TRA CỨU MẶT HÀNG / KHO HÀNG THEO KHOẢNG GIÁ / GIÁ RẺ
+    # (VD: "màn hình giá rẻ", "màn hình từ 5 đến 7 triệu", "dưới 6 triệu", "bi gầm từ 3 đến 5 triệu")
+    # ═════════════════════════════════════════════════════════════════════
+    is_order_intent = bool(re.search(r'\b(?:nhap don|len don|tao don|ghi don|lap|gan|thay|do)\b', clean))
+    has_price_query = bool(re.search(r'\b(gia\s*re|re\s*nhat|binh\s*dan|tiet\s*kiem)\b', clean)) or \
+                      bool(re.search(r'\b(?:tu\s*\d+.*?den\s*\d+|\d+\s*den\s*\d+|duoi\s*\d+|tam\s*\d+|khoang\s*\d+)\b', clean)) or \
+                      bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho)\b', clean))
+    if not is_order_intent and has_price_query:
+        res_stock = handle_stock_and_price(raw, clean)
+        if res_stock:
+            return res_stock
+
+    # ═════════════════════════════════════════════════════════════════════
     # 2.1. TẠO / NHẬP ĐƠN BÁO CÁO DOANH THU ĐÈN (ƯU TIÊN TUYỆT ĐỐI KHI CÓ Ý ĐỊNH ĐƠN HÀNG)
     # LỆNH: "lắp f1 turbo s cho xe city 63a36001 vào ngày 13/8/2026", "nhập đơn f10 new 2.0 63A18730",
     #       "anh Tuấn vios lên cặp f10 new 4tr2", "f10 new 2.0 63A18730", "thay bi gầm cho anh dũng..."
@@ -5983,8 +6218,11 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
         if res:
             return res
 
-    # 5. Tra cứu giá bán & tồn kho (nếu là câu hỏi giá thuần túy)
+    # 5. Tra cứu giá bán & tồn kho (hỏi giá thuần túy hoặc hỏi mặt hàng theo khoảng giá / giá rẻ)
+    has_price_range_or_cheap = bool(re.search(r'\b(gia\s*re|re\s*nhat|binh\s*dan|tiet\s*kiem|re)\b', clean)) or \
+                               bool(re.search(r'\b(tu\s*\d+\s*(?:tr|trieu)?\s*(?:den|-)\s*\d+|duoi\s*\d+\s*(?:tr|trieu)?|tam\s*\d+\s*(?:tr|trieu)?|khoang\s*\d+\s*(?:tr|trieu)?)\b', clean))
     is_asking_price = bool(re.search(r'\b(bao nhieu|nhieu tien|hoi gia|xem gia|bao gia|con hang|ton kho|het hang)\b', clean)) or \
+                      has_price_range_or_cheap or \
                       (bool(re.search(r'\b(gia|gia ban)\b', clean)) and not bool(re.search(r'\b(lap|gan|do|thay|nhap|don)\b', clean)) and not bool(re.search(r'\bgia\s+\d+', clean)))
     if is_asking_price:
         res = handle_stock_and_price(raw, clean)

@@ -68,6 +68,20 @@ import sqlite3
 
 from datetime import datetime, timedelta
 
+def remove_accents(input_str):
+    if not input_str:
+        return ""
+    s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹ'
+    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYyYy'
+    s = ''
+    for c in input_str:
+        if c in s1:
+            s += s0[s1.index(c)]
+        else:
+            s += c
+    return s
+
+
 
 
 
@@ -3804,154 +3818,164 @@ def tra_cuu_khach_hang_va_bao_hanh(tu_khoa: str) -> str:
     return res_str.strip()
 
 
-def tra_cuu_san_pham_kho_hang(tu_khoa: str) -> str:
-
-
-
-    """Tra cứu tồn kho, giá bán lẻ, giá vốn, hạn bảo hành của sản phẩm, camera, phụ kiện, màn hình, đèn.
-
-
-
-
-
-
-
+def tra_cuu_san_pham_kho_hang(tu_khoa: str, gia_min: float = 0, gia_max: float = 0, sap_xep: str = "mac_dinh") -> str:
+    """Tra cứu tồn kho, giá bán niêm yết, thời gian bảo hành của sản phẩm, màn hình, đèn, camera, phụ kiện theo từ khóa, khoảng giá và cách sắp xếp.
     Args:
-
-
-
-        tu_khoa: Tên sản phẩm, mã sản phẩm hoặc dòng sản phẩm (ví dụ 'A310', 'Vietmap M1', 'F10', 'Ceramax').
-
-
-
+        tu_khoa: Tên sản phẩm, dòng sản phẩm hoặc loại mặt hàng (ví dụ 'màn hình', 'android box', 'F10', 'Vietmap M1').
+        gia_min: Mức giá tối thiểu (VNĐ), ví dụ 5000000 cho 5 triệu. Mặc định 0.
+        gia_max: Mức giá tối đa (VNĐ), ví dụ 7000000 cho 7 triệu hoặc khi hỏi giá rẻ. Mặc định 0.
+        sap_xep: 'gia_tang_dan' (hỏi giá rẻ, bình dân), 'gia_giam_dan' (cao cấp), 'ton_kho', 'mac_dinh'.
     """
-
-
-
     if not os.path.exists(DB_BANHANG):
-
-
-
         return "⚠️ Không tìm thấy cơ sở dữ liệu kho hàng."
 
+    raw_kw = tu_khoa.strip()
+    clean_kw = remove_accents(raw_kw).lower()
 
+    # 1. Tự động bóc tách khoảng giá tự nhiên nếu có trong tu_khoa
+    # Ví dụ: 'màn hình từ 5 đến 7 triệu', 'màn hình dưới 6tr', 'màn hình giá rẻ'
+    m_range = re.search(r'(?:từ|tu)?\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|triệu|k)?\s*(?:đến|den|-)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?', raw_kw, re.IGNORECASE)
+    if m_range:
+        v1 = float(m_range.group(1).replace(',', '.'))
+        v2 = float(m_range.group(2).replace(',', '.'))
+        unit = (m_range.group(3) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if (unit in ['đ', 'd', 'vnd', 'dong', 'đồng'] and v2 > 1000) or (not unit and v2 > 100000) else 1000000.0)
+        if gia_min == 0: gia_min = min(v1, v2) * mul
+        if gia_max == 0: gia_max = max(v1, v2) * mul
+        sap_xep = 'gia_tang_dan'
+        raw_kw = (raw_kw[:m_range.start()] + ' ' + raw_kw[m_range.end():]).strip()
+        clean_kw = remove_accents(raw_kw).lower()
 
+    m_under = re.search(r'(?:dưới|duoi|<|nhỏ hơn|nho hon|thấp hơn|thap hon)\s*(\d+(?:[.,]\d+)?)\s*(tr|trieu|triệu|k|đ|d|vnd|dong|đồng)?', raw_kw, re.IGNORECASE)
+    if m_under:
+        v = float(m_under.group(1).replace(',', '.'))
+        unit = (m_under.group(2) or '').lower()
+        mul = 1000.0 if unit == 'k' else (1.0 if v >= 100000 else 1000000.0)
+        if gia_max == 0: gia_max = v * mul
+        sap_xep = 'gia_tang_dan'
+        raw_kw = (raw_kw[:m_under.start()] + ' ' + raw_kw[m_under.end():]).strip()
+        clean_kw = remove_accents(raw_kw).lower()
 
+    m_cheap = re.search(r'(giá\s*rẻ|gia\s*re|rẻ\s*nhất|re\s*nhat|bình\s*dân|binh\s*dan|tiết\s*kiệm|tiet\s*kiem|rẻ|re)', raw_kw, re.IGNORECASE)
+    if m_cheap:
+        sap_xep = 'gia_tang_dan'
+        raw_kw = (raw_kw[:m_cheap.start()] + ' ' + raw_kw[m_cheap.end():]).strip()
+        clean_kw = remove_accents(raw_kw).lower()
 
-
+    # Dọn dẹp từ khóa thừa
+    clean_kw = re.sub(r'(tim|kiem|hoi|xem|bao|gia|co|cho|ban|san|pham|mat|hang)', ' ', clean_kw)
+    clean_kw = re.sub(r'\s+', ' ', clean_kw).strip()
+    if not clean_kw:
+        clean_kw = remove_accents(tu_khoa).lower()
 
     conn = sqlite3.connect(DB_BANHANG)
-
-
-
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
+    is_screen_query = any(k in clean_kw for k in ['man hinh', 'man android', 'dvd', 'man']) and not any(k in clean_kw for k in ['box', 'android box'])
+    is_box_query = any(k in clean_kw for k in ['android box', 'box android', 'carplay box', 'box'])
 
-
-    kw = tu_khoa.strip().upper()
-
-
-
-    c.execute("""
-
-
-
-        SELECT code, name, category, price, cost_price, stock, warranty_months
-
-
-
-        FROM products
-
-
-
-        WHERE UPPER(code) LIKE ? OR UPPER(name) LIKE ? OR UPPER(category) LIKE ?
-
-
-
-        ORDER BY stock DESC LIMIT 6
-
-
-
-    """, (f"%{kw}%", f"%{kw}%", f"%{kw}%"))
-
-
-
-    rows = c.fetchall()
-
-
+    if is_screen_query:
+        # Lọc danh mục màn hình Android taplo thực thụ, LOẠI BỎ Android Box và phụ kiện rác
+        c.execute("SELECT code, name, category, price, cost_price, stock, warranty_months FROM products WHERE (UPPER(name) LIKE '%MÀN HÌNH%' OR UPPER(name) LIKE '%MÀN ANDROID%' OR UPPER(category) LIKE '%MÀN HÌNH%')")
+        raw_rows = [dict(r) for r in c.fetchall()]
+        screen_negative_words = [
+            'android box', 'carplay box', 'box', 'chuot', 'chuột', 'duong', 'dưỡng',
+            'chuyen nguon', 'chuyển nguồn', 'camera', 'odo', 'kep', 'kẹp', 'goi', 'gối',
+            'tran', 'trần', 'bom', 'bơm', 'guong', 'gương', 'day nguon', 'dây nguồn', 'canbus'
+        ]
+        filtered = []
+        for p in raw_rows:
+            p_name_clean = remove_accents(p['name'] or '').lower()
+            if any(neg in p_name_clean for neg in screen_negative_words):
+                continue
+            pr = float(p['price'] or 0)
+            cp = float(p['cost_price'] or 0)
+            if pr < 3000000:
+                continue
+            if pr < 4000000 and cp > pr:
+                continue
+            filtered.append(p)
+        rows_data = filtered
+        if gia_max == 0 and (sap_xep == 'gia_tang_dan' or 're' in clean_kw):
+            gia_max = 7000000.0  # Màn hình phân khúc giá rẻ: <= 7 triệu
+    elif is_box_query:
+        c.execute("SELECT code, name, category, price, cost_price, stock, warranty_months FROM products WHERE (UPPER(name) LIKE '%BOX%' OR UPPER(category) LIKE '%MÀN HÌNH%')")
+        raw_rows = [dict(r) for r in c.fetchall()]
+        filtered = []
+        for p in raw_rows:
+            p_name_clean = remove_accents(p['name'] or '').lower()
+            if any(k in p_name_clean for k in ['android box', 'carplay box', 'bs10', 'gb9', 'gb7', 'gb4', 'dx165', 'd12']):
+                if 'chuot' not in p_name_clean and 'duong' not in p_name_clean:
+                    filtered.append(p)
+        rows_data = filtered
+    else:
+        words = [w for w in clean_kw.split() if len(w) > 1]
+        c.execute("SELECT code, name, category, price, cost_price, stock, warranty_months FROM products")
+        raw_rows = [dict(r) for r in c.fetchall()]
+        filtered = []
+        for p in raw_rows:
+            p_text = remove_accents(f"{p['code']} {p['name']} {p['category']}").lower()
+            if all(w in p_text for w in words):
+                filtered.append(p)
+        rows_data = filtered
 
     conn.close()
 
+    # Lọc khoảng giá
+    res_list = []
+    for p in rows_data:
+        pr = float(p['price'] or 0)
+        if gia_min > 0 and pr < gia_min:
+            continue
+        if gia_max > 0 and pr > gia_max:
+            continue
+        res_list.append(p)
 
+    # Sắp xếp
+    if sap_xep == 'gia_tang_dan' or (gia_min > 0 or gia_max > 0):
+        res_list.sort(key=lambda x: (x['price'], -x['stock']))
+    elif sap_xep == 'gia_giam_dan':
+        res_list.sort(key=lambda x: (-x['price'], -x['stock']))
+    elif sap_xep == 'ton_kho':
+        res_list.sort(key=lambda x: (-x['stock'], x['price']))
+    else:
+        res_list.sort(key=lambda x: (-x['stock'], x['price']))
 
+    # Giới hạn 12 sản phẩm
+    res_list = res_list[:12]
 
-
-
-
-    if not rows:
-
-
-
+    if not res_list:
         tp = find_product_in_inventory(tu_khoa, CURRENT_USER_MESSAGE)
-
-
-
         if tp:
+            res_list = [{'code': tp[1], 'name': tp[2], 'category': '', 'price': tp[3], 'cost_price': tp[4], 'stock': tp[5], 'warranty_months': tp[6]}]
 
+    if not res_list:
+        range_str = f" trong tầm giá {gia_min:,.0f} đ - {gia_max:,.0f} đ" if (gia_min > 0 or gia_max > 0) else ""
+        return f"📦 Không tìm thấy sản phẩm nào khớp với **'{tu_khoa}'**{range_str} trong kho hàng cửa hàng."
 
+    range_title = ""
+    if gia_min > 0 and gia_max > 0:
+        range_title = f" (TẦM GIÁ {gia_min/1000000:,.1f}TR - {gia_max/1000000:,.1f}TR)"
+    elif gia_max > 0:
+        range_title = f" (GIÁ DƯỚI {gia_max/1000000:,.1f}TR)"
+    elif gia_min > 0:
+        range_title = f" (GIÁ TRÊN {gia_min/1000000:,.1f}TR)"
+    elif sap_xep == 'gia_tang_dan':
+        range_title = " (PHÂN KHÚC GIÁ RẺ / BÌNH DÂN)"
 
-            rows = [(tp[1], tp[2], '', tp[3], tp[4], tp[5], tp[6])]
-
-
-
-
-
-
-
-    if not rows:
-
-
-
-        return f"📦 Không tìm thấy sản phẩm nào khớp với **'{tu_khoa}'** trong kho."
-
-
-
-
-
-
-
-    res = f"📦 **THÔNG TIN SẢN PHẨM & TỒN KHO CHO '{tu_khoa}':**\n"
-
-
-
+    res = f"📦 **DANH SÁCH MẶT HÀNG TRONG KHO CỬA HÀNG - '{tu_khoa.upper()}'{range_title}:**\n"
     res += "─────────────────────────────────────────\n"
-
-
-
-    for r in rows:
-
-
-
+    for r in res_list:
+        st_val = int(r['stock'] or 0)
+        st_label = f"🟢 Còn {st_val} bộ" if st_val > 0 else "🟡 Tạm hết (Sẵn sàng đặt về ngay trong ngày)"
+        war_m = int(r['warranty_months'] or 0)
+        war_label = f"{war_m} tháng" if war_m > 0 else "Theo quy định nhà SX"
         res += (
-
-
-
-            f"• **{r[1]}** (Mã: `{r[0]}`)\n"
-
-
-
-            f"  - Tồn kho: **{r[5]}** | Bảo hành: **{r[6]} tháng**\n"
-
-
-
-            f"  - Giá bán: **{r[3]:,.0f} đ** | Giá vốn: **{r[4]:,.0f} đ**\n"
-
-
-
+            f"• **{r['name']}** (Mã: `{r['code']}`)\n"
+            f"  - Giá bán niêm yết: **{r['price']:,.0f} đ** | Bảo hành: **{war_label}**\n"
+            f"  - Tình trạng: **{st_label}**\n"
         )
-
-
-
     return res.strip()
 
 
@@ -6100,6 +6124,14 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 
 
 1. TUYỆT ĐỐI CẤM TỰ TIỆN CHO GIÁ HOẶC BỊA ĐẶT GIÁ SẢN PHẨM:
+   - KHI KHÁCH HỎI SẢN PHẨM THEO KHOẢNG GIÁ, GIÁ RẺ, HOẶC BÌNH DÂN (ví dụ "màn hình giá rẻ", "màn hình từ 5 đến 7 triệu", "dưới 6 triệu", "bi gầm 3-5 triệu"):
+     + PHẢI gọi tool `tra_cuu_san_pham_kho_hang` với `tu_khoa`, `gia_min`, `gia_max`, `sap_xep='gia_tang_dan'`.
+     + BẮT BUỘC ĐƯA RA CÁC MẶT HÀNG NẰM ĐÚNG TRONG KHOẢNG GIÁ ĐÓ CÓ TRONG KHO CỬA HÀNG (như Màn hình android BRAVO B10 LITE, GOTECH G4, WINCA S150, KOVAR T1...).
+     + TUYỆT ĐỐI KHÔNG TỰ BỊA HOẶC ĐƯA RA CÁC MẶT HÀNG LẠ KHÔNG CÓ TRONG KHO!
+   - PHÂN BIỆT TUYỆT ĐỐI GIỮA "MÀN HÌNH" VÀ "ANDROID BOX":
+     + Android Box (như VIETMAP BS10, GOTECH GB9, GB7, GB4, DX165) LÀ THIẾT BỊ CẮM GIẮC GIỮ MÀN ZIN, VỐN DĨ KHÔNG PHẢI LÀ MÀN HÌNH!
+     + Khi khách hỏi "màn hình", "màn hình android", "màn hình giá rẻ": TUYỆT ĐỐI KHÔNG ĐƯỢC đưa Android Box vào danh sách! CHỈ ĐƯỢC tư vấn các dòng màn hình thay thế taplo thực sự (Bravo B10 Lite, Winca S150, Gotech G4, Kovar T1, Zestech, Elliview...).
+     + CHỈ tư vấn Android Box khi khách nói rõ muốn lắp Android Box hoặc xe có màn hình zin đẹp muốn giữ zin.
 
 
 
@@ -6885,45 +6917,31 @@ REST_TOOLS_DECLARATIONS = [
 
 
     {
-
-
-
         "name": "tra_cuu_san_pham_kho_hang",
-
-
-
-        "description": "Tra cứu giá bán và số lượng tồn kho của các sản phẩm phụ kiện trong kho",
-
-
-
+        "description": "Tra cứu sản phẩm, giá bán, bảo hành và tồn kho trong kho hàng gara theo từ khóa, khoảng giá và sắp xếp. Dùng khi khách hỏi giá, hỏi tồn kho, hỏi sản phẩm 'giá rẻ', 'bình dân' hoặc theo ngân sách (từ X đến Y triệu, dưới X triệu...). Chú ý: 'Màn hình' và 'Android Box' là 2 dòng sản phẩm KHÁC NHAU!",
         "parameters": {
-
-
-
             "type": "OBJECT",
-
-
-
             "properties": {
-
-
-
-                "tu_khoa": {"type": "STRING", "description": "Tên hoặc mã sản phẩm (ví dụ: 'F10', 'A510', 'taplo', 'bóng led')"}
-
-
-
+                "tu_khoa": {
+                    "type": "STRING",
+                    "description": "Tên sản phẩm hoặc loại hàng (ví dụ: 'màn hình', 'android box', 'f10', 'vietmap m1', 'bi gầm'). Chú ý: nếu khách hỏi 'màn hình', chỉ truyền 'màn hình', tuyệt đối KHÔNG truyền 'android box'!"
+                },
+                "gia_min": {
+                    "type": "NUMBER",
+                    "description": "Mức giá tối thiểu (VNĐ), ví dụ 5000000 cho 5 triệu. Mặc định 0."
+                },
+                "gia_max": {
+                    "type": "NUMBER",
+                    "description": "Mức giá tối đa (VNĐ), ví dụ 7000000 cho 7 triệu hoặc khi khách hỏi 'giá rẻ'/'bình dân'. Mặc định 0."
+                },
+                "sap_xep": {
+                    "type": "STRING",
+                    "enum": ["gia_tang_dan", "gia_giam_dan", "ton_kho", "mac_dinh"],
+                    "description": "'gia_tang_dan' khi hỏi giá rẻ, rẻ nhất, bình dân; 'gia_giam_dan' khi hỏi cao cấp, xịn nhất; 'ton_kho' khi hỏi hàng còn nhiều."
+                }
             },
-
-
-
             "required": ["tu_khoa"]
-
-
-
         }
-
-
-
     },
 
 
