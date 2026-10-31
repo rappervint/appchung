@@ -3520,6 +3520,11 @@ def handle_stock_and_price(raw_text, clean_text, require_explicit_intent=False):
     kw_parsed, p_min, p_max, sort_order, is_price_filtered = parse_price_range_query(raw_q)
     clean_kw_parsed = remove_accents(kw_parsed).lower()
 
+    # Phim cách nhiệt & PPF là dịch vụ tư vấn kỹ thuật chuyên sâu theo vị trí/gói -> Nhường cho module tư vấn
+    is_film_or_ppf = bool(re.search(r'\b(film|phim|cach\s*nhiet|ceramax|ntech|crystalline|cr50|nr35|nr25|nr15|nr5|ppf|ax\s*film|teckwrap)\b', clean_kw_parsed))
+    if is_film_or_ppf:
+        return None
+
     is_screen_query = any(k in clean_kw_parsed for k in ['man hinh', 'man android', 'dvd', 'man']) and not any(k in clean_kw_parsed for k in ['box', 'android box'])
     is_box_query = any(k in clean_kw_parsed for k in ['android box', 'box android', 'carplay box', 'box'])
 
@@ -4260,11 +4265,241 @@ def handle_summary_stats(raw_text, clean_text):
 # -*- coding: utf-8 -*-
 import re
 
+
+# ═════════════════════════════════════════════════════════════════════════
+# BẢNG DỮ LIỆU ĐỊNH GIÁ & BỘ XỬ LÝ PHỐI GÓI PHIM THEO KHOẢNG GIÁ
+# ═════════════════════════════════════════════════════════════════════════
+WINDSHIELDS_DATA = {
+    "ceramax": {
+        "key": "ceramax",
+        "name": "Kính lái CeraMAX 50 (Men gốm sinh học cao cấp)",
+        "price": 3300000,
+        "note": "Xuyên sáng 59.7% bao đăng kiểm, cản tia hồng ngoại IR 99.1% (cực mát), BH 15 năm"
+    },
+    "3m_crystalline": {
+        "key": "3m_crystalline",
+        "name": "Kính lái 3M Crystalline CR50BLK (Đỉnh cao quang học 200 lớp)",
+        "price": 5700000,
+        "note": "Xuyên sáng 50% bao đăng kiểm, cản IR 98%, chống chói lóa ban đêm, BH 10 năm điện tử 3M"
+    },
+    "3m_ceramic": {
+        "key": "3m_ceramic",
+        "name": "Kính lái 3M Ceramic Hybrid NR25 (Bản tiết kiệm)",
+        "price": 2600000,
+        "note": "Xuyên sáng đạt chuẩn kiểm định mới >50%, cản UV 99%, BH 10 năm điện tử 3M"
+    },
+    "ntech": {
+        "key": "ntech",
+        "name": "Kính lái Ntech Cao Cấp (Ceramic Hàn Quốc)",
+        "price": 2200000,
+        "note": "Men gốm Hàn Quốc, chống chói tốt, BH 10 năm"
+    }
+}
+
+BODY_PACKS_DATA = [
+    {
+        "id": "ntech_tc",
+        "name": "Sườn & Hậu Ntech Tiêu Chuẩn (Hàn Quốc - BH 10 năm)",
+        "combo_price_sedan": 2300000,
+        "combo_price_suv": 2800000,
+        "detail": "Kính sườn trước (700k) + Sườn sau (700k) + Hậu (900k) (+ Ô khoang SUV 500k). Tối màu riêng tư mát mẻ, tiết kiệm nhất."
+    },
+    {
+        "id": "ntech_cc",
+        "name": "Sườn & Hậu Ntech Cao Cấp (Ceramic Hàn Quốc - BH 10 năm)",
+        "combo_price_sedan": 3200000,
+        "combo_price_suv": 4100000,
+        "detail": "Kính sườn trước (1.0tr) + Sườn sau (1.0tr) + Hậu (1.2tr) (+ Ô khoang SUV 900k). Men gốm tăng cường cản nhiệt và giảm lóa."
+    },
+    {
+        "id": "3m_nr",
+        "name": "Sườn & Hậu 3M Ceramic Hybrid (NR15 / NR5 - BH 10 năm)",
+        "combo_price_sedan": 4600000,  # Giá ưu đãi khi đi kèm kính lái (niêm yết lẻ 5.3tr)
+        "combo_price_suv": 5700000,   # Giá ưu đãi (niêm yết lẻ 6.9tr)
+        "detail": "Sườn trước (1.7tr) + Sườn sau (1.7tr) + Hậu (1.9tr) (+ Ô khoang 1.6tr). Công nghệ lai phản xạ nhiệt, giảm chói 93%."
+    },
+    {
+        "id": "3m_ir",
+        "name": "Sườn & Hậu 3M Ceramic IR (IR15 - Men gốm hồng ngoại Mỹ - BH 10 năm)",
+        "combo_price_sedan": 5500000,
+        "combo_price_suv": 6800000,
+        "detail": "Sườn trước (1.8tr) + Sườn sau (1.8tr) + Hậu (2.3tr). Men gốm hồng ngoại chính hãng 3M USA cản nhiệt vượt trội."
+    },
+    {
+        "id": "ceramax_diamond",
+        "name": "Sườn & Hậu CeraMAX Diamond (Men gốm sinh học - BH 15 năm)",
+        "combo_price_sedan": 5900000,  # Giá ưu đãi combo (niêm yết lẻ 6.2tr)
+        "combo_price_suv": 7500000,   # Giá ưu đãi combo (niêm yết lẻ 8.0tr)
+        "detail": "Sườn trước (2.0tr) + Sườn sau (2.0tr) + Hậu (2.2tr) (+ Ô khoang 1.8tr). Cắt IR 99.1% đỉnh cao, cách nhiệt siêu mát."
+    },
+    {
+        "id": "3m_cr",
+        "name": "Sườn & Hậu 3M Crystalline (CR15BLK / CR20 - Quang học 200 lớp - BH 10 năm)",
+        "combo_price_sedan": 9100000,
+        "combo_price_suv": 11500000,
+        "detail": "Sườn trước (2.6tr) + Sườn sau (2.6tr) + Hậu (4.1tr) (+ Ô khoang 2.6tr). Đỉnh cao cách nhiệt toàn cầu 200 lớp."
+    }
+]
+
+def parse_film_price_range(clean_text):
+    def to_number(val_str):
+        val_str = val_str.replace(',', '.')
+        try:
+            val = float(val_str)
+            if val < 50:
+                return int(val * 1000000)
+            elif val < 50000:
+                return int(val * 1000)
+            else:
+                return int(val)
+        except Exception:
+            return 0
+
+    p_min = 0
+    p_max = 0
+
+    m1 = re.search(r'(?:tu\s+)?(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?\s*(?:den|cho den|to|-)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)', clean_text)
+    if m1:
+        p_min = to_number(m1.group(1))
+        p_max = to_number(m1.group(2))
+        if p_min > p_max:
+            p_min, p_max = p_max, p_min
+        return p_min, p_max
+
+    m2 = re.search(r'(?:duoi|nho hon|toi da|it hon|<|khong qua)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?', clean_text)
+    if m2:
+        p_max = to_number(m2.group(1))
+        return 0, p_max
+
+    m3 = re.search(r'(?:tren|lon hon|toi thieu|>|tu)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?', clean_text)
+    if m3:
+        p_min = to_number(m3.group(1))
+        return p_min, 0
+
+    m4 = re.search(r'(?:tam|khoang|co)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?', clean_text)
+    if m4:
+        val = to_number(m4.group(1))
+        if val > 0:
+            return max(0, val - 1500000), val + 1500000
+
+    return 0, 0
+
+def handle_film_combination_matcher(raw_text, clean_text):
+    has_windshield = any(k in clean_text for k in ['kinh lai', 'lai ceramax', 'lai 3m', 'lai ntech', 'cr50', 'ceramax 50']) or \
+                     (any(k in clean_text for k in ['lai', 'truoc']) and any(k in clean_text for k in ['ceramax', '3m', 'ntech', 'crystalline']))
+    has_combine_kw = any(k in clean_text for k in ['ket hop', 'phoi', 'ghep', 'di cung', 'suon hau', 'goi nao', 'film nao', 'phim nao', 'lua chon', 'phuong an', 'goi film'])
+    has_range_kw = any(k in clean_text for k in ['tu', 'den', 'duoi', 'khoang', 'tam', 'ngan sach', 'tai chinh', 'trieu', 'tr', '-'])
+
+    if not (has_windshield and (has_combine_kw or has_range_kw)):
+        return None
+
+    p_min, p_max = parse_film_price_range(clean_text)
+
+    target_windshields = []
+    if 'ceramax' in clean_text:
+        target_windshields.append(WINDSHIELDS_DATA["ceramax"])
+    if any(k in clean_text for k in ['crystalline', 'cr50', 'cr50blk', 'cao cap']) and '3m' in clean_text:
+        target_windshields.append(WINDSHIELDS_DATA["3m_crystalline"])
+    elif any(k in clean_text for k in ['ceramic hybrid', 'nr', 'gia re', 'tiet kiem']) and '3m' in clean_text:
+        target_windshields.append(WINDSHIELDS_DATA["3m_ceramic"])
+    elif '3m' in clean_text:
+        target_windshields.extend([WINDSHIELDS_DATA["3m_ceramic"], WINDSHIELDS_DATA["3m_crystalline"]])
+    if 'ntech' in clean_text and not target_windshields:
+        target_windshields.append(WINDSHIELDS_DATA["ntech"])
+
+    if not target_windshields:
+        if 'ceramax' in clean_text:
+            target_windshields = [WINDSHIELDS_DATA["ceramax"]]
+        elif '3m' in clean_text:
+            target_windshields = [WINDSHIELDS_DATA["3m_ceramic"], WINDSHIELDS_DATA["3m_crystalline"]]
+        elif 'ntech' in clean_text:
+            target_windshields = [WINDSHIELDS_DATA["ntech"]]
+        else:
+            target_windshields = [WINDSHIELDS_DATA["ceramax"]]
+
+    matched_options = []
+    for w_info in target_windshields:
+        w_price = w_info["price"]
+        for b in BODY_PACKS_DATA:
+            tot_sedan = w_price + b["combo_price_sedan"]
+            tot_suv = w_price + b["combo_price_suv"]
+
+            in_range = False
+            if p_min > 0 and p_max > 0:
+                if (p_min <= tot_sedan <= p_max) or (p_min <= tot_suv <= p_max):
+                    in_range = True
+            elif p_max > 0:
+                if tot_sedan <= p_max or tot_suv <= p_max:
+                    in_range = True
+            elif p_min > 0:
+                if tot_sedan >= p_min or tot_suv >= p_min:
+                    in_range = True
+            else:
+                in_range = True
+
+            if in_range:
+                matched_options.append({
+                    "windshield": w_info,
+                    "body": b,
+                    "sedan_price": tot_sedan,
+                    "suv_price": tot_suv
+                })
+
+    if not matched_options:
+        return {
+            "type": "info",
+            "module": "dichvu",
+            "message": (
+                f"☀️ **TƯ VẤN PHỐI GHÉP PHIM CÁCH NHIỆT THEO NGÂN SÁCH:**\n"
+                f"⚠️ Không có gói kết hợp nào vừa khít với khoảng ngân sách {p_min:,.0f} đ - {p_max:,.0f} đ.\n"
+                f"👉 Gợi ý phương án kinh tế nhất: **Kính lái CeraMAX 50 + Sườn Hậu Ntech Tiêu Chuẩn** chỉ **5.600.000 đ** (Sedan) | **6.100.000 đ** (SUV) cực kỳ mát và bảo hành 10 - 15 năm!"
+            )
+        }
+
+    range_title = ""
+    if p_min > 0 and p_max > 0:
+        range_title = f" (NGÂN SÁCH {p_min/1000000:,.1f}TR - {p_max/1000000:,.1f}TR)"
+    elif p_max > 0:
+        range_title = f" (NGÂN SÁCH DƯỚI {p_max/1000000:,.1f}TR)"
+    elif p_min > 0:
+        range_title = f" (NGÂN SÁCH TRÊN {p_min/1000000:,.1f}TR)"
+
+    msg = f"☀️ **CÁC GÓI PHIM KẾT HỢP PHÙ HỢP{range_title}:**\n\n"
+    for i, opt in enumerate(matched_options, 1):
+        w = opt["windshield"]
+        b = opt["body"]
+        w_short = w['name'].split('(')[0].strip()
+        b_short = b['name'].split('(')[0].strip()
+        msg += f"👉 **PHƯƠNG ÁN {i}: {w_short} + {b_short}**\n"
+        msg += f"  • 🚗 **Tổng trọn gói:** Sedan (4 - 5 chỗ) **{opt['sedan_price']:,.0f} đ**  |  SUV (7 chỗ) **{opt['suv_price']:,.0f} đ**\n"
+        msg += f"  • 🔍 **Cấu hình chi tiết:**\n"
+        msg += f"    - **Kính lái:** {w['name']} (**{w['price']:,.0f} đ**)\n"
+        msg += f"      *Thông số:* {w['note']}\n"
+        msg += f"    - **Sườn & Hậu:** {b['name']} (**{b['combo_price_sedan']:,.0f} đ**)\n"
+        msg += f"      *Chi tiết:* {b['detail']}\n"
+        war_str = "Kính lái BH 15 năm, sườn hậu BH 10 năm" if "ceramax" in w['key'] else ("BH 10 năm chính hãng toàn xe" if "3m" in w['key'] else "BH 10 năm chính hãng")
+        msg += f"  • 🛡️ **Bảo hành:** {war_str}.\n\n"
+
+    msg += "🎁 **Ưu đãi tại Gara Trần Bình Auto:**\n"
+    msg += "• Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k).\n"
+    msg += "• Kính lái bao đăng kiểm 100% toàn quốc (>50% độ xuyên sáng VLT)."
+
+    return {
+        "type": "success",
+        "module": "dichvu",
+        "message": msg
+    }
+
 def handle_gara_consultation(raw_text, clean_text):
     """
     TRỢ LÝ TƯ VẤN BÁN HÀNG TẬP TRUNG & NGẮN GỌN - GARA TRẦN BÌNH AUTO:
     Trả lời ĐÚNG TRỌNG TÂM - CỰC KỲ SÚC TÍCH - KHÔNG DÔNG DÀI
     """
+    # Ưu tiên nhận diện phối ghép gói phim theo kính lái & khoảng giá ngân sách
+    combo_film_res = handle_film_combination_matcher(raw_text, clean_text)
+    if combo_film_res:
+        return combo_film_res
+
 
     # ═════════════════════════════════════════════════════════════════════════
     # 0. MẪU TIN NHẮN BÁO GIÁ SOẠN SẴN GỬI KHÁCH (COPY - PASTE GỬI ZALO/FB)
@@ -5309,18 +5544,48 @@ def handle_gara_consultation(raw_text, clean_text):
                 )
             }
 
-        # Nếu hỏi riêng dòng Ceramax
+        # Nếu hỏi riêng dòng Ceramax (Báo giá chi tiết từng vị trí dán)
         if any(k in clean_text for k in ['ceramax']) and not any(k in clean_text for k in ['3m', 'ket hop', 'so sanh']):
             return {
                 "type": "success",
                 "module": "dichvu",
                 "message": (
-                    "💎 **BÁO GIÁ PHIM MEN GỐM CERAMAX (BH 15 NĂM CHÍNH HÃNG):**\n"
-                    "• **Kính Lái CeraMAX 50 (dán lẻ):** **3.300.000 đ** *(Cắt IR 99.1%, xuyên sáng 59.7%)*\n"
-                    "• **Ceramax + Ntech Tiêu Chuẩn (Bán chạy):** Sedan **5.600.000 đ** | SUV **6.100.000 đ**\n"
-                    "• **Ceramax + Ntech Cao Cấp:** Sedan **6.500.000 đ** | SUV **7.400.000 đ**\n"
-                    "• **Ceramax Diamond Full Xe (Men gốm 100%):** Sedan **9.500.000 đ** | SUV **11.300.000 đ**\n"
-                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (500k)."
+                    "💎 **BÁO GIÁ CHI TIẾT TỪNG VỊ TRÍ PHIM CÁCH NHIỆT CERAMAX (BH 15 NĂM):**\n\n"
+                    "• **Kính lái (CeraMAX 50):** **3.300.000 đ** *(Xuyên sáng 59.7% bao đăng kiểm 100%, cắt hồng ngoại IR 99.1% cực mát, cản UV 99.9%)*\n"
+                    "• **Kính sườn trước (CeraMAX Diamond 20/10/05):** **2.000.000 đ** *(2 cánh trước)*\n"
+                    "• **Kính sườn sau (CeraMAX Diamond 20/10/05):** **2.000.000 đ** *(2 cánh sau)*\n"
+                    "• **Kính hậu / kính lưng:** **2.200.000 đ**\n"
+                    "• **Kính khoang (ô chết xe 7 chỗ):** **1.800.000 đ**\n"
+                    "• **Cửa sổ trời:** **1.500.000 đ - 2.500.000 đ**\n\n"
+                    "🛡️ **Đặc tính:** Men gốm sinh học cao cấp, không phai màu, không cản sóng GPS/ETC/VETC. Kích hoạt **Bảo hành điện tử chính hãng 15 NĂM**.\n"
+                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k).\n"
+                    "💡 *(Gợi ý thêm nếu dán trọn gói cả xe: Sedan 9.5tr | SUV 11.3tr. Hoặc kết hợp Kính lái CeraMAX 50 + Sườn Hậu Ntech chỉ từ 5.6tr - 6.5tr)*"
+                )
+            }
+
+        # Nếu hỏi riêng dòng Ntech (Báo giá chi tiết từng vị trí dán)
+        if any(k in clean_text for k in ['ntech']) and not any(k in clean_text for k in ['3m', 'ceramax', 'ket hop', 'so sanh']):
+            return {
+                "type": "success",
+                "module": "dichvu",
+                "message": (
+                    "☀️ **BÁO GIÁ CHI TIẾT TỪNG VỊ TRÍ PHIM CÁCH NHIỆT NTECH (HÀN QUỐC - BH 10 NĂM):**\n\n"
+                    "🔷 **1. BẢN TIÊU CHUẨN (NTECH TC - TIẾT KIỆM & BÁN CHẠY):**\n"
+                    "• **Kính sườn trước (2 cánh):** **700.000 đ**\n"
+                    "• **Kính sườn sau (2 cánh):** **700.000 đ**\n"
+                    "• **Kính hậu / kính lưng:** **900.000 đ**\n"
+                    "• **Kính khoang (ô chết xe 7 chỗ):** **500.000 đ**\n"
+                    "👉 *Tổng gói sườn hậu Ntech TC:* Sedan (4 cánh + hậu) **2.300.000 đ** | SUV (4 cánh + hậu + khoang) **2.800.000 đ**\n\n"
+                    "💎 **2. BẢN CAO CẤP (NTECH CC / CERAMIC - MEN GỐM CẢN NHIỆT):**\n"
+                    "• **Kính lái Ntech CC:** **2.200.000 đ** *(Xuyên sáng đạt chuẩn kiểm định, chống chói tốt)*\n"
+                    "• **Kính sườn trước (2 cánh):** **1.000.000 đ**\n"
+                    "• **Kính sườn sau (2 cánh):** **1.000.000 đ**\n"
+                    "• **Kính hậu / kính lưng:** **1.200.000 đ**\n"
+                    "• **Kính khoang (ô chết xe 7 chỗ):** **900.000 đ**\n"
+                    "👉 *Tổng gói sườn hậu Ntech CC:* Sedan **3.200.000 đ** | SUV **4.100.000 đ**\n\n"
+                    "🛡️ **Bảo hành:** Kích hoạt bảo hành điện tử chính hãng Ntech Hàn Quốc trong **10 NĂM**.\n"
+                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k).\n"
+                    "💡 *(Gợi ý phối gói bán chạy nhất: Kính lái CeraMAX 50 siêu mát + Sườn Hậu Ntech TC chỉ Sedan 5.6tr | SUV 6.1tr)*"
                 )
             }
 
@@ -5662,37 +5927,38 @@ def handle_ppf_consultation(raw_text, clean_text):
         res += "👉 Bạn muốn tư vấn kỹ hơn về thương hiệu nào (AX Film, 3M hay TeckWrap)?"
         return {"type": "success", "module": "ppf", "message": res}
 
-    # 6. KHÁCH HỎI TƯ VẤN CHUNG VỀ PPF
-    res = "🛡️ **CHUYÊN GIA TƯ VẤN PHIM BẢO VỆ SƠN Ô TÔ (PPF) - TRẦN BÌNH AUTO**\n\n"
-    res += "Gara hiện phân phối & thi công chính hãng **3 thương hiệu PPF hàng đầu thế giới**:\n\n"
+    # 6. KHÁCH HỎI TƯ VẤN CHUNG VỀ PPF (BÁO GIÁ CHI TIẾT TỪNG PHẦN & TRỌN GÓI)
+    res = "🛡️ **BẢNG BÁO GIÁ DÁN PHIM BẢO VỆ SƠN (PPF) - TRẦN BÌNH AUTO**\n\n"
+    res += "📋 **1. BẢNG GIÁ DÁN LẺ TỪNG BỘ PHẬN XE (DÒNG PPF TPU CHÍNH HÃNG):**\n"
+    res += "• **PPF nội thất xe** *(Màn hình, cụm cần số, táp-pi cửa, nút bấm, vô lăng)*: **1.200.000 đ - 2.500.000 đ**\n"
+    res += "• **Cặp đèn pha + đèn gầm** *(Chống đá dăm rạn nứt kính đèn, chống ố vàng)*: **1.200.000 đ - 1.800.000 đ**\n"
+    res += "• **Các điểm va quẹt cơ bản** *(4 hõm tay chén cửa, mép cánh cửa, bệ cốp sau, ốp gương)*: **1.500.000 đ - 2.500.000 đ**\n"
+    res += "• **Nắp Capo:** **3.500.000 đ - 6.000.000 đ**  |  **Cản trước:** **3.500.000 đ - 6.500.000 đ**\n"
+    res += "• **Gói bảo vệ toàn diện đầu xe** *(Nắp Capo + Cản trước + 2 Tai vè + Cặp đèn pha)*: **14.000.000 đ - 22.000.000 đ**\n"
+    res += "• **Cản sau / Bệ bước / Cột B:** **1.200.000 đ - 3.500.000 đ** tùy dòng xe.\n\n"
     
-    res += "🌟 **1. AX FILM (Công nghệ tiên tiến - Bền bỉ vượt trội):**\n"
-    res += "• **G Series (7.5 Mil - BH 2.5 năm):** từ **20.000.000 đ**\n"
-    res += "• **K Series (8.0 Mil - BH 5 năm):** từ **26.900.000 đ** *(Khuyên dùng phân khúc phổ thông)*\n"
-    res += "• **X Series (9.0 Mil - BH 8 năm):** từ **45.000.000 đ** *(Tặng kèm Bảo hiểm vật liệu 01 năm)*\n"
-    res += "• **M Series Phim Mờ (7.5 Mil - BH 5 năm):** từ **60.000.000 đ**\n"
-    res += "• **S Series Siêu Cấp (9.5 Mil - BH 10 năm):** từ **90.000.000 đ**\n\n"
+    res += "📋 **2. BẢNG GIÁ DÁN TRỌN GÓI FULL XE THEO 3 THƯƠNG HIỆU HÀNG ĐẦU:**\n\n"
+    res += "🌟 **AX FILM (Mỹ / Trung - BH 2.5 - 10 năm):**\n"
+    res += "• **G Series (7.5 Mil - BH 2.5 năm):** Sedan **20tr** | SUV **22tr** | MPV **25tr**\n"
+    res += "• **K Series (8.0 Mil - BH 5 năm):** Sedan **26.9tr** | SUV **29.6tr** | MPV **33tr** *(Bán chạy nhất)*\n"
+    res += "• **X Series (9.0 Mil Siêu Bền - BH 8 năm + Bảo hiểm vật liệu 1 năm):** Sedan **45tr** | SUV **49.5tr**\n"
+    res += "• **M Series Nhám Mờ (7.5 Mil - BH 5 năm):** Sedan **60tr** | SUV **66tr**\n"
+    res += "• **S Series Siêu Cấp (9.5 Mil - BH 10 năm):** Sedan **90tr** | SUV **99tr**\n\n"
 
-    res += "🌟 **2. TECKWRAP USA (Chuyên gia Wrap & PPF Mỹ):**\n"
-    res += "• **V75 Access (7.4 Mil - BH 4 năm):** từ **25.000.000 đ**\n"
-    res += "• **X75 Core (7.5 Mil - BH 4 năm):** từ **28.000.000 đ**\n"
-    res += "• **G75 Titan Siêu Bóng (7.5 Mil - BH 6 năm):** từ **37.000.000 đ** *(Rất được ưa chuộng)*\n"
-    res += "• **S75+ Elite Bền Bỉ (7.5 Mil - BH 7 năm):** từ **45.000.000 đ**\n\n"
+    res += "🌟 **TECKWRAP USA (Siêu bóng gương - Chống ố vàng - BH 4 - 7 năm):**\n"
+    res += "• **V75 Access (7.4 Mil - BH 4 năm):** Sedan **25tr** | SUV **27tr** | MPV **30tr**\n"
+    res += "• **X75 Core (7.5 Mil - BH 4 năm):** Sedan **28tr** | SUV **30tr** | MPV **34tr**\n"
+    res += "• **G75 Titan Siêu Bóng (7.5 Mil - BH 6 năm):** Sedan **37tr** | SUV **40tr** | MPV **44tr** *(Rất được ưa chuộng)*\n"
+    res += "• **S75+ Elite (7.5 Mil - BH 7 năm):** Sedan **45tr** | SUV **50tr** | MPV **55tr**\n\n"
 
-    res += "🌟 **3. 3M SCOTCHGARD (Thương hiệu số 1 toàn cầu - USA):**\n"
-    res += "• **3M 50 Gloss (BH 5 năm):** từ **38.000.000 đ**\n"
-    res += "• **3M 100 Gloss (BH 7 năm):** từ **69.000.000 đ**\n"
-    res += "• **3M 150 Gloss (BH 10 năm):** từ **85.000.000 đ**\n"
-    res += "• **3M 200 Gloss (BH 10 năm):** từ **102.000.000 đ**\n"
-    res += "• *Có gói dán lẻ từng bộ phận:* Capo (11tr), Cản trước (12tr), Cặp đèn pha (3tr), 4 Cửa (12tr)...\n\n"
+    res += "🌟 **3M SCOTCHGARD USA (Thương hiệu số 1 toàn cầu - BH 5 - 10 năm):**\n"
+    res += "• **3M 50 Gloss (BH 5 năm):** Sedan **38tr** | SUV **42tr** | MPV **46tr**\n"
+    res += "• **3M 100 Gloss (BH 7 năm):** Sedan **69tr** | SUV **76tr** | MPV **84tr** *(Dòng đỉnh cao 3M)*\n"
+    res += "• **3M 150 Gloss (BH 10 năm):** Sedan **85tr** | SUV **94tr** | MPV **105tr**\n\n"
 
     res += "───────────────────────────\n"
-    res += "🎯 **LỜI KHUYÊN TƯ VẤN NHANH:**\n"
-    res += "• **Tài chính vừa phải (25 - 30tr):** Chọn **AX Film K Series (26.9tr)** hoặc **TeckWrap X75 Core (28tr)**.\n"
-    res += "• **Cần độ bóng siêu sâu & kháng ố vàng (37 - 50tr):** Chọn **TeckWrap G75 Titan (37tr)** hoặc **AX Film X Series 9.0 Mil (45tr)**.\n"
-    res += "• **Yêu cầu thương hiệu đỉnh cao & bảo hành 7-10 năm:** Chọn **3M 100 Gloss** hoặc **AX Film S Series**.\n"
-    res += "• **Chỉ muốn bảo vệ điểm va quẹt:** Chọn dán gói đầu xe gồm **Nắp Capo + Cản Trước + Cặp Đèn**.\n\n"
-    res += "👉 Bạn đang chạy dòng xe gì (Sedan, SUV hay MPV) để tôi báo giá chính xác nhất?"
+    res += "💡 **Lời khuyên tư vấn:** Nếu ngân sách chưa đủ dán Full xe, anh/chị nên ưu tiên dán **Gói bảo vệ đầu xe** hoặc **Các điểm va chạm cơ bản + Nội thất** để chống trầy xước nơi dễ quẹt nhất!\n"
+    res += "👉 Anh/chị đang chạy dòng xe gì (Sedan, SUV hay MPV) để em gửi ảnh mẫu và báo giá chính xác nhất ạ?"
 
     return {"type": "success", "module": "ppf", "message": res}
 
@@ -6146,6 +6412,13 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
                     "Vui lòng chạy lệnh: `pip install --user google-genai` và kiểm tra tệp `gemini_engine.py`."
                 )
             }
+
+    # ═════════════════════════════════════════════════════════════════════
+    # 2.0.7. PHỐI GHÉP GÓI PHIM CÁCH NHIỆT THEO KÍNH LÁI & KHOẢNG GIÁ
+    # ═════════════════════════════════════════════════════════════════════
+    res_film_combo = handle_film_combination_matcher(raw, clean)
+    if res_film_combo:
+        return res_film_combo
 
     # ═════════════════════════════════════════════════════════════════════
     # 2.0.8. TRA CỨU MẶT HÀNG / KHO HÀNG THEO KHOẢNG GIÁ / GIÁ RẺ

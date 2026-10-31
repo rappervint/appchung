@@ -6227,30 +6227,73 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 
 
 
-• BẢNG BÁO GIÁ PHIM CÁCH NHIỆT 3M CHÍNH HÃNG MỸ (BẢO HÀNH ĐIỆN TỬ 10 NĂM):
-  - QUY TẮC BẮT BUỘC KHI KHÁCH HỎI "FILM 3M" / "PHIM 3M":
-    + Khách hỏi "film 3m" mà KHÔNG HỎI COMBO thì BẮT BUỘC liệt kê bảng giá chi tiết từng món / từng vị trí dán (Kính lái, Sườn trước, Sườn sau, Kính hậu, Kính khoang).
-    + TUYỆT ĐỐI KHÔNG CHỈ NÓI VỀ COMBO TRỌN GÓI KHI KHÁCH KHÔNG HỎI COMBO!
-    + BẢNG GIÁ CHI TIẾT TỪNG VỊ TRÍ KÍNH (DÁN LẺ TỪNG MÓN):
-      1️⃣ DÒNG 3M CRYSTALLINE (QUANG HỌC 200 LỚP - CAO CẤP NHẤT):
-         • Kính lái (CR50BLK / CR70): 5.700.000 đ (Xuyên sáng 50-70%, chống chói lóa, bao đăng kiểm 100%)
-         • Kính sườn trước (CR15BLK / CR20): 2.600.000 đ (2 kính cửa trước)
-         • Kính sườn sau (CR15BLK / CR20): 2.600.000 đ (2 kính cửa sau)
-         • Kính hậu / kính lưng (CR15BLK / CR20): 4.100.000 đ
-         • Kính khoang (xe 7 chỗ, CR15BLK / CR20): 2.600.000 đ
-         • Cửa sổ trời toàn cảnh: 6.500.000 đ
-      2️⃣ DÒNG 3M CERAMIC IR (MEN GỐM HỒNG NGOẠI CAO CẤP):
-         • Kính sườn trước (IR15): 1.800.000 đ
-         • Kính sườn sau (IR15): 1.800.000 đ
-         • Kính hậu / kính lưng (IR15): 2.300.000 đ
-      3️⃣ DÒNG 3M CERAMIC HYBRID (NR - TIẾT KIỆM / GIÁ RẺ):
-         • Kính lái (NR25): 2.600.000 đ (Xuyên sáng đạt chuẩn kiểm định)
-         • Kính sườn trước (NR15 / NR25): 1.700.000 đ (2 kính cửa trước)
-         • Kính sườn sau (NR15 / NR5): 1.700.000 đ (2 kính cửa sau)
-         • Kính hậu (NR15 / NR5): 1.900.000 đ
-         • Kính khoang (xe 7 chỗ): 1.600.000 đ
-    + CHẾ ĐỘ: Toàn bộ phim 3M đều được kích hoạt bảo hành điện tử chính hãng 3M USA trong 10 năm (120 tháng). Tặng 100% công lột keo cũ 500k.
-    + (Chỉ ghi chú ngắn 1 dòng ở cuối nếu khách có nhu cầu tham khảo trọn gói: Trọn gói Sedan từ 7.9tr - 14.8tr, SUV từ 9.5tr - 17.6tr tùy dòng).
+• BẢNG BÁO GIÁ PHIM CÁCH NHIỆT & PPF CHÍNH HÃNG (CHI TIẾT TỪNG MÓN & TỰ ĐỘNG PHỐI GÓI):
+
+  1️⃣ PHIM 3M CHÍNH HÃNG MỸ (BẢO HÀNH ĐIỆN TỬ 10 NĂM):
+     • DÒNG 3M CRYSTALLINE (QUANG HỌC 200 LỚP - CAO CẤP NHẤT):
+       - Kính lái (CR50BLK / CR70): 5.700.000 đ (Xuyên sáng 50-70%, cản tia IR 98%, bao đăng kiểm 100%)
+       - Kính sườn trước (CR15BLK / CR20): 2.600.000 đ (2 cánh trước)
+       - Kính sườn sau (CR15BLK / CR20): 2.600.000 đ (2 cánh sau)
+       - Kính hậu / kính lưng (CR15BLK / CR20): 4.100.000 đ
+       - Kính khoang (xe 7 chỗ, CR15BLK / CR20): 2.600.000 đ
+       - Cửa sổ trời toàn cảnh: 6.500.000 đ
+     • DÒNG 3M CERAMIC IR (MEN GỐM HỒNG NGOẠI CAO CẤP):
+       - Kính sườn trước (IR15): 1.800.000 đ
+       - Kính sườn sau (IR15): 1.800.000 đ
+       - Kính hậu / kính lưng (IR15): 2.300.000 đ
+     • DÒNG 3M CERAMIC HYBRID (NR - TIẾT KIỆM / GIÁ BÌNH DÂN):
+       - Kính lái (NR25): 2.600.000 đ (Xuyên sáng đạt chuẩn kiểm định)
+       - Kính sườn trước (NR15 / NR25): 1.700.000 đ
+       - Kính sườn sau (NR15 / NR5): 1.700.000 đ
+       - Kính hậu (NR15 / NR5): 1.900.000 đ
+       - Kính khoang (xe 7 chỗ): 1.600.000 đ
+
+  2️⃣ PHIM CERAMAX MEN GỐM SINH HỌC KIM CƯƠNG (BẢO HÀNH 15 NĂM):
+     • Kính lái CeraMAX 50: 3.300.000 đ (Xuyên sáng 59.7%, cắt tia IR 99.1% cực mát, bao đăng kiểm 100%)
+     • Kính sườn trước (CeraMAX Diamond 20/10/05): 2.000.000 đ (2 cánh trước)
+     • Kính sườn sau (CeraMAX Diamond 20/10/05): 2.000.000 đ (2 cánh sau)
+     • Kính hậu / kính lưng: 2.200.000 đ
+     • Kính khoang (ô chết xe 7 chỗ): 1.800.000 đ
+     • Cửa sổ trời: 1.500.000 đ - 2.500.000 đ
+     • (Trọn gói Full xe CeraMAX Diamond: Sedan 9.500.000 đ | SUV 11.300.000 đ)
+
+  3️⃣ PHIM NTECH HÀN QUỐC CHÍNH HÃNG (BẢO HÀNH 10 NĂM):
+     • BẢN TIÊU CHUẨN (NTECH TC):
+       - Sườn trước (2 cánh): 700.000 đ
+       - Sườn sau (2 cánh): 700.000 đ
+       - Kính hậu: 900.000 đ
+       - Kính khoang (xe 7 chỗ): 500.000 đ
+     • BẢN CAO CẤP (NTECH CC / CERAMIC):
+       - Kính lái Ntech CC: 2.200.000 đ
+       - Sườn trước (2 cánh): 1.000.000 đ
+       - Sườn sau (2 cánh): 1.000.000 đ
+       - Kính hậu: 1.200.000 đ
+       - Kính khoang (xe 7 chỗ): 900.000 đ
+
+  4️⃣ PHIM BẢO VỆ SƠN Ô TÔ (PPF) - CHÍNH HÃNG 3M / AX FILM / TECKWRAP:
+     • DÁN LẺ TỪNG BỘ PHẬN:
+       - PPF nội thất xe (Màn hình, cần số, táp pi cửa, vô lăng): 1.200.000 đ - 2.500.000 đ
+       - Cặp đèn pha + đèn gầm (chống rạn nứt đá văng, chống ố): 1.200.000 đ - 1.800.000 đ
+       - Các điểm va chạm cơ bản (4 hõm tay chén cửa, mép cửa, bệ cốp sau, ốp gương): 1.500.000 đ - 2.500.000 đ
+       - Nắp Capo: 3.500.000 đ - 6.000.000 đ | Cản trước: 3.500.000 đ - 6.500.000 đ
+       - Gói bảo vệ đầu xe (Capo + Cản trước + 2 Tai vè + Cặp đèn pha): 14.000.000 đ - 22.000.000 đ
+     • DÁN TRỌN GÓI FULL XE:
+       - AX Film G Series (7.5 Mil, BH 2.5 năm): Sedan 20tr | SUV 22tr | MPV 25tr
+       - AX Film K Series (8.0 Mil, BH 5 năm): Sedan 26.9tr | SUV 29.6tr | MPV 33tr
+       - TeckWrap G75 Titan Siêu Bóng (7.5 Mil, BH 6 năm): Sedan 37tr | SUV 40tr | MPV 44tr
+       - 3M 50 Gloss (BH 5 năm): Sedan 38tr | SUV 42tr | MPV 46tr
+       - AX Film X Series (9.0 Mil Siêu Cấp + BH 8 năm + Bảo hiểm vật liệu 1 năm): Sedan 45tr | SUV 49.5tr
+       - 3M 100 Gloss (BH 7 năm): Sedan 69tr | SUV 76tr | MPV 84tr
+
+  5️⃣ QUY TẮC BẮT BUỘC KHI KHÁCH YÊU CẦU PHỐI GÓI PHIM THEO KHOẢNG GIÁ:
+     (Ví dụ: "kính lái ceramax kết hợp gói nào từ 5tr đến 8tr", "kính lái 3m kết hợp gói nào dưới 9tr", "kính lái ntech kết hợp...")
+     • BẮT BUỘC tính toán động: Lấy giá Kính lái yêu cầu + Giá gói sườn hậu Ntech TC / Ntech CC / 3M NR / Ceramax Diamond.
+     • Chỉ đưa ra các phương án có TỔNG CHI PHÍ NẰM TRONG KHOẢNG GIÁ ĐÓ:
+       - Ví dụ Kính lái CeraMAX 50 (3.3tr) trong khoảng 5tr - 8tr:
+         + Phương án 1: Kính lái CeraMAX 50 (3.3tr) + Sườn Hậu Ntech TC (2.3tr) -> Sedan 5.6tr | SUV 6.1tr (Khớp 5-8tr).
+         + Phương án 2: Kính lái CeraMAX 50 (3.3tr) + Sườn Hậu Ntech CC (3.2tr) -> Sedan 6.5tr | SUV 7.4tr (Khớp 5-8tr).
+         + Phương án 3: Kính lái CeraMAX 50 (3.3tr) + Sườn Hậu 3M Ceramic NR (Sedan 5.3tr -> ưu đãi combo 4.6tr) -> Sedan 7.9tr (Khớp 5-8tr).
+     • Trình bày rõ ràng: Tên kính lái + giá, tên gói sườn hậu + giá, tổng tiền xe Sedan và SUV, bảo hành từng phần.
 
 
 
