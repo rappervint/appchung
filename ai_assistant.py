@@ -5279,20 +5279,33 @@ def handle_gara_consultation(raw_text, clean_text):
     # 8.2. PHIM CÁCH NHIỆT Ô TÔ (TỔNG QUÁT)
     is_film = bool(re.search(r'\b(film|phim|cach\s*nhiet|dan\s*kinh|ceramax|ntech|3m\s*cr|crystalline|cr50|cr50blk|cr40|nano\s*ceramic)\b', clean_text)) and not bool(re.search(r'\bppf\b', clean_text))
     if is_film:
-        # Nếu hỏi riêng dòng 3M
+        # Nếu hỏi riêng dòng 3M (Báo giá chi tiết từng món theo vị trí dán)
         if any(k in clean_text for k in ['3m', 'crystalline']) and not any(k in clean_text for k in ['ntech', 'ceramax', 'ket hop', 'so sanh']):
             return {
                 "type": "success",
                 "module": "dichvu",
                 "message": (
-                    "☀️ **BÁO GIÁ PHIM CÁCH NHIỆT 3M CHÍNH HÃNG MỸ (BH 10 NĂM):**\n"
-                    "• **Dán lẻ kính lái 3M Ceramic (Tiết kiệm):** **2.600.000 đ** *(Bao đăng kiểm >50%)*\n"
-                    "• **Dán lẻ kính lái 3M Crystalline CR50BLK (Đỉnh cao):** **5.700.000 đ** *(Cắt IR 98%)*\n"
-                    "• **3M Ceramic Hybrid:** Sedan **7.900.000 đ** | SUV **9.500.000 đ**\n"
-                    "• **3M Ceramic IR:** Sedan **9.000.000 đ** | SUV **10.500.000 đ**\n"
-                    "• **3M Crystalline Hybrid (Lái CR50 + Sườn NR):** Sedan **10.800.000 đ** | SUV **12.500.000 đ**\n"
-                    "• **3M Crystalline CR BLK (Lái CR50 + Sườn CR15/35):** Sedan **14.800.000 đ** | SUV **17.600.000 đ**\n"
-                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (500k)."
+                    "☀️ **BÁO GIÁ CHI TIẾT TỪNG VỊ TRÍ PHIM CÁCH NHIỆT 3M (BH 10 NĂM):**\n\n"
+                    "💎 **1. DÒNG ĐỈNH CAO: 3M CRYSTALLINE (QUANG HỌC 200 LỚP):**\n"
+                    "• **Kính lái (CR50BLK / CR70):** **5.700.000 đ** *(Xuyên sáng 50% bao đăng kiểm, cản IR 98%)*\n"
+                    "• **Kính sườn trước (CR15BLK/CR20):** **2.600.000 đ** *(2 cánh trước)*\n"
+                    "• **Kính sườn sau (CR15BLK/CR20):** **2.600.000 đ** *(2 cánh sau)*\n"
+                    "• **Kính hậu / kính lưng (CR15BLK/CR20):** **4.100.000 đ**\n"
+                    "• **Kính khoang (ô chết xe 7 chỗ):** **2.600.000 đ**\n"
+                    "• **Cửa sổ trời toàn cảnh:** **6.500.000 đ**\n\n"
+                    "🔷 **2. DÒNG MEN GỐM: 3M CERAMIC IR (HỒNG NGOẠI CAO CẤP):**\n"
+                    "• **Kính sườn trước (IR15):** **1.800.000 đ** *(2 cánh trước)*\n"
+                    "• **Kính sườn sau (IR15):** **1.800.000 đ** *(2 cánh sau)*\n"
+                    "• **Kính hậu / kính lưng (IR15):** **2.300.000 đ**\n\n"
+                    "🔶 **3. DÒNG TIẾT KIỆM: 3M CERAMIC HYBRID (NR - GIÁ BÌNH DÂN):**\n"
+                    "• **Kính lái (NR25):** **2.600.000 đ** *(Bao đăng kiểm >50%)*\n"
+                    "• **Kính sườn trước (NR15/NR25):** **1.700.000 đ** *(2 cánh trước)*\n"
+                    "• **Kính sườn sau (NR15/NR5):** **1.700.000 đ** *(2 cánh sau)*\n"
+                    "• **Kính hậu (NR15/NR5):** **1.900.000 đ**\n"
+                    "• **Kính khoang (ô chết xe 7 chỗ):** **1.600.000 đ**\n\n"
+                    "🛡️ **Chế độ:** Toàn bộ kích hoạt **Bảo hành điện tử 3M USA trong 10 NĂM**.\n"
+                    "🎁 Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k).\n"
+                    "*(💡 Gợi ý thêm nếu dán trọn gói cả xe: Sedan từ 7.9tr - 14.8tr, SUV từ 9.5tr - 17.6tr)*"
                 )
             }
 

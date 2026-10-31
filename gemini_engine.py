@@ -6227,15 +6227,32 @@ Bạn được cấp quyền kiểm soát thông minh: tra cứu dữ liệu, qu
 
 
 
-• PHIM CÁCH NHIỆT CHỐNG NÓNG:
+• BẢNG BÁO GIÁ PHIM CÁCH NHIỆT 3M CHÍNH HÃNG MỸ (BẢO HÀNH ĐIỆN TỬ 10 NĂM):
+  - QUY TẮC BẮT BUỘC KHI KHÁCH HỎI "FILM 3M" / "PHIM 3M":
+    + Khách hỏi "film 3m" mà KHÔNG HỎI COMBO thì BẮT BUỘC liệt kê bảng giá chi tiết từng món / từng vị trí dán (Kính lái, Sườn trước, Sườn sau, Kính hậu, Kính khoang).
+    + TUYỆT ĐỐI KHÔNG CHỈ NÓI VỀ COMBO TRỌN GÓI KHI KHÁCH KHÔNG HỎI COMBO!
+    + BẢNG GIÁ CHI TIẾT TỪNG VỊ TRÍ KÍNH (DÁN LẺ TỪNG MÓN):
+      1️⃣ DÒNG 3M CRYSTALLINE (QUANG HỌC 200 LỚP - CAO CẤP NHẤT):
+         • Kính lái (CR50BLK / CR70): 5.700.000 đ (Xuyên sáng 50-70%, chống chói lóa, bao đăng kiểm 100%)
+         • Kính sườn trước (CR15BLK / CR20): 2.600.000 đ (2 kính cửa trước)
+         • Kính sườn sau (CR15BLK / CR20): 2.600.000 đ (2 kính cửa sau)
+         • Kính hậu / kính lưng (CR15BLK / CR20): 4.100.000 đ
+         • Kính khoang (xe 7 chỗ, CR15BLK / CR20): 2.600.000 đ
+         • Cửa sổ trời toàn cảnh: 6.500.000 đ
+      2️⃣ DÒNG 3M CERAMIC IR (MEN GỐM HỒNG NGOẠI CAO CẤP):
+         • Kính sườn trước (IR15): 1.800.000 đ
+         • Kính sườn sau (IR15): 1.800.000 đ
+         • Kính hậu / kính lưng (IR15): 2.300.000 đ
+      3️⃣ DÒNG 3M CERAMIC HYBRID (NR - TIẾT KIỆM / GIÁ RẺ):
+         • Kính lái (NR25): 2.600.000 đ (Xuyên sáng đạt chuẩn kiểm định)
+         • Kính sườn trước (NR15 / NR25): 1.700.000 đ (2 kính cửa trước)
+         • Kính sườn sau (NR15 / NR5): 1.700.000 đ (2 kính cửa sau)
+         • Kính hậu (NR15 / NR5): 1.900.000 đ
+         • Kính khoang (xe 7 chỗ): 1.600.000 đ
+    + CHẾ ĐỘ: Toàn bộ phim 3M đều được kích hoạt bảo hành điện tử chính hãng 3M USA trong 10 năm (120 tháng). Tặng 100% công lột keo cũ 500k.
+    + (Chỉ ghi chú ngắn 1 dòng ở cuối nếu khách có nhu cầu tham khảo trọn gói: Trọn gói Sedan từ 7.9tr - 14.8tr, SUV từ 9.5tr - 17.6tr tùy dòng).
 
 
-
-  - 3M Crystalline Mỹ (200 lớp quang học): Kính lái CR50BLK (5.7tr), trọn gói Sedan (10.8tr - 14.8tr), SUV (12.5tr - 17.6tr).
-
-
-
-  - 3M Ceramic NR / IR: Kính lái dán lẻ 2.6tr, trọn gói Sedan 7.9tr - 9.0tr.
 
 
 
