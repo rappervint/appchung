@@ -4266,6 +4266,63 @@ def handle_summary_stats(raw_text, clean_text):
 import re
 
 
+
+def teach_system_from_gemini(raw_query, reply_text):
+    """
+    Lưu tri thức do Gemini hoặc bộ tư vấn trả lời vào bộ não AI vĩnh viễn (gara_memory trong gara_knowledge.db)
+    sau khi người dùng xác nhận hài lòng / đồng ý.
+    """
+    clean_q = remove_accents(raw_query).lower()
+    
+    # Rút ngắn câu hỏi thành tiêu đề súc tích
+    topic = re.sub(r'^(cho tôi hỏi|tôi muốn hỏi|hỏi|cho hỏi|tư vấn|báo giá|khi tôi hỏi)\s*[:,\s]*', '', raw_query, flags=re.I).strip()
+    topic = topic[:80].strip()
+    if not topic:
+        topic = "Tư Vấn Gói Phim Cách Nhiệt & Dịch Vụ Gara"
+    topic = topic[0].upper() + topic[1:]
+    clean_topic = remove_accents(topic).lower()
+
+    # Tách từ khóa quan trọng
+    stop_words = {'cho', 'toi', 'minh', 'em', 'anh', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 'sao', 'co', 'khong', 'voi', 'thi', 'va', 'khi', 'gia'}
+    tokens = [w for w in re.split(r'[\s,;:?!\-]+', clean_q) if len(w) >= 2 and w not in stop_words]
+    
+    key_phrases = []
+    for combo_phrase in ['kinh lai 3m', 'lai 3m', 'ntech cao cap', 'ntech tieu chuan', 'kinh lai ceramax', 'ceramax 50', '3m crystalline', '3m hybrid', 'ppf']:
+        if combo_phrase in clean_q:
+            key_phrases.append(combo_phrase)
+    
+    all_kws = list(dict.fromkeys(key_phrases + tokens))
+    keywords = ", ".join(all_kws[:15])
+
+    # Làm sạch câu trả lời: cắt bỏ phần hỏi hài lòng ở cuối nếu có
+    clean_reply = re.split(r'─{5,}|\*\*Anh/chị có hài lòng', reply_text)[0].strip()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        conn = sqlite3.connect(DB_KNOWLEDGE, timeout=10)
+        c = conn.cursor()
+        c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (clean_topic,))
+        row = c.fetchone()
+        if row:
+            c.execute("""
+                UPDATE gara_memory 
+                SET keywords = ?, formatted_reply = ?, raw_content = ?, updated_at = ?
+                WHERE id = ?
+            """, (keywords, clean_reply, raw_query, now_str, row[0]))
+            rec_id = row[0]
+        else:
+            c.execute("""
+                INSERT INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (topic, clean_topic, keywords, raw_query, "", "", clean_reply, now_str, now_str))
+            rec_id = c.lastrowid
+        conn.commit()
+        conn.close()
+        return True, topic, keywords, rec_id
+    except Exception as e:
+        print(f"[TeachGemini] Lỗi lưu tri thức: {e}")
+        return False, topic, keywords, None
+
 # ═════════════════════════════════════════════════════════════════════════
 # BẢNG DỮ LIỆU ĐỊNH GIÁ & BỘ XỬ LÝ PHỐI GÓI PHIM THEO KHOẢNG GIÁ
 # ═════════════════════════════════════════════════════════════════════════
@@ -4376,7 +4433,7 @@ def parse_film_price_range(clean_text):
         p_min = to_number(m3.group(1))
         return p_min, 0
 
-    m4 = re.search(r'(?:tam|khoang|co)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?', clean_text)
+    m4 = re.search(r'(?:tam|khoang|khoan|co|muc|gia\s*(?:tam|khoang|khoan)?)\s*(\d+(?:[.,]\d+)?)\s*(?:tr|trieu|k|000|000000)?', clean_text)
     if m4:
         val = to_number(m4.group(1))
         if val > 0:
@@ -4384,88 +4441,112 @@ def parse_film_price_range(clean_text):
 
     return 0, 0
 
-def handle_film_combination_matcher(raw_text, clean_text):
+def handle_film_combination_matcher(raw_text, clean_text, session_id="default_user"):
     has_windshield = any(k in clean_text for k in ['kinh lai', 'lai ceramax', 'lai 3m', 'lai ntech', 'cr50', 'ceramax 50']) or \
                      (any(k in clean_text for k in ['lai', 'truoc']) and any(k in clean_text for k in ['ceramax', '3m', 'ntech', 'crystalline']))
     has_combine_kw = any(k in clean_text for k in ['ket hop', 'phoi', 'ghep', 'di cung', 'suon hau', 'goi nao', 'film nao', 'phim nao', 'lua chon', 'phuong an', 'goi film'])
-    has_range_kw = any(k in clean_text for k in ['tu', 'den', 'duoi', 'khoang', 'tam', 'ngan sach', 'tai chinh', 'trieu', 'tr', '-'])
+    has_range_kw = any(k in clean_text for k in ['tu', 'den', 'duoi', 'khoang', 'khoan', 'tam', 'ngan sach', 'tai chinh', 'trieu', 'tr', '-', 'gia'])
 
     if not (has_windshield and (has_combine_kw or has_range_kw)):
         return None
 
     p_min, p_max = parse_film_price_range(clean_text)
 
+    # 1. Nhận diện Kính lái
     target_windshields = []
-    if 'ceramax' in clean_text:
+    if 'ceramax' in clean_text and any(k in clean_text for k in ['lai', 'kinh lai', 'truoc']):
         target_windshields.append(WINDSHIELDS_DATA["ceramax"])
     if any(k in clean_text for k in ['crystalline', 'cr50', 'cr50blk', 'cao cap']) and '3m' in clean_text:
         target_windshields.append(WINDSHIELDS_DATA["3m_crystalline"])
     elif any(k in clean_text for k in ['ceramic hybrid', 'nr', 'gia re', 'tiet kiem']) and '3m' in clean_text:
         target_windshields.append(WINDSHIELDS_DATA["3m_ceramic"])
     elif '3m' in clean_text:
-        target_windshields.extend([WINDSHIELDS_DATA["3m_ceramic"], WINDSHIELDS_DATA["3m_crystalline"]])
-    if 'ntech' in clean_text and not target_windshields:
+        target_windshields.extend([WINDSHIELDS_DATA["3m_crystalline"], WINDSHIELDS_DATA["3m_ceramic"]])
+    if 'ntech' in clean_text and any(k in clean_text for k in ['lai', 'kinh lai', 'truoc']) and not target_windshields:
         target_windshields.append(WINDSHIELDS_DATA["ntech"])
 
     if not target_windshields:
         if 'ceramax' in clean_text:
             target_windshields = [WINDSHIELDS_DATA["ceramax"]]
         elif '3m' in clean_text:
-            target_windshields = [WINDSHIELDS_DATA["3m_ceramic"], WINDSHIELDS_DATA["3m_crystalline"]]
+            target_windshields = [WINDSHIELDS_DATA["3m_crystalline"], WINDSHIELDS_DATA["3m_ceramic"]]
         elif 'ntech' in clean_text:
             target_windshields = [WINDSHIELDS_DATA["ntech"]]
         else:
             target_windshields = [WINDSHIELDS_DATA["ceramax"]]
 
+    # 2. Nhận diện Gói sườn & hậu (nếu khách chỉ định đích danh)
+    target_body_packs = []
+    if 'ntech cao cap' in clean_text or ('ntech' in clean_text and any(k in clean_text for k in ['cao cap', 'cc'])):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "ntech_cc"]
+    elif 'ntech tieu chuan' in clean_text or ('ntech' in clean_text and any(k in clean_text for k in ['tieu chuan', 'tc'])):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "ntech_tc"]
+    elif 'ceramax' in clean_text and not ('ceramax' in clean_text and any(k in clean_text for k in ['lai', 'kinh lai', 'truoc'])):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "ceramax_diamond"]
+    elif any(k in clean_text for k in ['3m crystalline', 'cr20', 'cr15']) and not any(k in clean_text for k in ['lai', 'cr50']):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "3m_cr"]
+    elif any(k in clean_text for k in ['3m ir', 'ceramic ir', 'ir15']):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "3m_ir"]
+    elif any(k in clean_text for k in ['3m hybrid', '3m nr', 'nr15', 'nr5']):
+        target_body_packs = [b for b in BODY_PACKS_DATA if b["id"] == "3m_nr"]
+
+    if not target_body_packs:
+        target_body_packs = BODY_PACKS_DATA
+
     matched_options = []
+    fallback_options = []
+
     for w_info in target_windshields:
         w_price = w_info["price"]
-        for b in BODY_PACKS_DATA:
-            tot_sedan = w_price + b["combo_price_sedan"]
-            tot_suv = w_price + b["combo_price_suv"]
+        for b in target_body_packs:
+            # Giá ưu đãi combo thực tế tại gara
+            sedan_p = w_price + b["combo_price_sedan"]
+            suv_p = w_price + b["combo_price_suv"]
+
+            # Ưu đãi giảm thêm cho combo cao cấp
+            if w_info["key"] == "3m_crystalline" and b["id"] == "ntech_cc":
+                sedan_p = 8500000
+                suv_p = 9300000
+            elif w_info["key"] == "3m_crystalline" and b["id"] == "ntech_tc":
+                sedan_p = 7600000
+                suv_p = 8000000
+
+            opt = {
+                "windshield": w_info,
+                "body": b,
+                "sedan_price": sedan_p,
+                "suv_price": suv_p
+            }
+            fallback_options.append(opt)
 
             in_range = False
             if p_min > 0 and p_max > 0:
-                if (p_min <= tot_sedan <= p_max) or (p_min <= tot_suv <= p_max):
+                if (p_min <= sedan_p <= p_max) or (p_min <= suv_p <= p_max):
                     in_range = True
             elif p_max > 0:
-                if tot_sedan <= p_max or tot_suv <= p_max:
+                if sedan_p <= p_max or suv_p <= p_max:
                     in_range = True
             elif p_min > 0:
-                if tot_sedan >= p_min or tot_suv >= p_min:
+                if sedan_p >= p_min or suv_p >= p_min:
                     in_range = True
             else:
                 in_range = True
 
             if in_range:
-                matched_options.append({
-                    "windshield": w_info,
-                    "body": b,
-                    "sedan_price": tot_sedan,
-                    "suv_price": tot_suv
-                })
+                matched_options.append(opt)
 
-    if not matched_options:
-        return {
-            "type": "info",
-            "module": "dichvu",
-            "message": (
-                f"☀️ **TƯ VẤN PHỐI GHÉP PHIM CÁCH NHIỆT THEO NGÂN SÁCH:**\n"
-                f"⚠️ Không có gói kết hợp nào vừa khít với khoảng ngân sách {p_min:,.0f} đ - {p_max:,.0f} đ.\n"
-                f"👉 Gợi ý phương án kinh tế nhất: **Kính lái CeraMAX 50 + Sườn Hậu Ntech Tiêu Chuẩn** chỉ **5.600.000 đ** (Sedan) | **6.100.000 đ** (SUV) cực kỳ mát và bảo hành 10 - 15 năm!"
-            )
-        }
+    display_options = matched_options if matched_options else fallback_options
 
     range_title = ""
     if p_min > 0 and p_max > 0:
-        range_title = f" (NGÂN SÁCH {p_min/1000000:,.1f}TR - {p_max/1000000:,.1f}TR)"
+        range_title = f" (TẦM GIÁ KHOẢNG {p_min/1000000:,.1f}TR - {p_max/1000000:,.1f}TR)"
     elif p_max > 0:
         range_title = f" (NGÂN SÁCH DƯỚI {p_max/1000000:,.1f}TR)"
     elif p_min > 0:
         range_title = f" (NGÂN SÁCH TRÊN {p_min/1000000:,.1f}TR)"
 
     msg = f"☀️ **CÁC GÓI PHIM KẾT HỢP PHÙ HỢP{range_title}:**\n\n"
-    for i, opt in enumerate(matched_options, 1):
+    for i, opt in enumerate(display_options, 1):
         w = opt["windshield"]
         b = opt["body"]
         w_short = w['name'].split('(')[0].strip()
@@ -4484,10 +4565,30 @@ def handle_film_combination_matcher(raw_text, clean_text):
     msg += "• Tặng 100% công lột phim cũ và vệ sinh keo sạch sẽ (trị giá 500k).\n"
     msg += "• Kính lái bao đăng kiểm 100% toàn quốc (>50% độ xuyên sáng VLT)."
 
+    # Đính kèm câu hỏi xác nhận & lưu session học tập
+    confirm_footer = (
+        "\n\n─────────────────────────────────────────\n"
+        "🤔 **Anh/chị có hài lòng với kết quả này không?**\n"
+        "*(Bấm **[👍 Hài lòng & Dạy AI]** hoặc nhắn **'hài lòng'** / **'đồng ý'** để AI ghi nhớ vĩnh viễn vào hệ thống, lần sau hỏi lại sẽ hiểu ngay lập tức!)*"
+    )
+    full_msg = msg + confirm_footer
+
+    if session_id:
+        WIZARD_SESSIONS[session_id] = {
+            'flow': 'confirm_gemini_learning',
+            'user_query': raw_text,
+            'gemini_reply': msg,
+            'timestamp': datetime.now().isoformat()
+        }
+
     return {
         "type": "success",
         "module": "dichvu",
-        "message": msg
+        "message": full_msg,
+        "buttons": [
+            {"text": "👍 Hài lòng & Dạy AI", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+            {"text": "👎 Chưa đúng", "action": "send_message", "value": "chưa đúng", "class": "btn-danger"}
+        ]
     }
 
 def handle_gara_consultation(raw_text, clean_text):
@@ -4496,7 +4597,7 @@ def handle_gara_consultation(raw_text, clean_text):
     Trả lời ĐÚNG TRỌNG TÂM - CỰC KỲ SÚC TÍCH - KHÔNG DÔNG DÀI
     """
     # Ưu tiên nhận diện phối ghép gói phim theo kính lái & khoảng giá ngân sách
-    combo_film_res = handle_film_combination_matcher(raw_text, clean_text)
+    combo_film_res = handle_film_combination_matcher(raw_text, clean_text, session_id=session_id)
     if combo_film_res:
         return combo_film_res
 
@@ -6186,6 +6287,56 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     raw = user_text.strip()
     clean = remove_accents(raw).lower()
 
+    # ═════════════════════════════════════════════════════════════════════
+    # FLOW XÁC NHẬN: GEMINI DẠY LẠI CHO AI HỆ THỐNG (HUMAN-IN-THE-LOOP RLHF)
+    # ═════════════════════════════════════════════════════════════════════
+    if session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_gemini_learning':
+        sess_learning = WIZARD_SESSIONS[session_id]
+        is_agree = clean in [
+            'hai long', 'dong y', 'ok', 'oke', 'day ai', 'day he thong', 'luu', 'luu lai',
+            'chuan', 'tot', 'duoc', 'dung', 'yes', 'y', 'co', '1', 'thich'
+        ] or clean.startswith('hai long') or clean.startswith('dong y') or clean.startswith('day ai') or clean.startswith('luu')
+
+        is_disagree = clean in [
+            'chua dung', 'chua dung lam', 'khong', 'sai', 'chua duoc', 'huy', 'cancel', 'no', 'k', '0'
+        ] or clean.startswith('chua dung') or clean.startswith('khong')
+
+        if is_agree:
+            q_saved = sess_learning.get('user_query', '')
+            reply_saved = sess_learning.get('gemini_reply', '')
+            del WIZARD_SESSIONS[session_id]
+            
+            ok, top, kws, _ = teach_system_from_gemini(q_saved, reply_saved)
+            if ok:
+                return {
+                    "type": "success",
+                    "module": "knowledge",
+                    "message": (
+                        f"🎓 **GEMINI ĐÃ DẠY THÀNH CÔNG VÀO BỘ NÃO AI HỆ THỐNG!**\n"
+                        f"─────────────────────────────────────────\n"
+                        f"• 📌 **Chủ đề đã học:** **{top}**\n"
+                        f"• 🔑 **Từ khóa nhận diện:** `{kws}`\n"
+                        f"• ⚡ **Tốc độ phản hồi lần sau:** `< 0.003 giây` (AI hệ thống tự trả lời ngay, không cần gọi lại Gemini)\n"
+                        f"─────────────────────────────────────────\n"
+                        f"👉 Bất cứ khi nào anh hỏi lại câu này (hoặc tương tự), AI hệ thống sẽ tự động trả lời chính xác ngay lập tức!"
+                    )
+                }
+            else:
+                return {
+                    "type": "error",
+                    "message": "⚠️ Gặp lỗi khi lưu tri thức vào hệ thống. Vui lòng thử lại."
+                }
+        elif is_disagree:
+            del WIZARD_SESSIONS[session_id]
+            return {
+                "type": "info",
+                "message": (
+                    "👌 **ĐÃ HỦY GHI NHỚ:**\n"
+                    "Gemini sẽ không lưu câu trả lời này vào bộ nhớ của AI.\n"
+                    "👉 Anh có thể nhắn hướng dẫn hoặc câu trả lời chuẩn để em ghi nhớ chính xác theo ý anh nhé!"
+                )
+            }
+
     # Nếu câu hỏi quá ngắn hoặc mơ hồ chung chung -> Chủ động hỏi lại làm rõ
     if clean in ['tu van', 'bao gia', 'cho hoi', 'cho toi hoi', 'bang gia', 'dich vu', 'gara co lam gi', 'do xe', 'nang cap xe', 'hoi gia', 'tu van xe', 'xe']:
         return ask_clarification(raw, clean, session_id)
@@ -6416,7 +6567,7 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     # ═════════════════════════════════════════════════════════════════════
     # 2.0.7. PHỐI GHÉP GÓI PHIM CÁCH NHIỆT THEO KÍNH LÁI & KHOẢNG GIÁ
     # ═════════════════════════════════════════════════════════════════════
-    res_film_combo = handle_film_combination_matcher(raw, clean)
+    res_film_combo = handle_film_combination_matcher(raw, clean, session_id=session_id)
     if res_film_combo:
         return res_film_combo
 
@@ -6713,6 +6864,25 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                         detected_prod = detect_consulted_product(res_clean)
                     if detected_prod:
                         LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
+
+                    # TÍCH HỢP HỎI HÀI LÒNG & DẠY LẠI CHO AI HỆ THỐNG
+                    gemini_msg = res_gemini['message']
+                    confirm_footer = (
+                        "\n\n─────────────────────────────────────────\n"
+                        "🤔 **Anh/chị có hài lòng với kết quả Gemini đưa ra không?**\n"
+                        "*(Bấm **[👍 Hài lòng & Dạy AI]** hoặc nhắn **'hài lòng'** / **'đồng ý'** để Gemini dạy lại câu trả lời này cho AI hệ thống, lần sau hỏi lại AI sẽ hiểu ngay lập tức!)*"
+                    )
+                    res_gemini['message'] = gemini_msg + confirm_footer
+                    res_gemini['buttons'] = [
+                        {"text": "👍 Hài lòng & Dạy AI", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+                        {"text": "👎 Chưa đúng", "action": "send_message", "value": "chưa đúng", "class": "btn-danger"}
+                    ]
+                    WIZARD_SESSIONS[session_id] = {
+                        'flow': 'confirm_gemini_learning',
+                        'user_query': raw,
+                        'gemini_reply': gemini_msg,
+                        'timestamp': datetime.now().isoformat()
+                    }
                     return res_gemini
             except Exception as e_gem:
                 print(f"[AIAssistant] Gemini gặp trục trặc, tự động chuyển về máy quy tắc nội bộ: {e_gem}")
