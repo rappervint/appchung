@@ -5697,68 +5697,50 @@ def sua_quy_dinh_san_pham(ten_san_pham: str, quy_dinh_moi: str) -> str:
 
 
 def tra_cuu_tri_thuc_gara(chu_de_hoac_tu_khoa: str) -> str:
-
-
-
     """Tra cứu các quy định, bảng giá đặc thù, kiến thức riêng mà chủ gara đã dạy cho AI trong bộ nhớ.
 
-
-
-
-
-
-
     Args:
-
-
-
-        chu_de_hoac_tu_khoa: Từ khóa hoặc tên sản phẩm cần tra cứu (ví dụ: 'sàn 5d', 'a510', 'bọc trần').
-
-
-
+        chu_de_hoac_tu_khoa: Từ khóa hoặc tên sản phẩm cần tra cứu (ví dụ: 'sàn 5d', 'a510', 'bọc trần', 'sàn simili 7 chỗ', 'bọc da').
     """
-
-
-
     try:
-
-
-
         import knowledge_base
-
-
-
         clean_kw = knowledge_base.remove_accents(chu_de_hoac_tu_khoa).lower()
-
-
-
         res = knowledge_base.query_learned_knowledge(clean_kw, chu_de_hoac_tu_khoa)
-
-
-
-        if res:
-
-
-
+        if res and res.get("message"):
             return res.get("message", "")
 
+        # TÌM KIẾM DỰ PHÒNG THÔNG MINH (FUZZY FALLBACK) TRONG GARA_MEMORY:
+        # Nếu chưa khớp trực tiếp 100%, tìm tất cả thông tin liên quan đã lưu để Gemini có ngữ cảnh đầy đủ
+        conn_k = sqlite3.connect(os.path.join(BASE_DIR, 'gara_knowledge.db'), timeout=5)
+        c_k = conn_k.cursor()
+        c_k.execute("SELECT id, topic, keywords, raw_content, price_info, formatted_reply FROM gara_memory ORDER BY id DESC")
+        all_mem = c_k.fetchall()
+        conn_k.close()
 
+        tokens = [t for t in re.findall(r'\w+', clean_kw) if len(t) >= 2 and t not in {'cho', 'toi', 'xe', 'gia', 'bao', 'nhieu', 'hoi'}]
+        candidates = []
+        for row in all_mem:
+            rid, top, kws, raw, price, reply = row
+            text_corpus = f"{top} {kws} {raw}".lower()
+            score = sum(1 for t in tokens if t in text_corpus)
+            if score > 0:
+                candidates.append((score, rid, top, price, reply))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            top_cand = candidates[:4]
+            out = ["THÔNG TIN LIÊN QUAN TRONG BỘ NHỚ TRI THỨC GARA:"]
+            for sc, rid, top, price, reply in top_cand:
+                p_str = f" (Mức giá: {price})" if price else ""
+                out.append(f"• [Mục ID {rid}] {top}{p_str}:\n{reply}")
+            out.append("\n👉 HƯỚNG DẪN TRẢ LỜI CHO BẠN (GEMINI):")
+            out.append("- Dựa vào thông tin bảng giá liên quan ở trên để tư vấn đầy đủ, chính xác và giải thích rõ ràng cho khách/chủ gara.")
+            out.append("- Ví dụ: nếu người hỏi 'sàn simili 7 chỗ' mà gara đã lưu giá 'bọc da simili 7 chỗ là 6tr', hãy giải thích rõ giá 6tr là bọc da ghế, đồng thời hỏi xem khách có cần báo giá lót sàn riêng không.")
+            return "\n\n".join(out)
 
         return f"Chưa có ghi nhớ đặc biệt nào cho '{chu_de_hoac_tu_khoa}' trong bộ não gara."
-
-
-
     except Exception as e:
-
-
-
         return f"Lỗi tra cứu tri thức: {e}"
-
-
-
-
-
-
 
 GARA_TOOLS = [
 

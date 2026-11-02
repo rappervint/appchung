@@ -4484,7 +4484,11 @@ def extract_knowledge_features(text: str) -> dict:
         subject = "ppf"
     elif any(k in clean for k in ['camera', 'cam hanh trinh', 'cam 360', 'cam le', 'cam lui', 'a510', 'a210', 'a810', 'owin']):
         subject = "camera"
-    elif any(k in clean for k in ['san 5d', 'san 360', 'san duc', 'lot san', 'ghe da', 'boc ghe', 'boc da', 'tran 5d', 'tran anh sao']):
+    elif any(k in clean for k in [
+        'san 5d', 'san 360', 'san duc', 'lot san', 'ghe da', 'boc ghe', 'boc da', 
+        'tran 5d', 'tran anh sao', 'da simili', 'da cong nghiep', 'da nappa', 
+        'simili', 'nappa', 'san simili', 'lot san simili', 'boc da ghe', 'duc lo'
+    ]):
         subject = "seat_floor"
     elif any(k in clean for k in ['loa', 'sub', 'am thanh', 'gam ghe', 'treble']):
         subject = "audio"
@@ -4499,10 +4503,18 @@ def extract_knowledge_features(text: str) -> dict:
         qualifiers.add('premium')
     if any(k in clean for k in ['tieu chuan']):
         qualifiers.add('standard')
-    if any(k in clean for k in ['sedan', '4 cho']):
+    if any(k in clean for k in ['sedan', '4 cho', '4/5 cho']):
         qualifiers.add('sedan')
     if any(k in clean for k in ['suv', '7 cho']):
         qualifiers.add('suv')
+    if 'simili' in clean:
+        qualifiers.add('mat_simili')
+    if 'nappa' in clean:
+        qualifiers.add('mat_nappa')
+    if any(k in clean for k in ['cong nghiep', 'da cn']):
+        qualifiers.add('mat_cong_nghiep')
+    if 'duc lo' in clean:
+        qualifiers.add('mat_duc_lo')
         
     return {
         'subject': subject,
@@ -4577,15 +4589,56 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
             if 'price_range_10tr' not in m_feat['qualifiers']:
                 continue
 
-        # 4. KIỂM TRA ĐỘ TƯƠNG ĐỒNG TỪ VỰNG CỐT LÕI (>= 70%)
-        stop_words = {'cho', 'toi', 'minh', 'em', 'anh', 'chi', 'bac', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 'sao', 'co', 'khong', 'voi', 'thi', 'va'}
+        # BẢO VỆ PHÂN KHÚC XE (4 CHỖ KHÔNG ĐƯỢC KHỚP SANG 7 CHỖ VÀ NGƯỢC LẠI):
+        if 'suv' in q_feat['qualifiers'] and 'suv' not in m_feat['qualifiers']:
+            continue
+        if 'sedan' in q_feat['qualifiers'] and 'sedan' not in m_feat['qualifiers']:
+            continue
+
+        # BẢO VỆ TÙY CHỌN NÂNG CẤP (ĐỤC LỖ):
+        if 'mat_duc_lo' in m_feat['qualifiers'] and 'mat_duc_lo' not in q_feat['qualifiers']:
+            continue
+
+        # BẢO VỆ CHẤT LIỆU DA / VẬT LIỆU (SIMILI vs NAPPA vs CÔNG NGHIỆP):
+        mat_tags = {'mat_simili', 'mat_nappa', 'mat_cong_nghiep'}
+        q_mats = q_feat['qualifiers'] & mat_tags
+        m_mats = m_feat['qualifiers'] & mat_tags
+        if q_mats and m_mats and not (q_mats & m_mats):
+            continue
+
+        # 4. KIỂM TRA TỪ KHÓA TRỰC TIẾP TRONG BỘ TỪ KHÓA
+        kws = [k.strip() for k in keywords_str.split(',') if k.strip()]
+        if any(len(k) >= 4 and k in clean for k in kws):
+            return {
+                "type": "success",
+                "module": "knowledge_retrieved",
+                "message": formatted_reply
+            }
+
+        # 5. KIỂM TRA ĐỘ TƯƠNG ĐỒNG TỪ VỰNG CỐT LÕI
+        stop_words = {
+            'cho', 'toi', 'minh', 'em', 'anh', 'chi', 'bac', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 
+            'sao', 'co', 'khong', 'voi', 'thi', 'va', 'gia', 'bao', 'nhieu', 'tien', 'bao gia', 'phi', 
+            'chi phi', 'ton', 'tam', 'khoang', 'xin', 'tu van', 'xe', 'chiec', 'khi', 'cho toi hoi', 'ad', 'shop'
+        }
         q_tokens = set(re.findall(r'\w+', clean)) - stop_words
         m_tokens = set(re.findall(r'\w+', clean_topic)) - stop_words
+        kw_tokens = set(re.findall(r'\w+', keywords_str)) - stop_words
 
         if q_tokens and m_tokens:
             overlap = q_tokens & m_tokens
-            ratio = len(overlap) / len(q_tokens)
-            if ratio >= 0.7:
+            ratio_m = len(overlap) / len(m_tokens)
+            ratio_q = len(overlap) / len(q_tokens)
+            if ratio_m >= 0.75 or ratio_q >= 0.7 or (len(overlap) >= 2 and ratio_m >= 0.6):
+                return {
+                    "type": "success",
+                    "module": "knowledge_retrieved",
+                    "message": formatted_reply
+                }
+
+        if q_tokens and kw_tokens:
+            kw_overlap = q_tokens & kw_tokens
+            if len(kw_overlap) >= 2 and (len(kw_overlap) / len(q_tokens) >= 0.6 or len(kw_overlap) >= len(q_tokens)):
                 return {
                     "type": "success",
                     "module": "knowledge_retrieved",
