@@ -8649,3 +8649,72 @@ Trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```jso
     except Exception as e:
         print(f"[GeminiEngine] Lỗi trích xuất tri thức: {e}")
         return None
+
+
+def analyze_and_clean_unhappy_feedback(user_query: str, rejected_answer: str, mem_id=None, topic="", keywords="") -> dict:
+    """
+    PHÂN TÍCH VÀ TỰ ĐỘNG XÓA TỪ KHÓA GÂY NHẦM LẪN KHI NGƯỜI DÙNG KHÔNG HÀI LÒNG:
+    - Gemini phân tích tại sao câu trả lời bị sai / bị nhầm sản phẩm.
+    - Trích xuất danh sách các từ khóa gây ô nhiễm / xung đột để xóa khỏi hệ thống.
+    - Tìm và đưa ra câu trả lời mới chuẩn xác cho người dùng.
+    """
+    cfg = load_gemini_config()
+    api_key = cfg.get("api_key")
+    if not api_key:
+        return None
+
+    model_name = cfg.get("preferred_model") or "gemini-3.5-flash-lite"
+    clean_model = model_name.replace("models/", "")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
+
+    # Lấy thêm ngữ cảnh các mục trong bộ nhớ gara nếu có
+    memory_context = ""
+    if mem_id and topic:
+        memory_context = f"- Mục tri thức bị kích hoạt nhầm trong hệ thống:\n  * ID: {mem_id}\n  * Chủ đề: {topic}\n  * Từ khóa hiện tại: {keywords}"
+
+    prompt = f"""Bạn là Hệ Thống Tối Ưu Tri Thức AI (AI Knowledge Optimizer) của Gara Ô Tô Trần Bình Auto.
+Người dùng vừa bấm [👎 KHÔNG HÀI LÒNG] với câu trả lời của AI hệ thống!
+
+THÔNG TIN SỰ CỐ:
+- Câu hỏi của người dùng: "{user_query}"
+- Câu trả lời bị người dùng từ chối:
+<< {rejected_answer[:500]} >>
+{memory_context}
+
+NHIỆM VỤ:
+1. PHÂN TÍCH NGUYÊN NHÂN: Vì sao câu hỏi '{user_query}' lại bị trả lời sai hoặc kích hoạt nhầm sang sản phẩm khác?
+2. XÓA TỪ KHÓA GÂY NHẦM: Xác định chính xác từ khóa / trigger nào gây ô nhiễm hoặc kích hoạt nhầm để GỠ BỎ khỏi hệ thống (ví dụ: gỡ 'gia re', 're', hoặc từ khóa làm nhầm lẫn giữa film và màn hình).
+3. CÂU TRẢ LỜI MỚI CHUẨN XÁC: Tra cứu lại dữ liệu nội bộ Gara Trần Bình Auto để đưa ra câu trả lời mới đúng trọng tâm, chính xác cho câu hỏi '{user_query}'.
+
+Trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```json hay văn bản thừa):
+{{
+  "analysis": "Giải thích ngắn gọn 1-2 câu vì sao bị nhầm",
+  "remove_keywords": ["từ_khóa_1_cần_xóa", "từ_khóa_2_cần_xóa"],
+  "memory_id_to_clean": {mem_id if mem_id else "null"},
+  "new_answer": "Câu trả lời mới chuẩn xác cho người dùng..."
+}}
+"""
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": 2500,
+            "temperature": 0.1
+        }
+    }
+
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            res_data = json.loads(resp.read().decode("utf-8"))
+
+        text_resp = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        text_resp = re.sub(r'^```json\s*', '', text_resp)
+        text_resp = re.sub(r'\s*```$', '', text_resp)
+        return json.loads(text_resp)
+    except Exception as e:
+        print(f"[GeminiEngine] Lỗi phân tích phản hồi không hài lòng: {e}")
+        return None

@@ -4588,6 +4588,10 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
             return {
                 "type": "success",
                 "module": "knowledge_retrieved",
+                "memory_id": mem_id,
+                "topic": topic,
+                "clean_topic": clean_topic,
+                "keywords": keywords_str,
                 "message": formatted_reply
             }
 
@@ -4634,6 +4638,10 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
             return {
                 "type": "success",
                 "module": "knowledge_retrieved",
+                "memory_id": mem_id,
+                "topic": topic,
+                "clean_topic": clean_topic,
+                "keywords": keywords_str,
                 "message": formatted_reply
             }
 

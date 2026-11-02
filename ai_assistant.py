@@ -4501,143 +4501,129 @@ def find_alternative_internal_consultation(raw_query, clean_query, rejected_answ
 def handle_unhappy_gemini_feedback(user_query, rejected_answers, session_id="default_user"):
     """
     Khi người dùng bấm [👎 Không hài lòng] hoặc nhắn 'chưa đúng', 'không hài lòng':
-    Gemini (hoặc AI nội bộ) tra cứu lại dữ liệu nội bộ và tìm câu trả lời KHÁC THÍCH HỢP HƠN.
+    1. Gemini tự động phân tích nguyên nhân sai / nhầm lẫn.
+    2. Tự động XÓA TỪ KHÓA gây ô nhiễm ra khỏi gara_memory để lần sau không bao giờ trả lời nhầm.
+    3. Tra cứu lại dữ liệu và đưa ra câu trả lời mới chuẩn xác kèm nút Hài lòng / Không hài lòng.
     """
     clean_q = remove_accents(user_query).lower()
     last_rejected = rejected_answers[-1] if rejected_answers else ""
 
-    new_reply_text = None
+    sess = WIZARD_SESSIONS.get(session_id, {})
+    mem_id = sess.get('matched_memory_id')
+    topic = sess.get('matched_topic', '')
+    kws = sess.get('matched_keywords', '')
 
-    # 1. Thử gọi Gemini với prompt tái tra cứu chuyên sâu & loại trừ câu trả lời cũ
-    if GEMINI_AVAILABLE and gemini_engine:
-        cfg = gemini_engine.load_gemini_config()
-        if cfg.get('enabled', True) and cfg.get('api_key'):
+    gemini_analysis = None
+    if GEMINI_AVAILABLE and gemini_engine and hasattr(gemini_engine, 'analyze_and_clean_unhappy_feedback'):
+        try:
+            gemini_analysis = gemini_engine.analyze_and_clean_unhappy_feedback(
+                user_query, last_rejected, mem_id=mem_id, topic=topic, keywords=kws
+            )
+        except Exception as e_an:
+            print(f"[UnhappyFeedback] Lỗi phân tích Gemini: {e_an}")
+
+    removed_kws = []
+    clean_report = ""
+    new_answer = ""
+
+    if gemini_analysis and isinstance(gemini_analysis, dict):
+        reason = gemini_analysis.get('analysis', '')
+        to_remove = gemini_analysis.get('remove_keywords', [])
+        target_mem_id = gemini_analysis.get('memory_id_to_clean') or mem_id
+        new_answer = gemini_analysis.get('new_answer', '')
+
+        # Thực hiện xóa từ khóa gây nhầm trong cơ sở dữ liệu
+        if target_mem_id and to_remove:
             try:
-                unhappy_prompt = (
-                    f"Người dùng KHÔNG HÀI LÒNG với câu trả lời trước đó:\n"
-                    f"\"\"\"\n{last_rejected[:500]}\n\"\"\"\n\n"
-                    f"Câu hỏi gốc của người dùng là: \"{user_query}\"\n\n"
-                    f"YÊU CẦU ĐẶC BIỆT:\n"
-                    f"1. Phân tích kỹ lại câu hỏi gốc và dữ liệu nội bộ thực tế của gara Trần Bình Auto.\n"
-                    f"2. Người dùng chưa ưng ý phương án cũ. BẠN HÃY TÌM VÀ ĐƯA RA CÂU TRẢ LỜI / PHƯƠNG ÁN KHÁC THÍCH HỢP HƠN.\n"
-                    f"3. Tuyệt đối không lặp lại y nguyên câu trả lời cũ đã bị từ chối.\n"
-                    f"4. Dựa trên dữ liệu nội bộ hệ thống, không tự ý thêm bớt hay sửa đổi dữ liệu."
-                )
-                res_gem = gemini_engine.ask_gemini(unhappy_prompt, session_id=session_id)
-                if res_gem and res_gem.get('message') and not res_gem.get('message', '').startswith("⚠️"):
-                    new_reply_text = res_gem['message']
-            except Exception as e_unhappy:
-                print(f"[UnhappyFeedback] Gemini re-query error: {e_unhappy}")
+                conn = sqlite3.connect(DB_KNOWLEDGE, timeout=10)
+                c = conn.cursor()
+                c.execute("SELECT keywords FROM gara_memory WHERE id = ?", (target_mem_id,))
+                row = c.fetchone()
+                if row and row[0]:
+                    curr_kws = [k.strip() for k in row[0].split(',') if k.strip()]
+                    cleaned_kws = []
+                    for k in curr_kws:
+                        k_norm = remove_accents(k).lower()
+                        should_drop = any(remove_accents(rk).lower() in k_norm for rk in to_remove)
+                        if should_drop:
+                            removed_kws.append(k)
+                        else:
+                            cleaned_kws.append(k)
 
-    # 2. Nếu Gemini chưa có kết quả (hoặc offline) -> Sử dụng bộ máy quy tắc nội bộ tìm phương án khác
-    if not new_reply_text:
-        new_reply_text = find_alternative_internal_consultation(user_query, clean_q, rejected_answers)
+                    if removed_kws or not cleaned_kws:
+                        c.execute("UPDATE gara_memory SET keywords = ? WHERE id = ?", (", ".join(cleaned_kws), target_mem_id))
+                        c.execute("SELECT clean_topic FROM gara_memory WHERE id = ?", (target_mem_id,))
+                        r_ct = c.fetchone()
+                        if r_ct:
+                            q_norm = remove_accents(user_query).lower().strip()
+                            if not cleaned_kws or q_norm in r_ct[0] or r_ct[0] in q_norm:
+                                c.execute("UPDATE gara_memory SET clean_topic = ? WHERE id = ?", (f"[da_huy]_{r_ct[0]}", target_mem_id))
+                        conn.commit()
+                conn.close()
 
-    # 3. Đóng gói câu trả lời thay thế kèm 2 nút [👍 Hài lòng] và [👎 Không hài lòng]
+                # Đồng bộ sang knowledge_seed.json
+                try:
+                    import json
+                    conn_e = sqlite3.connect(DB_KNOWLEDGE, timeout=5)
+                    c_e = conn_e.cursor()
+                    c_e.execute("SELECT topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply FROM gara_memory")
+                    all_mem = c_e.fetchall()
+                    conn_e.close()
+
+                    seed_list = []
+                    for r in all_mem:
+                        seed_list.append({
+                            "topic": r[0], "clean_topic": r[1], "keywords": r[2], "raw_content": r[3],
+                            "price_info": r[4], "options_info": r[5], "formatted_reply": r[6]
+                        })
+                    seed_p = os.path.join(BASE_DIR, 'knowledge_seed.json')
+                    with open(seed_p, 'w', encoding='utf-8') as f_s:
+                        json.dump(seed_list, f_s, ensure_ascii=False, indent=2)
+                except Exception as e_exp:
+                    print(f"[UnhappyFeedback] Lỗi xuất seed: {e_exp}")
+            except Exception as e_db:
+                print(f"[UnhappyFeedback] Lỗi cập nhật keywords: {e_db}")
+
+        if removed_kws or reason:
+            kws_text = "`, `".join(list(dict.fromkeys(removed_kws))) if removed_kws else "từ khóa gây nhầm lẫn"
+            clean_report = (
+                f"🧹 **GEMINI ĐÃ PHÂN TÍCH & TỰ ĐỘNG GỠ BỎ TỪ KHÓA GÂY NHẦM:**\n"
+                f"─────────────────────────────────────────\n"
+                f"• 🔍 **Nguyên nhân:** {reason}\n"
+                f"• ❌ **Đã xóa từ khóa ô nhiễm:** `{kws_text}`\n"
+                f"• 🛡️ **Cam kết:** Lần sau khi hỏi lại, hệ thống sẽ **không bao giờ trả lời nhầm** nữa!\n"
+                f"─────────────────────────────────────────\n\n"
+            )
+
+    if not new_answer:
+        # Dự phòng nếu Gemini không trả về câu trả lời mới
+        new_answer = find_alternative_internal_consultation(user_query, clean_q, rejected_answers)
+
     confirm_footer = (
         "\n\n─────────────────────────────────────────\n"
-        "🤔 **Anh/chị thấy câu trả lời này đã thích hợp và hài lòng chưa ạ?**\n"
-        "*(Bấm **[👍 Hài lòng]** để dạy lại cho AI hệ thống ghi nhớ vĩnh viễn | Bấm **[👎 Không hài lòng]** để tiếp tục tìm phương án khác)*"
+        "🤔 **Anh/chị có hài lòng với câu trả lời mới này không?**\n"
+        "*(Bấm **[👍 Hài lòng]** để Gemini dạy lại phương án này cho AI hệ thống | Bấm **[👎 Không hài lòng]** để tiếp tục lọc lại)*"
     )
-    full_message = (
-        f"🔄 **[ĐÃ TRA CỨU LẠI DỮ LIỆU NỘI BỘ & TÌM PHƯƠNG ÁN KHÁC THÍCH HỢP HƠN]**\n"
-        f"─────────────────────────────────────────\n"
-        f"{new_reply_text}"
-        f"{confirm_footer}"
-    )
+
+    full_reply = f"{clean_report}✨ **CÂU TRẢ LỜI MỚI CHUẨN XÁC DÀNH CHO ANH:**\n{new_answer}{confirm_footer}"
 
     WIZARD_SESSIONS[session_id] = {
         'flow': 'confirm_gemini_learning',
         'user_query': user_query,
-        'gemini_reply': new_reply_text,
+        'gemini_reply': new_answer,
         'rejected_answers': rejected_answers,
         'timestamp': datetime.now().isoformat()
     }
 
     return {
         "type": "success",
-        "module": "gemini_assistant",
-        "message": full_message,
+        "module": "feedback_refined",
+        "message": full_reply,
         "buttons": [
             {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
             {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
         ]
     }
-
-# ═════════════════════════════════════════════════════════════════════════
-# BẢNG DỮ LIỆU ĐỊNH GIÁ & BỘ XỬ LÝ PHỐI GÓI PHIM THEO KHOẢNG GIÁ
-# ═════════════════════════════════════════════════════════════════════════
-WINDSHIELDS_DATA = {
-    "ceramax": {
-        "key": "ceramax",
-        "name": "Kính lái CeraMAX 50 (Men gốm sinh học cao cấp)",
-        "price": 3300000,
-        "note": "Xuyên sáng 59.7% bao đăng kiểm, cản tia hồng ngoại IR 99.1% (cực mát), BH 15 năm"
-    },
-    "3m_crystalline": {
-        "key": "3m_crystalline",
-        "name": "Kính lái 3M Crystalline CR50BLK (Đỉnh cao quang học 200 lớp)",
-        "price": 5700000,
-        "note": "Xuyên sáng 50% bao đăng kiểm, cản IR 98%, chống chói lóa ban đêm, BH 10 năm điện tử 3M"
-    },
-    "3m_ceramic": {
-        "key": "3m_ceramic",
-        "name": "Kính lái 3M Ceramic Hybrid NR25 (Bản tiết kiệm)",
-        "price": 2600000,
-        "note": "Xuyên sáng đạt chuẩn kiểm định mới >50%, cản UV 99%, BH 10 năm điện tử 3M"
-    },
-    "ntech": {
-        "key": "ntech",
-        "name": "Kính lái Ntech Cao Cấp (Ceramic Hàn Quốc)",
-        "price": 2200000,
-        "note": "Men gốm Hàn Quốc, chống chói tốt, BH 10 năm"
-    }
-}
-
-BODY_PACKS_DATA = [
-    {
-        "id": "ntech_tc",
-        "name": "Sườn & Hậu Ntech Tiêu Chuẩn (Hàn Quốc - BH 10 năm)",
-        "combo_price_sedan": 2300000,
-        "combo_price_suv": 2800000,
-        "detail": "Kính sườn trước (700k) + Sườn sau (700k) + Hậu (900k) (+ Ô khoang SUV 500k). Tối màu riêng tư mát mẻ, tiết kiệm nhất."
-    },
-    {
-        "id": "ntech_cc",
-        "name": "Sườn & Hậu Ntech Cao Cấp (Ceramic Hàn Quốc - BH 10 năm)",
-        "combo_price_sedan": 3200000,
-        "combo_price_suv": 4100000,
-        "detail": "Kính sườn trước (1.0tr) + Sườn sau (1.0tr) + Hậu (1.2tr) (+ Ô khoang SUV 900k). Men gốm tăng cường cản nhiệt và giảm lóa."
-    },
-    {
-        "id": "3m_nr",
-        "name": "Sườn & Hậu 3M Ceramic Hybrid (NR15 / NR5 - BH 10 năm)",
-        "combo_price_sedan": 4600000,  # Giá ưu đãi khi đi kèm kính lái (niêm yết lẻ 5.3tr)
-        "combo_price_suv": 5700000,   # Giá ưu đãi (niêm yết lẻ 6.9tr)
-        "detail": "Sườn trước (1.7tr) + Sườn sau (1.7tr) + Hậu (1.9tr) (+ Ô khoang 1.6tr). Công nghệ lai phản xạ nhiệt, giảm chói 93%."
-    },
-    {
-        "id": "3m_ir",
-        "name": "Sườn & Hậu 3M Ceramic IR (IR15 - Men gốm hồng ngoại Mỹ - BH 10 năm)",
-        "combo_price_sedan": 5500000,
-        "combo_price_suv": 6800000,
-        "detail": "Sườn trước (1.8tr) + Sườn sau (1.8tr) + Hậu (2.3tr). Men gốm hồng ngoại chính hãng 3M USA cản nhiệt vượt trội."
-    },
-    {
-        "id": "ceramax_diamond",
-        "name": "Sườn & Hậu CeraMAX Diamond (Men gốm sinh học - BH 15 năm)",
-        "combo_price_sedan": 5900000,  # Giá ưu đãi combo (niêm yết lẻ 6.2tr)
-        "combo_price_suv": 7500000,   # Giá ưu đãi combo (niêm yết lẻ 8.0tr)
-        "detail": "Sườn trước (2.0tr) + Sườn sau (2.0tr) + Hậu (2.2tr) (+ Ô khoang 1.8tr). Cắt IR 99.1% đỉnh cao, cách nhiệt siêu mát."
-    },
-    {
-        "id": "3m_cr",
-        "name": "Sườn & Hậu 3M Crystalline (CR15BLK / CR20 - Quang học 200 lớp - BH 10 năm)",
-        "combo_price_sedan": 9100000,
-        "combo_price_suv": 11500000,
-        "detail": "Sườn trước (2.6tr) + Sườn sau (2.6tr) + Hậu (4.1tr) (+ Ô khoang 2.6tr). Đỉnh cao cách nhiệt toàn cầu 200 lớp."
-    }
-]
 
 def parse_film_price_range(clean_text):
     def to_number(val_str):
@@ -7151,6 +7137,9 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                 'user_query': raw,
                 'gemini_reply': msg_learned,
                 'rejected_answers': [],
+                'matched_memory_id': res_learned.get('memory_id'),
+                'matched_topic': res_learned.get('topic'),
+                'matched_keywords': res_learned.get('keywords'),
                 'timestamp': datetime.now().isoformat()
             }
             return {
