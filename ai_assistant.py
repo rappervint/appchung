@@ -4323,6 +4323,147 @@ def teach_system_from_gemini(raw_query, reply_text):
         print(f"[TeachGemini] Lỗi lưu tri thức: {e}")
         return False, topic, keywords, None
 
+
+def find_alternative_internal_consultation(raw_query, clean_query, rejected_answers):
+    """
+    Tìm phương án tư vấn nội bộ THAY THẾ khi người dùng không hài lòng với câu trả lời trước đó.
+    Dựa trên 100% dữ liệu thực tế tại gara Trần Bình Auto.
+    """
+    clean = clean_query.lower()
+    
+    # 1. PHỐI GHÉP PHIM (3M, Ntech, Ceramax, khoảng giá)
+    if any(k in clean for k in ['film', 'phim', '3m', 'ntech', 'ceramax', 'kinh lai', 'suon', 'hau']):
+        return (
+            "🎯 **PHƯƠNG ÁN PHỐI GHÉP THAY THẾ TỐI ƯU HƠN THEO DỮ LIỆU GARA:**\n\n"
+            "✨ **Phương án 1: Kính lái CERAMAX 50 + Kính sườn hậu NTECH CAO CẤP (Khuyên dùng nhất):**\n"
+            "• **Kính lái:** CeraMAX 50 (Men gốm kim cương cao cấp, xuyên sáng 59.7%, cắt tia hồng ngoại IR 99.1% cực mát, bao đăng kiểm 100%): **3.300.000 đ** (BH 15 năm).\n"
+            "• **Kính sườn + Kính hậu:** Ntech Cao Cấp (Ceramic tráng phủ nano, cản nhiệt tốt): **4.200.000 đ** (Sedan) | **4.700.000 đ** (SUV) (BH 10 năm).\n"
+            "• 💰 **Tổng trọn gói:** **7.500.000 đ** (Sedan) hoặc **8.000.000 đ** (SUV).\n"
+            "👉 *Ưu điểm:* Cắt nhiệt đỉnh cao tương đương dòng đắt tiền nhất nhưng giá trọn gói nằm đúng tầm 7.5tr - 8tr!\n\n"
+            "✨ **Phương án 2: Kính lái 3M Crystalline CR50 + Sườn hậu NTECH TIÊU CHUẨN:**\n"
+            "• **Kính lái:** 3M Crystalline CR50 (Quang học 200 lớp độc quyền Mỹ): **5.700.000 đ** (BH 10 năm).\n"
+            "• **Kính sườn + Kính hậu:** Ntech Tiêu Chuẩn (Men gốm mát dịu): **2.700.000 đ** (Sedan) | **3.000.000 đ** (SUV).\n"
+            "• 💰 **Tổng trọn gói:** **8.400.000 đ** (Sedan) hoặc **8.700.000 đ** (SUV).\n\n"
+            "✨ **Phương án 3: Trọn gói 3M CERAMIC HYBRID NR (Tiết kiệm chính hãng 3M):**\n"
+            "• Kính lái NR25 + Kính sườn hậu NR15/NR5: **6.200.000 đ** (Sedan) | **6.800.000 đ** (SUV) (BH 10 năm điện tử).\n\n"
+            "🎁 *Tất cả các gói đều được miễn phí 100% công lột phim cũ và vệ sinh keo sạch sẽ tại Gara Trần Bình Auto.*"
+        )
+    
+    # 2. MÀN HÌNH ANDROID GIÁ TỐT / GIÁ RẺ
+    if any(k in clean for k in ['man hinh', 'man', 'dvd', 'android']) and not any(k in clean for k in ['box', 'cuc box']):
+        return (
+            "📱 **DANH SÁCH MÀN HÌNH ANDROID CHÍNH HÃNG GIÁ TỐT NHẤT TẠI GARA (THUẦN MÀN HÌNH TAPLO 100%):**\n\n"
+            "1. **Màn hình BRAVO B10 LITE (9 inch / 10 inch):**\n"
+            "   • Giá: **4.500.000 đ** (Đã gồm mặt dưỡng theo xe + giắc cắm zin 100%)\n"
+            "   • Cấu hình: Ram 2GB / Bộ nhớ 32GB, chip 8 nhân, chạy mượt mà Vietmap, Youtube, Zing MP3.\n"
+            "   • Bảo hành chính hãng: **24 tháng**.\n\n"
+            "2. **Màn hình WINCA S150+ Android:**\n"
+            "   • Giá: **4.500.000 đ**\n"
+            "   • Tặng kèm: Camera hành trình trước + Thẻ nhớ + Sim 4G tốc độ cao.\n"
+            "   • Bảo hành: **24 tháng** đổi mới năm đầu.\n\n"
+            "3. **Màn hình GOTECH G4:**\n"
+            "   • Giá: **4.900.000 đ**\n"
+            "   • Cấu hình: Màn IPS chống chói, tích hợp bản quyền Vietmap Live trọn đời cảnh báo tốc độ.\n\n"
+            "4. **Màn hình KOVAR T1:**\n"
+            "   • Giá: **5.500.000 đ** | Thương hiệu con Zestech, độ bền cao, bảo hành 18 tháng.\n\n"
+            "*(Cam kết 100% thuần màn hình Android thay thế taplo, không nhầm lẫn với Android Box)*"
+        )
+
+    # 3. ĐÈN TĂNG SÁNG & BI GẦM
+    if any(k in clean for k in ['den', 'bi', 'gam', 'tang sang', 'f10', 's3', 'led']):
+        return (
+            "💡 **CÁC PHƯƠNG ÁN ĐỘ ĐÈN TĂNG SÁNG PHÙ HỢP TỪNG TẦM GIÁ:**\n\n"
+            "1. **Bi gầm S3 Mini LED:** **1.500.000 đ / cặp** (Giải pháp kinh tế, tăng sáng gấp 3 lần đèn halogen zin, cắm giắc zin).\n"
+            "2. **Bi gầm AOZOOM F10 NEW (3 nhiệt màu):** **3.900.000 đ / cặp** (Phá sương, bám đường cực tốt, bảo hành 3 năm).\n"
+            "3. **Bi gầm X-LIGHT F10 2.0:** **4.200.000 đ / cặp** (Công suất mạnh, cắt sáng văn minh không chói mắt xe đối diện).\n"
+            "4. **Bi Led Pha GTR Premium / Aozoom Wolf:** **5.500.000 đ - 7.500.000 đ / cặp** (Nâng cấp ánh sáng pha cos đỉnh cao)."
+        )
+
+    # 4. PPF BẢO VỆ XE
+    if any(k in clean for k in ['ppf', 'dan keo', 'chong tray', 'noi that']):
+        return (
+            "🛡️ **DỊCH VỤ DÁN PPF BẢO VỆ CHỐNG TRẦY XƯỚC CHÍNH HÃNG:**\n\n"
+            "1. **PPF Chi tiết nội thất ô tô (Màn hình + Hộp số bóng + Bệ tỳ tay):** **1.500.000 đ - 2.500.000 đ**\n"
+            "2. **PPF Đèn pha + Đèn hậu:** **1.200.000 đ - 1.800.000 đ**\n"
+            "3. **PPF Nắp Capo chống đá văng:** **2.500.000 đ - 3.500.000 đ**\n"
+            "4. **PPF Cản trước (Ba-đờ-sốc):** **2.000.000 đ - 3.000.000 đ**\n"
+            "5. **Combo Hõm chén cửa + Mép 4 cánh cửa + Bậc lên xuống:** **800.000 đ**\n"
+            "• Bảo hành bong tróc ố vàng: 3 - 5 năm."
+        )
+
+    # 5. MẶC ĐỊNH
+    return (
+        f"Dạ em đã rà soát lại toàn bộ cơ sở dữ liệu và bảng giá dịch vụ nội bộ của gara Trần Bình Auto.\n"
+        f"Để phục vụ anh/chị chuẩn xác nhất theo đúng nhu cầu, anh/chị có thể cho em biết thêm mức ngân sách mong muốn hoặc dòng xe cụ thể để em phối gói tối ưu nhất nhé!"
+    )
+
+
+def handle_unhappy_gemini_feedback(user_query, rejected_answers, session_id="default_user"):
+    """
+    Khi người dùng bấm [👎 Không hài lòng] hoặc nhắn 'chưa đúng', 'không hài lòng':
+    Gemini (hoặc AI nội bộ) tra cứu lại dữ liệu nội bộ và tìm câu trả lời KHÁC THÍCH HỢP HƠN.
+    """
+    clean_q = remove_accents(user_query).lower()
+    last_rejected = rejected_answers[-1] if rejected_answers else ""
+
+    new_reply_text = None
+
+    # 1. Thử gọi Gemini với prompt tái tra cứu chuyên sâu & loại trừ câu trả lời cũ
+    if GEMINI_AVAILABLE and gemini_engine:
+        cfg = gemini_engine.load_gemini_config()
+        if cfg.get('enabled', True) and cfg.get('api_key'):
+            try:
+                unhappy_prompt = (
+                    f"Người dùng KHÔNG HÀI LÒNG với câu trả lời trước đó:\n"
+                    f"\"\"\"\n{last_rejected[:500]}\n\"\"\"\n\n"
+                    f"Câu hỏi gốc của người dùng là: \"{user_query}\"\n\n"
+                    f"YÊU CẦU ĐẶC BIỆT:\n"
+                    f"1. Phân tích kỹ lại câu hỏi gốc và dữ liệu nội bộ thực tế của gara Trần Bình Auto.\n"
+                    f"2. Người dùng chưa ưng ý phương án cũ. BẠN HÃY TÌM VÀ ĐƯA RA CÂU TRẢ LỜI / PHƯƠNG ÁN KHÁC THÍCH HỢP HƠN.\n"
+                    f"3. Tuyệt đối không lặp lại y nguyên câu trả lời cũ đã bị từ chối.\n"
+                    f"4. Dựa trên dữ liệu nội bộ hệ thống, không tự ý thêm bớt hay sửa đổi dữ liệu."
+                )
+                res_gem = gemini_engine.ask_gemini(unhappy_prompt, session_id=session_id)
+                if res_gem and res_gem.get('message') and not res_gem.get('message', '').startswith("⚠️"):
+                    new_reply_text = res_gem['message']
+            except Exception as e_unhappy:
+                print(f"[UnhappyFeedback] Gemini re-query error: {e_unhappy}")
+
+    # 2. Nếu Gemini chưa có kết quả (hoặc offline) -> Sử dụng bộ máy quy tắc nội bộ tìm phương án khác
+    if not new_reply_text:
+        new_reply_text = find_alternative_internal_consultation(user_query, clean_q, rejected_answers)
+
+    # 3. Đóng gói câu trả lời thay thế kèm 2 nút [👍 Hài lòng] và [👎 Không hài lòng]
+    confirm_footer = (
+        "\n\n─────────────────────────────────────────\n"
+        "🤔 **Anh/chị thấy câu trả lời này đã thích hợp và hài lòng chưa ạ?**\n"
+        "*(Bấm **[👍 Hài lòng]** để dạy lại cho AI hệ thống ghi nhớ vĩnh viễn | Bấm **[👎 Không hài lòng]** để tiếp tục tìm phương án khác)*"
+    )
+    full_message = (
+        f"🔄 **[ĐÃ TRA CỨU LẠI DỮ LIỆU NỘI BỘ & TÌM PHƯƠNG ÁN KHÁC THÍCH HỢP HƠN]**\n"
+        f"─────────────────────────────────────────\n"
+        f"{new_reply_text}"
+        f"{confirm_footer}"
+    )
+
+    WIZARD_SESSIONS[session_id] = {
+        'flow': 'confirm_gemini_learning',
+        'user_query': user_query,
+        'gemini_reply': new_reply_text,
+        'rejected_answers': rejected_answers,
+        'timestamp': datetime.now().isoformat()
+    }
+
+    return {
+        "type": "success",
+        "module": "gemini_assistant",
+        "message": full_message,
+        "buttons": [
+            {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+            {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
+        ]
+    }
+
 # ═════════════════════════════════════════════════════════════════════════
 # BẢNG DỮ LIỆU ĐỊNH GIÁ & BỘ XỬ LÝ PHỐI GÓI PHIM THEO KHOẢNG GIÁ
 # ═════════════════════════════════════════════════════════════════════════
@@ -4569,7 +4710,7 @@ def handle_film_combination_matcher(raw_text, clean_text, session_id="default_us
     confirm_footer = (
         "\n\n─────────────────────────────────────────\n"
         "🤔 **Anh/chị có hài lòng với kết quả này không?**\n"
-        "*(Bấm **[👍 Hài lòng & Dạy AI]** hoặc nhắn **'hài lòng'** / **'đồng ý'** để AI ghi nhớ vĩnh viễn vào hệ thống, lần sau hỏi lại sẽ hiểu ngay lập tức!)*"
+        "*(Bấm **[👍 Hài lòng]** hoặc nhắn **'hài lòng'** để AI ghi nhớ vĩnh viễn vào hệ thống, lần sau hỏi lại sẽ hiểu ngay lập tức! Bấm **[👎 Không hài lòng]** để tìm phương án khác)*"
     )
     full_msg = msg + confirm_footer
 
@@ -4578,6 +4719,7 @@ def handle_film_combination_matcher(raw_text, clean_text, session_id="default_us
             'flow': 'confirm_gemini_learning',
             'user_query': raw_text,
             'gemini_reply': msg,
+            'rejected_answers': [],
             'timestamp': datetime.now().isoformat()
         }
 
@@ -4586,12 +4728,12 @@ def handle_film_combination_matcher(raw_text, clean_text, session_id="default_us
         "module": "dichvu",
         "message": full_msg,
         "buttons": [
-            {"text": "👍 Hài lòng & Dạy AI", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
-            {"text": "👎 Chưa đúng", "action": "send_message", "value": "chưa đúng", "class": "btn-danger"}
+            {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+            {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
         ]
     }
 
-def handle_gara_consultation(raw_text, clean_text):
+def handle_gara_consultation(raw_text, clean_text, session_id="default_user"):
     """
     TRỢ LÝ TƯ VẤN BÁN HÀNG TẬP TRUNG & NGẮN GỌN - GARA TRẦN BÌNH AUTO:
     Trả lời ĐÚNG TRỌNG TÂM - CỰC KỲ SÚC TÍCH - KHÔNG DÔNG DÀI
@@ -6327,15 +6469,12 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
                     "message": "⚠️ Gặp lỗi khi lưu tri thức vào hệ thống. Vui lòng thử lại."
                 }
         elif is_disagree:
-            del WIZARD_SESSIONS[session_id]
-            return {
-                "type": "info",
-                "message": (
-                    "👌 **ĐÃ HỦY GHI NHỚ:**\n"
-                    "Gemini sẽ không lưu câu trả lời này vào bộ nhớ của AI.\n"
-                    "👉 Anh có thể nhắn hướng dẫn hoặc câu trả lời chuẩn để em ghi nhớ chính xác theo ý anh nhé!"
-                )
-            }
+            q_saved = sess_learning.get('user_query', '')
+            prev_reply = sess_learning.get('gemini_reply', '')
+            rejected_answers = sess_learning.get('rejected_answers', [])
+            if prev_reply and prev_reply not in rejected_answers:
+                rejected_answers.append(prev_reply)
+            return handle_unhappy_gemini_feedback(q_saved, rejected_answers, session_id=session_id)
 
     # Nếu câu hỏi quá ngắn hoặc mơ hồ chung chung -> Chủ động hỏi lại làm rõ
     if clean in ['tu van', 'bao gia', 'cho hoi', 'cho toi hoi', 'bang gia', 'dich vu', 'gara co lam gi', 'do xe', 'nang cap xe', 'hoi gia', 'tu van xe', 'xe']:
@@ -6625,8 +6764,26 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
     # ═════════════════════════════════════════════════════════════════════
     # 2.4. CHUYÊN GIA TƯ VẤN DỊCH VỤ GARA (PHIM CÁCH NHIỆT, TRẦN, MÀN HÌNH, BOX, CAM, GHẾ DA)
     # ═════════════════════════════════════════════════════════════════════
-    res_gara = handle_gara_consultation(raw, clean)
+    res_gara = handle_gara_consultation(raw, clean, session_id=session_id)
     if res_gara:
+        if isinstance(res_gara, dict) and res_gara.get('message') and not res_gara.get('buttons'):
+            confirm_footer = (
+                "\n\n─────────────────────────────────────────\n"
+                "🤔 **Anh/chị có hài lòng với kết quả này không?**\n"
+                "*(Bấm **[👍 Hài lòng]** hoặc nhắn **'hài lòng'** để lưu vào bộ não AI hệ thống! Bấm **[👎 Không hài lòng]** để tìm phương án khác)*"
+            )
+            res_gara['message'] += confirm_footer
+            res_gara['buttons'] = [
+                {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+                {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
+            ]
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_gemini_learning',
+                'user_query': raw,
+                'gemini_reply': res_gara['message'],
+                'rejected_answers': [],
+                'timestamp': datetime.now().isoformat()
+            }
         return res_gara
 
     # ═════════════════════════════════════════════════════════════════════
@@ -6780,10 +6937,63 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
         WIZARD_SESSIONS[session_id] = WIZARD_SESSIONS['default_user']
 
     if session_id in WIZARD_SESSIONS:
-        # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
-        is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|bao gia)\b', clean)) and WIZARD_SESSIONS[session_id].get('flow') != 'confirm_action'
-        if is_new_command_intent and clean not in ['ok', 'luu', 'huy', 'cancel', 'dung', 'co']:
-            del WIZARD_SESSIONS[session_id]
+        sess = WIZARD_SESSIONS[session_id]
+        if sess.get('flow') == 'confirm_gemini_learning':
+            is_agree = clean in [
+                'hai long', 'dong y', 'ok', 'oke', 'okie', 'day ai', 'day he thong', 'luu', 'luu lai',
+                'chuan', 'tot', 'duoc', 'dung', 'yes', 'y', 'co', '1', 'thich', 'chinh xac'
+            ] or clean.startswith('hai long') or clean.startswith('dong y') or clean.startswith('day ai') or clean.startswith('luu')
+
+            is_disagree = clean in [
+                'khong hai long', 'chua dung', 'chua dung lam', 'khong', 'sai', 'chua duoc', 'huy',
+                'cancel', 'no', 'k', '0', 'khong dung', 'tim cau tra loi khac', 'chua hai long', 'doi cau tra loi'
+            ] or clean.startswith('khong hai long') or clean.startswith('chua dung') or clean.startswith('chua hai long') or clean.startswith('khong dung') or clean.startswith('sai')
+
+            if is_agree:
+                q_saved = sess.get('user_query', '')
+                reply_saved = sess.get('gemini_reply', '')
+                del WIZARD_SESSIONS[session_id]
+                
+                ok, top, kws, _ = teach_system_from_gemini(q_saved, reply_saved)
+                if ok:
+                    return {
+                        "type": "success",
+                        "module": "knowledge",
+                        "message": (
+                            f"🎓 **GEMINI ĐÃ DẠY THÀNH CÔNG VÀO BỘ NÃO AI HỆ THỐNG!**\n"
+                            f"─────────────────────────────────────────\n"
+                            f"• 📌 **Chủ đề đã học:** **{top}**\n"
+                            f"• 🔑 **Từ khóa nhận diện:** `{kws}`\n"
+                            f"• ⚡ **Tốc độ phản hồi lần sau:** `< 0.003 giây` (AI hệ thống tự trả lời ngay, không cần gọi lại Gemini)\n"
+                            f"─────────────────────────────────────────\n"
+                            f"👉 Bất cứ khi nào anh hỏi lại câu này (hoặc tương tự), AI hệ thống sẽ tự động trả lời chính xác ngay lập tức!"
+                        )
+                    }
+                else:
+                    return {
+                        "type": "error",
+                        "message": "⚠️ Gặp lỗi khi lưu tri thức vào hệ thống. Vui lòng thử lại."
+                    }
+            elif is_disagree:
+                q_saved = sess.get('user_query', '')
+                prev_reply = sess.get('gemini_reply', '')
+                rejected_answers = sess.get('rejected_answers', [])
+                if prev_reply and prev_reply not in rejected_answers:
+                    rejected_answers.append(prev_reply)
+                return handle_unhappy_gemini_feedback(q_saved, rejected_answers, session_id=session_id)
+            else:
+                # Người dùng gửi lệnh mới hoàn toàn -> tự động xóa flow cũ
+                del WIZARD_SESSIONS[session_id]
+
+        elif sess.get('flow') != 'confirm_action':
+            # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
+            is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|bao gia)\b', clean))
+            if is_new_command_intent and clean not in ['ok', 'luu', 'huy', 'cancel', 'dung', 'co']:
+                del WIZARD_SESSIONS[session_id]
+            else:
+                w_res = handle_wizard_step(user_text, session_id)
+                if w_res:
+                    return w_res
         else:
             w_res = handle_wizard_step(user_text, session_id)
             if w_res:
@@ -6851,6 +7061,37 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
         if res_fast_search:
             return res_fast_search
 
+    # 3.8. TRA CỨU TRI THỨC ĐÃ HỌC TỪ BỘ NÃO AI NỘI BỘ (< 0.003s)
+    # Nếu câu hỏi đã từng được giải đáp và lưu vào bộ não AI hệ thống:
+    # -> AI nội bộ tự động phản hồi tức thì (< 0.003 giây) mà KHÔNG CẦN GỌI LẠI GEMINI!
+    if KNOWLEDGE_AVAILABLE and knowledge_base:
+        res_learned = knowledge_base.query_learned_knowledge(clean, raw)
+        if res_learned and res_learned.get('message'):
+            msg_learned = res_learned['message']
+            header = "⚡ **[AI HỆ THỐNG PHẢN HỒI SIÊU TỐC (< 0.003s) - TRI THỨC ĐÃ HỌC]**\n─────────────────────────────────────────\n"
+            confirm_footer = (
+                "\n\n─────────────────────────────────────────\n"
+                "🤔 **Anh/chị có hài lòng với kết quả này không?**\n"
+                "*(Bấm **[👍 Hài lòng]** để giữ nguyên | Bấm **[👎 Không hài lòng]** để Gemini tra cứu lại và tìm phương án khác)*"
+            )
+            full_msg = f"{header}{msg_learned}{confirm_footer}"
+            WIZARD_SESSIONS[session_id] = {
+                'flow': 'confirm_gemini_learning',
+                'user_query': raw,
+                'gemini_reply': msg_learned,
+                'rejected_answers': [],
+                'timestamp': datetime.now().isoformat()
+            }
+            return {
+                "type": "success",
+                "module": "knowledge_retrieved",
+                "message": full_msg,
+                "buttons": [
+                    {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+                    {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
+                ]
+            }
+
     # 4. ƯU TIÊN TUYỆT ĐỐI: GEMINI 3.5 FLASH (Google Generative AI)
     if GEMINI_AVAILABLE and gemini_engine:
         cfg = gemini_engine.load_gemini_config()
@@ -6865,24 +7106,33 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                     if detected_prod:
                         LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
 
-                    # TÍCH HỢP HỎI HÀI LÒNG & DẠY LẠI CHO AI HỆ THỐNG
-                    gemini_msg = res_gemini['message']
-                    confirm_footer = (
-                        "\n\n─────────────────────────────────────────\n"
-                        "🤔 **Anh/chị có hài lòng với kết quả Gemini đưa ra không?**\n"
-                        "*(Bấm **[👍 Hài lòng & Dạy AI]** hoặc nhắn **'hài lòng'** / **'đồng ý'** để Gemini dạy lại câu trả lời này cho AI hệ thống, lần sau hỏi lại AI sẽ hiểu ngay lập tức!)*"
+                    # NẾU LÀ THAO TÁC CÓ NGUY CƠ THAY ĐỔI DỮ LIỆU (TẠO ĐƠN, SỬA ĐƠN, THU CHI...):
+                    # GIỮ NGUYÊN NÚT BẤM [OK / Lưu] và [Hủy] - TUYỆT ĐỐI KHÔNG GẮN NÚT HÀI LÒNG!
+                    is_action_confirmation = (
+                        (session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_action')
+                        or res_gemini.get('message', '').startswith("❓")
+                        or res_gemini.get('type') == 'clarify'
                     )
-                    res_gemini['message'] = gemini_msg + confirm_footer
-                    res_gemini['buttons'] = [
-                        {"text": "👍 Hài lòng & Dạy AI", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
-                        {"text": "👎 Chưa đúng", "action": "send_message", "value": "chưa đúng", "class": "btn-danger"}
-                    ]
-                    WIZARD_SESSIONS[session_id] = {
-                        'flow': 'confirm_gemini_learning',
-                        'user_query': raw,
-                        'gemini_reply': gemini_msg,
-                        'timestamp': datetime.now().isoformat()
-                    }
+
+                    if not is_action_confirmation:
+                        gemini_msg = res_gemini['message']
+                        confirm_footer = (
+                            "\n\n─────────────────────────────────────────\n"
+                            "🤔 **Anh/chị có hài lòng với kết quả Gemini đưa ra không?**\n"
+                            "*(Bấm **[👍 Hài lòng]** hoặc nhắn **'hài lòng'** để Gemini dạy lại câu trả lời này cho AI hệ thống, lần sau hỏi lại AI sẽ hiểu ngay lập tức! Bấm **[👎 Không hài lòng]** để Gemini tìm câu trả lời khác thích hợp hơn)*"
+                        )
+                        res_gemini['message'] = gemini_msg + confirm_footer
+                        res_gemini['buttons'] = [
+                            {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+                            {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
+                        ]
+                        WIZARD_SESSIONS[session_id] = {
+                            'flow': 'confirm_gemini_learning',
+                            'user_query': raw,
+                            'gemini_reply': gemini_msg,
+                            'rejected_answers': [],
+                            'timestamp': datetime.now().isoformat()
+                        }
                     return res_gemini
             except Exception as e_gem:
                 print(f"[AIAssistant] Gemini gặp trục trặc, tự động chuyển về máy quy tắc nội bộ: {e_gem}")
@@ -6898,6 +7148,30 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
 
     if detected_prod:
         LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
+
+    # Gắn nút Hài lòng / Không hài lòng cho các câu trả lời tư vấn/tra cứu thông tin (khi không phải là đơn hàng / sửa đổi dữ liệu)
+    is_action_res = (
+        (session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_action')
+        or (res and isinstance(res, dict) and (res.get('type') == 'wizard_step' or res.get('message', '').startswith("❓") or res.get('module') in ['warranty', 'search_warranty', 'knowledge']))
+    )
+    if res and isinstance(res, dict) and res.get('message') and not is_action_res and not res.get('buttons'):
+        confirm_footer = (
+            "\n\n─────────────────────────────────────────\n"
+            "🤔 **Anh/chị có hài lòng với kết quả này không?**\n"
+            "*(Bấm **[👍 Hài lòng]** hoặc nhắn **'hài lòng'** để dạy lại cho AI hệ thống ghi nhớ, lần sau hỏi lại AI trả lời ngay tức thì! Bấm **[👎 Không hài lòng]** để tìm phương án khác)*"
+        )
+        res['message'] += confirm_footer
+        res['buttons'] = [
+            {"text": "👍 Hài lòng", "action": "send_message", "value": "hài lòng", "class": "btn-success"},
+            {"text": "👎 Không hài lòng", "action": "send_message", "value": "không hài lòng", "class": "btn-danger"}
+        ]
+        WIZARD_SESSIONS[session_id] = {
+            'flow': 'confirm_gemini_learning',
+            'user_query': raw,
+            'gemini_reply': res['message'],
+            'rejected_answers': [],
+            'timestamp': datetime.now().isoformat()
+        }
 
     # Lưu vào lịch sử hội thoại đa lượt của Gemini
     if res and isinstance(res, dict) and res.get('message') and gemini_engine:
