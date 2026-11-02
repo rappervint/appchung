@@ -4271,6 +4271,9 @@ def teach_system_from_gemini(raw_query, reply_text):
     """
     Lưu tri thức do Gemini hoặc bộ tư vấn trả lời vào bộ não AI vĩnh viễn (gara_memory trong gara_knowledge.db)
     sau khi người dùng xác nhận hài lòng / đồng ý.
+    BẢO VỆ CHỐNG LOÃNG TỪ KHÓA:
+    - Loại bỏ triệt để các từ tính từ/phụ ngữ đơn lẻ (như 're', 'tot', 'cao', 'cap', 'gia') khỏi keywords.
+    - Chỉ lưu cụm từ ghép có nghĩa và định danh sản phẩm rõ ràng.
     """
     clean_q = remove_accents(raw_query).lower()
     
@@ -4278,30 +4281,48 @@ def teach_system_from_gemini(raw_query, reply_text):
     topic = re.sub(r'^(cho tôi hỏi|tôi muốn hỏi|hỏi|cho hỏi|tư vấn|báo giá|khi tôi hỏi)\s*[:,\s]*', '', raw_query, flags=re.I).strip()
     topic = topic[:80].strip()
     if not topic:
-        topic = "Tư Vấn Gói Phim Cách Nhiệt & Dịch Vụ Gara"
+        topic = "Tư Vấn Dịch Vụ Gara"
     topic = topic[0].upper() + topic[1:]
     clean_topic = remove_accents(topic).lower()
 
-    # Tách từ khóa quan trọng
-    stop_words = {'cho', 'toi', 'minh', 'em', 'anh', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 'sao', 'co', 'khong', 'voi', 'thi', 'va', 'khi', 'gia'}
-    tokens = [w for w in re.split(r'[\s,;:?!\-]+', clean_q) if len(w) >= 2 and w not in stop_words]
-    
-    key_phrases = []
-    for combo_phrase in ['kinh lai 3m', 'lai 3m', 'ntech cao cap', 'ntech tieu chuan', 'kinh lai ceramax', 'ceramax 50', '3m crystalline', '3m hybrid', 'ppf']:
-        if combo_phrase in clean_q:
-            key_phrases.append(combo_phrase)
-    
-    all_kws = list(dict.fromkeys(key_phrases + tokens))
-    keywords = ", ".join(all_kws[:15])
+    # BỘ LỌC TỪ DỪNG & TÍNH TỪ PHỤ NGỮ: KHÔNG LƯU LÀM TỪ KHÓA ĐƠN LẺ
+    GENERIC_WORDS = {
+        'cho', 'toi', 'minh', 'em', 'anh', 'chi', 'bac', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 'sao',
+        'co', 'khong', 'voi', 'thi', 'va', 'khi', 'gia', 'bao', 'nhieu', 'tien', 'tam', 'khoang', 'khoan',
+        'loai', 'dong', 'xe', 'oto', 're', 'gia re', 're nhat', 'tot', 'tot nhat', 'cao cap', 'tieu chuan',
+        'chinh hang', 'dep', 'ben', 'moi', 'trieu', 'tr', 'k', 'vnd', 'dong', 'di', 'cung', 'ket', 'hop',
+        'duoi', 'tren', 'tu', 'den', 'cao', 'cap'
+    }
 
-    # Làm sạch câu trả lời: cắt bỏ phần hỏi hài lòng ở cuối nếu có
-    clean_reply = re.split(r'─{5,}|\*\*Anh/chị có hài lòng', reply_text)[0].strip()
+    # Trích xuất các cụm từ ghép có nghĩa (phrases >= 2 từ)
+    key_phrases = []
+    clean_core = re.sub(r'\b(?:cho|toi|minh|em|anh|muon|hoi|cho toi hoi|tu van|bao gia|gia)\b', '', clean_q).strip()
+    clean_core = re.sub(r'\s+', ' ', clean_core)
+    if len(clean_core) >= 5:
+        key_phrases.append(clean_core)
+
+    known_combos = [
+        'kinh lai 3m', 'film 3m', 'phim 3m', '3m crystalline', '3m ceramic', '3m hybrid',
+        'ceramax 50', 'kinh lai ceramax', 'phim ceramax', 'ntech cao cap', 'ntech tieu chuan', 'phim ntech',
+        'man hinh android', 'man hinh b10', 'man hinh s150', 'man hinh gotech', 'android box', 'box bs10',
+        'bi gam f10', 'den f10', 'bi gam s3', 'bi led titan', 'bi led aozoom', 'ppf ax film', 'dan ppf',
+        'san 5d', 'san 360', 'boc ghe da', 'camera 360', 'cam a510'
+    ]
+    for combo in known_combos:
+        if combo in clean_q:
+            key_phrases.append(combo)
+
+    tokens = [w for w in re.split(r'[\s,;:?!\-]+', clean_q) if len(w) >= 3 and w not in GENERIC_WORDS]
+    all_kws = list(dict.fromkeys(key_phrases + tokens))
+    keywords = ", ".join(all_kws[:10])
+
+    clean_reply = re.split(r'─{5,}|\*\*Anh/chị có hài lòng|\*\*Anh/chị thấy câu trả lời', reply_text)[0].strip()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
         conn = sqlite3.connect(DB_KNOWLEDGE, timeout=10)
         c = conn.cursor()
-        c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (clean_topic,))
+        c.execute("SELECT id FROM gara_memory WHERE clean_topic = ? OR raw_content = ?", (clean_topic, raw_query))
         row = c.fetchone()
         if row:
             c.execute("""
