@@ -8569,3 +8569,83 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
             "auto_found": auto_found
         }
     }
+
+
+def distill_knowledge_with_gemini(user_query: str, reply_text: str) -> dict:
+    """
+    SỬ DỤNG TRÍ TUỆ NHÂN TẠO GEMINI ĐỂ CHUYỂN HÓA & DẠY LẠI CHO AI HỆ THỐNG:
+    - Bóc tách sâu bảng giá đa hạng mục (xe 4 chỗ, 7 chỗ, từng dòng sản phẩm).
+    - Triệt tiêu 100% tình trạng ô nhiễm từ khóa (Zero Keyword Pollution).
+    - Tuyệt đối cấm các từ đơn lẻ (re, gia, cong, nghiep, 6tr, simili, da...).
+    - Tạo các triggers là cụm từ hoàn chỉnh, có nghĩa.
+    """
+    cfg = load_gemini_config()
+    api_key = cfg.get("api_key")
+    if not api_key:
+        return None
+
+    model_name = cfg.get("preferred_model") or "gemini-3.5-flash-lite"
+    clean_model = model_name.replace("models/", "")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
+
+    prompt = f"""Bạn là Kiến Trúc Sư Tri Thức AI của Gara Ô Tô Trần Bình Auto.
+Người dùng vừa dạy kiến thức và đã duyệt câu trả lời sau:
+---
+DỮ LIỆU NGƯỜI DÙNG DẠY:
+{user_query}
+
+CÂU TRẢ LỜI ĐÃ DUYỆT:
+{reply_text}
+---
+Nhiệm vụ: Phân tích, bóc tách tri thức thành cấu trúc JSON chuẩn mực để nạp vào bộ não AI nội bộ:
+1. domain: 'film' | 'screen' | 'seat_floor' | 'lamp' | 'camera' | 'ppf' | 'audio' | 'other'
+2. category_name: Tên nhóm dịch vụ / sản phẩm (VD: 'Bọc Ghế Da Ô Tô', 'Phim Cách Nhiệt 3M')
+3. ⚠️ QUY TẮC CHỐNG Ô NHIỄM TỪ KHÓA TUYỆT ĐỐI (ZERO KEYWORD POLLUTION):
+   - TUYỆT ĐỐI CẤM từ đơn lẻ (như 'cong', 'nghiep', 're', 'gia', '6tr', '7tr5', 'simili', 'da').
+   - Từ khóa nhận diện (triggers) BẮT BUỘC là CỤM TỪ CÓ NGHĨA (2-4 từ), ví dụ: ['da simili 7 cho', 'boc da simili 7 cho', 'san simili 7 cho'].
+4. Nếu là bảng giá đa hạng mục: BẮT BUỘC BÓC TÁCH THÀNH CÁC HẠNG MỤC RIÊNG BIỆT (items). Mỗi mục có câu trả lời ngắn gọn (1-2 câu).
+5. Nếu có từ 2 items trở lên, tạo thêm master_summary là bảng giá tổng hợp khi hỏi chung.
+
+Trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```json hay văn bản thừa):
+{{
+  "domain": "seat_floor",
+  "category_name": "Bọc Ghế Da Ô Tô",
+  "items": [
+    {{
+      "topic": "Bọc ghế da Simili xe 7 chỗ",
+      "price": "6.000.000 đ",
+      "triggers": ["boc ghe da simili 7 cho", "da simili xe 7 cho", "san simili 7 cho"],
+      "reply": "Dạ, giá bọc ghế da Simili cho xe 7 chỗ là 6.000.000 đ trọn gói hoàn thiện ạ."
+    }}
+  ],
+  "master_summary": {{
+    "topic": "Bảng giá bọc ghế da ô tô",
+    "triggers": ["bang gia boc da ghe", "boc ghe da oto", "gia boc da"],
+    "reply": "Bảng giá tổng hợp..."
+  }}
+}}
+"""
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": 2500,
+            "temperature": 0.1
+        }
+    }
+
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            res_data = json.loads(resp.read().decode("utf-8"))
+
+        text_resp = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        text_resp = re.sub(r'^```json\s*', '', text_resp)
+        text_resp = re.sub(r'\s*```$', '', text_resp)
+        return json.loads(text_resp)
+    except Exception as e:
+        print(f"[GeminiEngine] Lỗi trích xuất tri thức: {e}")
+        return None

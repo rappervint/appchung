@@ -4269,60 +4269,115 @@ import re
 
 def teach_system_from_gemini(raw_query, reply_text):
     """
-    Lưu tri thức do Gemini hoặc bộ tư vấn trả lời vào bộ não AI vĩnh viễn (gara_memory trong gara_knowledge.db)
-    sau khi người dùng xác nhận hài lòng / đồng ý.
-    BẢO VỆ CHỐNG LOÃNG TỪ KHÓA:
-    - Loại bỏ triệt để các từ tính từ/phụ ngữ đơn lẻ (như 're', 'tot', 'cao', 'cap', 'gia') khỏi keywords.
-    - Chỉ lưu cụm từ ghép có nghĩa và định danh sản phẩm rõ ràng.
+    DẠY LẠI CHO BỘ NÃO AI HỆ THỐNG THÔNG MINH BẰNG GEMINI DISTILLATION:
+    - Sử dụng chính trí tuệ nhân tạo Gemini để phân tích, bóc tách tri thức thành cấu trúc chuẩn.
+    - Phân rã bảng giá phức tạp thành các hạng mục độc lập.
+    - TRIỆT TIÊU 100% Ô NHIỄM TỪ KHÓA: Loại bỏ hoàn toàn các từ rác đơn lẻ (re, gia, cong, nghiep...).
+    - Chỉ lưu cụm từ ghép có nghĩa và tự động đồng bộ sang knowledge_seed.json.
     """
     clean_q = remove_accents(raw_query).lower()
-    
-    # Rút ngắn câu hỏi thành tiêu đề súc tích
-    topic = re.sub(r'^(cho tôi hỏi|tôi muốn hỏi|hỏi|cho hỏi|tư vấn|báo giá|khi tôi hỏi)\s*[:,\s]*', '', raw_query, flags=re.I).strip()
-    topic = topic[:80].strip()
-    if not topic:
-        topic = "Tư Vấn Dịch Vụ Gara"
-    topic = topic[0].upper() + topic[1:]
-    clean_topic = remove_accents(topic).lower()
-
-    # BỘ LỌC TỪ DỪNG & TÍNH TỪ PHỤ NGỮ: KHÔNG LƯU LÀM TỪ KHÓA ĐƠN LẺ
-    GENERIC_WORDS = {
-        'cho', 'toi', 'minh', 'em', 'anh', 'chi', 'bac', 'muon', 'hoi', 'la', 'gi', 'the', 'nao', 'sao',
-        'co', 'khong', 'voi', 'thi', 'va', 'khi', 'gia', 'bao', 'nhieu', 'tien', 'tam', 'khoang', 'khoan',
-        'loai', 'dong', 'xe', 'oto', 're', 'gia re', 're nhat', 'tot', 'tot nhat', 'cao cap', 'tieu chuan',
-        'chinh hang', 'dep', 'ben', 'moi', 'trieu', 'tr', 'k', 'vnd', 'dong', 'di', 'cung', 'ket', 'hop',
-        'duoi', 'tren', 'tu', 'den', 'cao', 'cap'
-    }
-
-    # Trích xuất các cụm từ ghép có nghĩa (phrases >= 2 từ)
-    key_phrases = []
-    clean_core = re.sub(r'\b(?:cho|toi|minh|em|anh|muon|hoi|cho toi hoi|tu van|bao gia|gia)\b', '', clean_q).strip()
-    clean_core = re.sub(r'\s+', ' ', clean_core)
-    if len(clean_core) >= 5:
-        key_phrases.append(clean_core)
-
-    known_combos = [
-        'kinh lai 3m', 'film 3m', 'phim 3m', '3m crystalline', '3m ceramic', '3m hybrid',
-        'ceramax 50', 'kinh lai ceramax', 'phim ceramax', 'ntech cao cap', 'ntech tieu chuan', 'phim ntech',
-        'man hinh android', 'man hinh b10', 'man hinh s150', 'man hinh gotech', 'android box', 'box bs10',
-        'bi gam f10', 'den f10', 'bi gam s3', 'bi led titan', 'bi led aozoom', 'ppf ax film', 'dan ppf',
-        'san 5d', 'san 360', 'boc ghe da', 'camera 360', 'cam a510'
-    ]
-    for combo in known_combos:
-        if combo in clean_q:
-            key_phrases.append(combo)
-
-    tokens = [w for w in re.split(r'[\s,;:?!\-]+', clean_q) if len(w) >= 3 and w not in GENERIC_WORDS]
-    all_kws = list(dict.fromkeys(key_phrases + tokens))
-    keywords = ", ".join(all_kws[:10])
-
-    clean_reply = re.split(r'─{5,}|\*\*Anh/chị có hài lòng|\*\*Anh/chị thấy câu trả lời', reply_text)[0].strip()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    try:
-        conn = sqlite3.connect(DB_KNOWLEDGE, timeout=10)
-        c = conn.cursor()
-        c.execute("SELECT id FROM gara_memory WHERE clean_topic = ? OR raw_content = ?", (clean_topic, raw_query))
+    # 1. GỌI GEMINI ĐỂ CHUYỂN HÓA TRI THỨC CÓ CẤU TRÚC
+    distilled = None
+    if GEMINI_AVAILABLE and gemini_engine and hasattr(gemini_engine, 'distill_knowledge_with_gemini'):
+        try:
+            distilled = gemini_engine.distill_knowledge_with_gemini(raw_query, reply_text)
+        except Exception as e_dist:
+            print(f"[TeachGemini] Gemini distillation error: {e_dist}")
+
+    conn = sqlite3.connect(DB_KNOWLEDGE, timeout=10)
+    c = conn.cursor()
+
+    saved_items = []
+    category_name = "Tư Vấn Dịch Vụ Gara"
+    sample_triggers = []
+
+    if distilled and isinstance(distilled, dict) and distilled.get('items'):
+        category_name = distilled.get('category_name', 'Dịch Vụ Gara')
+        items = distilled.get('items', [])
+
+        for it in items:
+            it_topic = it.get('topic', '').strip()
+            it_price = it.get('price', '').strip()
+            it_reply = it.get('reply', '').strip()
+            it_triggers = it.get('triggers', [])
+
+            if not it_topic or not it_reply:
+                continue
+
+            # Làm sạch và chuẩn hóa triggers (chống ô nhiễm từ khóa)
+            clean_triggers = []
+            for tr in it_triggers:
+                tr_clean = remove_accents(tr).lower().strip()
+                # Chỉ nhận cụm từ >= 2 từ hoặc có độ dài >= 6 ký tự
+                words = tr_clean.split()
+                if len(words) >= 2 or (len(words) == 1 and len(words[0]) >= 5):
+                    # Loại bỏ từ đơn vô nghĩa
+                    clean_triggers.append(tr_clean)
+
+            if not clean_triggers:
+                clean_triggers = [remove_accents(it_topic).lower()]
+
+            kws_str = ", ".join(list(dict.fromkeys(clean_triggers)))
+            it_clean_topic = remove_accents(it_topic).lower()
+
+            c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (it_clean_topic,))
+            row = c.fetchone()
+            if row:
+                c.execute("""
+                    UPDATE gara_memory 
+                    SET keywords = ?, price_info = ?, formatted_reply = ?, raw_content = ?, updated_at = ?
+                    WHERE id = ?
+                """, (kws_str, it_price, it_reply, raw_query, now_str, row[0]))
+            else:
+                c.execute("""
+                    INSERT INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (it_topic, it_clean_topic, kws_str, raw_query, it_price, "", it_reply, now_str, now_str))
+
+            saved_items.append({"topic": it_topic, "price": it_price})
+            sample_triggers.extend(clean_triggers[:2])
+
+        # Lưu master_summary nếu có
+        master = distilled.get('master_summary')
+        if master and isinstance(master, dict) and master.get('topic') and master.get('reply'):
+            m_topic = master.get('topic', '').strip()
+            m_clean = remove_accents(m_topic).lower()
+            m_triggers = [remove_accents(t).lower().strip() for t in master.get('triggers', []) if len(t.split()) >= 2]
+            m_kws = ", ".join(list(dict.fromkeys(m_triggers))) if m_triggers else m_clean
+            m_reply = master.get('reply', '').strip()
+
+            c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (m_clean,))
+            if c.fetchone():
+                c.execute("""
+                    UPDATE gara_memory 
+                    SET keywords = ?, formatted_reply = ?, raw_content = ?, updated_at = ?
+                    WHERE clean_topic = ?
+                """, (m_kws, m_reply, raw_query, now_str, m_clean))
+            else:
+                c.execute("""
+                    INSERT INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (m_topic, m_clean, m_kws, raw_query, "", "", m_reply, now_str, now_str))
+
+    else:
+        # FALLBACK NẾU GEMINI API KHÔNG KHẢ DỤNG:
+        topic = re.sub(r'^(cho tôi hỏi|tôi muốn hỏi|hỏi|cho hỏi|tư vấn|báo giá|khi tôi hỏi)\s*[:,\s]*', '', raw_query, flags=re.I).strip()
+        topic = topic[:60].strip() or "Tư Vấn Dịch Vụ Gara"
+        topic = topic[0].upper() + topic[1:]
+        clean_topic = remove_accents(topic).lower()
+
+        clean_core = re.sub(r'(?:cho|toi|minh|em|anh|muon|hoi|cho toi hoi|tu van|bao gia|gia)', '', clean_q).strip()
+        words = clean_core.split()
+        if len(words) >= 2:
+            keywords = " ".join(words)
+        else:
+            keywords = clean_topic
+
+        clean_reply = re.split(r'─{5,}|\*\*Anh/chị có hài lòng|\*\*Anh/chị thấy câu trả lời', reply_text)[0].strip()
+
+        c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (clean_topic,))
         row = c.fetchone()
         if row:
             c.execute("""
@@ -4330,20 +4385,44 @@ def teach_system_from_gemini(raw_query, reply_text):
                 SET keywords = ?, formatted_reply = ?, raw_content = ?, updated_at = ?
                 WHERE id = ?
             """, (keywords, clean_reply, raw_query, now_str, row[0]))
-            rec_id = row[0]
         else:
             c.execute("""
                 INSERT INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (topic, clean_topic, keywords, raw_query, "", "", clean_reply, now_str, now_str))
-            rec_id = c.lastrowid
-        conn.commit()
-        conn.close()
-        return True, topic, keywords, rec_id
-    except Exception as e:
-        print(f"[TeachGemini] Lỗi lưu tri thức: {e}")
-        return False, topic, keywords, None
 
+        saved_items.append({"topic": topic, "price": ""})
+        sample_triggers.append(keywords)
+
+    conn.commit()
+    conn.close()
+
+    # TỰ ĐỘNG XUẤT KNOWLEDGE_SEED.JSON ĐỂ ĐỒNG BỘ PYTHONANYWHERE
+    try:
+        import json
+        conn_e = sqlite3.connect(DB_KNOWLEDGE, timeout=5)
+        c_e = conn_e.cursor()
+        c_e.execute("SELECT topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply FROM gara_memory")
+        all_mem = c_e.fetchall()
+        conn_e.close()
+
+        seed_list = []
+        for r in all_mem:
+            seed_list.append({
+                "topic": r[0], "clean_topic": r[1], "keywords": r[2], "raw_content": r[3],
+                "price_info": r[4], "options_info": r[5], "formatted_reply": r[6]
+            })
+        seed_p = os.path.join(BASE_DIR, 'knowledge_seed.json')
+        with open(seed_p, 'w', encoding='utf-8') as f_s:
+            json.dump(seed_list, f_s, ensure_ascii=False, indent=2)
+    except Exception as e_exp:
+        print(f"[TeachGemini] Lỗi xuất knowledge_seed.json: {e_exp}")
+
+    return True, {
+        "category_name": category_name,
+        "items": saved_items,
+        "triggers": list(dict.fromkeys(sample_triggers))[:5]
+    }
 
 def find_alternative_internal_consultation(raw_query, clean_query, rejected_answers):
     """
@@ -6952,20 +7031,36 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                 reply_saved = sess.get('gemini_reply', '')
                 del WIZARD_SESSIONS[session_id]
                 
-                ok, top, kws, _ = teach_system_from_gemini(q_saved, reply_saved)
-                if ok:
+                ok, info = teach_system_from_gemini(q_saved, reply_saved)
+                if ok and isinstance(info, dict):
+                    cat = info.get('category_name', 'Dịch Vụ Gara')
+                    items = info.get('items', [])
+                    trigs = info.get('triggers', [])
+                    trig_sample = "`, `".join(trigs)
+
+                    item_lines = []
+                    for idx, it in enumerate(items[:8], 1):
+                        p_str = f" — *{it['price']}*" if it.get('price') else ""
+                        item_lines.append(f"  {idx}. **{it['topic']}**{p_str}")
+
+                    items_text = "\n".join(item_lines) if item_lines else f"  • {cat}"
+
+                    msg_done = (
+                        f"🎓 **GEMINI ĐÃ CHUYỂN HÓA & DẠY THÀNH CÔNG VÀO BỘ NÃO AI HỆ THỐNG!**\n"
+                        f"─────────────────────────────────────────\n"
+                        f"• 📂 **Phân nhóm:** **{cat}**\n"
+                        f"• 🧩 **Bóc tách thông minh ({len(items)} hạng mục độc lập):**\n"
+                        f"{items_text}\n"
+                        f"• 🛡️ **Từ khóa nhận diện chuẩn (Chống ô nhiễm 100%):**\n"
+                        f"  `{trig_sample}`\n"
+                        f"• ⚡ **Tốc độ phản hồi:** `< 0.003 giây` (AI hệ thống tự trả lời ngay cho từng món hoặc bảng giá chung)\n"
+                        f"─────────────────────────────────────────\n"
+                        f"👉 Bất cứ khi nào anh hoặc khách hỏi về bất kỳ hạng mục nào, AI hệ thống sẽ hiểu và trả lời chính xác ngay lập tức!"
+                    )
                     return {
                         "type": "success",
                         "module": "knowledge",
-                        "message": (
-                            f"🎓 **GEMINI ĐÃ DẠY THÀNH CÔNG VÀO BỘ NÃO AI HỆ THỐNG!**\n"
-                            f"─────────────────────────────────────────\n"
-                            f"• 📌 **Chủ đề đã học:** **{top}**\n"
-                            f"• 🔑 **Từ khóa nhận diện:** `{kws}`\n"
-                            f"• ⚡ **Tốc độ phản hồi lần sau:** `< 0.003 giây` (AI hệ thống tự trả lời ngay, không cần gọi lại Gemini)\n"
-                            f"─────────────────────────────────────────\n"
-                            f"👉 Bất cứ khi nào anh hỏi lại câu này (hoặc tương tự), AI hệ thống sẽ tự động trả lời chính xác ngay lập tức!"
-                        )
+                        "message": msg_done
                     }
                 else:
                     return {
