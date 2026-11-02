@@ -6574,6 +6574,20 @@ def get_key_status_message() -> str:
 
 
 import urllib.request
+# TỰ ĐỘNG CẤU HÌNH PROXY NẾU CHẠY TRÊN PYTHONANYWHERE (CHO PHÉP GỌI GEMINI API TRÊN PYTHONANYWHERE)
+if 'PYTHONANYWHERE_DOMAIN' in os.environ or os.path.exists('/home/rappervint') or 'PYTHONANYWHERE_SITE' in os.environ:
+    try:
+        pa_proxy = os.environ.get('http_proxy') or os.environ.get('https_proxy') or 'http://proxy.server:3128'
+        proxy_handler = urllib.request.ProxyHandler({
+            'http': pa_proxy,
+            'https': pa_proxy
+        })
+        opener = urllib.request.build_opener(proxy_handler)
+        urllib.request.install_opener(opener)
+        print(f"[GeminiEngine] Đã kích hoạt PythonAnywhere Proxy: {pa_proxy}")
+    except Exception as e_pxy:
+        print(f"[GeminiEngine] Cảnh báo cấu hình proxy PythonAnywhere: {e_pxy}")
+
 
 
 
