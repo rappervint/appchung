@@ -6907,30 +6907,7 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
     raw = (user_text or "").strip()
     clean = remove_accents(raw).lower()
 
-    # 0.5. FAST-PATH: TRA CỨU BẢO HÀNH & LỊCH SỬ XE KHI NHẬP BIỂN SỐ / SĐT / LỆNH TRA CỨU
-    # Nhận diện: biển số gõ liền (70a65741, 63a22471...), 4-5 số đuôi xe (39465, 01492...), SĐT, câu hỏi/tra cứu xe
-    plate_candidate = extract_license_plate(raw)
-    phone_candidate = extract_phone(raw)
-    is_pure_plate = False
-    clean_raw_alphanumeric = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
-    if plate_candidate:
-        clean_p = clean_plate_raw(plate_candidate)
-        if clean_p and (clean_p == clean_raw_alphanumeric or f"XE{clean_p}" == clean_raw_alphanumeric):
-            is_pure_plate = True
-    is_pure_phone = bool(phone_candidate and re.sub(r'\D', '', raw) == phone_candidate)
-    is_explicit_lookup = any(k in clean for k in ['bao hanh', 'tra cuu', 'lich su xe', 'kiem tra xe', 'check xe', 'xem xe', 'tim xe', 'hoi bien', 'kiem tra', 'hoi xe'])
-    is_not_order_intent = not bool(re.search(r'\b(?:nhap don|len don|ghi don|tao don|lap|gan|thay|do|nhap)\b', clean))
-    is_not_edit_intent = not bool(re.search(r'\b(?:sua|doi|chinh|cap nhat|thanh|la|gia|tien|giam|bot|tang)\b', clean))
-
-    if (is_pure_plate or is_pure_phone or is_explicit_lookup) and is_not_order_intent and is_not_edit_intent:
-        res_fast_search = handle_search_warranty_and_orders(raw, clean)
-        if res_fast_search:
-            # Nếu người dùng đang tra cứu thông tin xe khác, tự động hủy phiên wizard dở dang cũ để tránh kẹt
-            if session_id in WIZARD_SESSIONS:
-                del WIZARD_SESSIONS[session_id]
-            if 'default_user' in WIZARD_SESSIONS:
-                del WIZARD_SESSIONS['default_user']
-            return res_fast_search
+# 0.5. Đã chuyển toàn bộ phân tích sang Gemini theo chỉ đạo của người dùng
 
     # 1. XỬ LÝ PHIÊN XÁC NHẬN HOẶC WIZARD ĐANG HOẠT ĐỘNG
     if session_id not in WIZARD_SESSIONS and 'default_user' in WIZARD_SESSIONS:
@@ -6985,15 +6962,21 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                 # Người dùng gửi lệnh mới hoàn toàn -> tự động xóa flow cũ
                 del WIZARD_SESSIONS[session_id]
 
-        elif sess.get('flow') != 'confirm_action':
-            # Nếu người dùng gõ lệnh hoàn toàn mới (ví dụ "lắp...", "chi...", "sửa giá..."), tự động hủy phiên cũ để không kẹt
-            is_new_command_intent = bool(re.search(r'\b(?:lap|gan|thay|do|nhap don|len don|chi|thu|bao gia)\b', clean))
-            if is_new_command_intent and clean not in ['ok', 'luu', 'huy', 'cancel', 'dung', 'co']:
-                del WIZARD_SESSIONS[session_id]
-            else:
+        elif sess.get('flow') == 'confirm_action':
+            # Người dùng đang có phiếu xác nhận tạo đơn / ghi thu chi trên màn hình
+            is_confirm = clean in [
+                'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
+                'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1',
+                'dung', 'đúng', 'chinh xac', 'chính xác', 'thuc hien', 'thực hiện', 'ok / luu', 'ok/luu'
+            ] or clean.startswith('ok')
+            is_cancel = clean in ['huy', 'hủy', 'khong', 'không', 'no', 'cancel', 'thoi', 'thôi', 'dung', 'dừng', 'stop', '0'] or clean.startswith('huy')
+            if is_confirm or is_cancel:
                 w_res = handle_wizard_step(user_text, session_id)
                 if w_res:
                     return w_res
+            else:
+                # Người dùng gửi một câu hỏi hoặc lệnh mới (ví dụ 'xe 04393') -> hủy phiếu xác nhận cũ để Gemini phân tích câu mới!
+                del WIZARD_SESSIONS[session_id]
         else:
             w_res = handle_wizard_step(user_text, session_id)
             if w_res:
@@ -7031,35 +7014,7 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
         except Exception as e_ls:
             print(f"[AutoLearner] Lỗi xem tri thức đã học: {e_ls}")
 
-    # 3.6. FAST-PATH MATCHER SIÊU TỐC (< 10ms) TỪ TRI THỨC ĐÃ TỰ HỌC:
-    # Nếu câu lệnh thuộc mẫu đã học -> AI nội bộ tự xử lý tức thì, không cần gọi Gemini!
-    # Tăng tốc độ phản hồi 300x-500x và hoạt động offline 100%.
-    try:
-        from auto_learner import fast_match_learned_intent
-        fast_res = fast_match_learned_intent(raw, clean, session_id=session_id)
-        if fast_res:
-            return fast_res
-    except Exception as e_fast:
-        print(f"[AutoLearner] Fast-path matcher error: {e_fast}")
-
-    # 3.7. FAST-PATH: TRA CỨU BẢO HÀNH & LỊCH SỬ XE KHI NHẬP BIỂN SỐ / SĐT / LỆNH TRA CỨU
-    # Nhận diện: biển số gõ liền (70a65741, 63a22471...), SĐT (09xxxxxxxxx), hoặc câu tra cứu bảo hành
-    plate_candidate = extract_license_plate(raw)
-    phone_candidate = extract_phone(raw)
-    is_pure_plate = False
-    clean_raw_alphanumeric = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
-    if plate_candidate:
-        clean_p = clean_plate_raw(plate_candidate)
-        if clean_p and (clean_p == clean_raw_alphanumeric or f"XE{clean_p}" == clean_raw_alphanumeric):
-            is_pure_plate = True
-    is_pure_phone = bool(phone_candidate and re.sub(r'\D', '', raw) == phone_candidate)
-    is_explicit_lookup = any(k in clean for k in ['bao hanh', 'tra cuu xe', 'lich su xe', 'kiem tra xe', 'check xe', 'xem xe'])
-    is_not_order_intent = not bool(re.search(r'\b(?:nhap don|len don|ghi don|tao don|lap|gan|thay|do|nhap)\b', clean))
-
-    if (is_pure_plate or is_pure_phone or is_explicit_lookup) and is_not_order_intent:
-        res_fast_search = handle_search_warranty_and_orders(raw, clean)
-        if res_fast_search:
-            return res_fast_search
+# 3.6 - 3.7. Đã chuyển toàn bộ phân tích sang Gemini theo chỉ huy trực tiếp của người dùng
 
     # 3.8. TRA CỨU TRI THỨC ĐÃ HỌC TỪ BỘ NÃO AI NỘI BỘ (< 0.003s)
     # Nếu câu hỏi đã từng được giải đáp và lưu vào bộ não AI hệ thống:
@@ -7111,7 +7066,7 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                     is_action_confirmation = (
                         (session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_action')
                         or res_gemini.get('message', '').startswith("❓")
-                        or res_gemini.get('type') == 'clarify'
+                        or (res_gemini.get('type') == 'clarify' and "XÁC NHẬN" in res_gemini.get('message', ''))
                     )
 
                     if not is_action_confirmation:
@@ -7133,6 +7088,12 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
                             'rejected_answers': [],
                             'timestamp': datetime.now().isoformat()
                         }
+                    else:
+                        if not res_gemini.get('buttons'):
+                            res_gemini['buttons'] = [
+                                {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+                                {"text": "🔴 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+                            ]
                     return res_gemini
             except Exception as e_gem:
                 print(f"[AIAssistant] Gemini gặp trục trặc, tự động chuyển về máy quy tắc nội bộ: {e_gem}")
