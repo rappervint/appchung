@@ -914,13 +914,103 @@ def commit_thuchi_transaction(payload):
         return {"type": "error", "message": f"Lỗi ghi sổ thu chi: {str(e)}"}
 
 
+def sync_create_banhang_order(cust_name, phone, plate, order_date, items):
+    """
+    Đồng bộ tạo hóa đơn bán hàng trong app_banhang/tiem_lap_do.db:
+    - Bảng orders: (customer_name, phone, license_plate, install_date, total_price)
+    - Bảng order_items: (order_id, item_name, price, warranty_months, orig_price, unit_price, qty)
+    - Tự động trừ tồn kho bảng products nếu là Hàng hóa
+    - Tự động cập nhật danh bạ bảng customers
+    Trả về: (banhang_order_id, error_message)
+    """
+    if not os.path.exists(DB_BANHANG):
+        return None, "Không tìm thấy cơ sở dữ liệu Bán Hàng (tiem_lap_do.db)"
+
+    try:
+        conn_bh = sqlite3.connect(DB_BANHANG, timeout=10)
+        conn_bh.row_factory = sqlite3.Row
+        c_bh = conn_bh.cursor()
+
+        clean_cust = re.sub(r'\s*\([^)]*\)', '', cust_name).strip() if cust_name else (f"Khách xe {plate}" if plate else "Khách lẻ")
+        
+        # Tính tổng tiền từ items
+        total_vnd = sum(float(it.get('final_price_k', it.get('price_k', 0)) * 1000) for it in items)
+
+        c_bh.execute("""
+            INSERT INTO orders (customer_name, phone, license_plate, install_date, total_price)
+            VALUES (?, ?, ?, ?, ?)
+        """, (clean_cust, phone or "", plate or "", order_date, total_vnd))
+        banhang_order_id = c_bh.lastrowid
+
+        for it in items:
+            qty = max(1, int(it.get('quantity', 1)))
+            final_p_k = it.get('final_price_k', it.get('price_k', 0))
+            final_item_price = float(final_p_k * 1000)
+            unit_price = float((final_p_k / qty) * 1000) if qty else final_item_price
+            base_p_k = it.get('unit_price_k', it.get('base_price_k', final_p_k) // qty if qty else final_p_k)
+            orig_unit_price = float(base_p_k * 1000)
+            raw_name = it.get('product_name', 'ĐÈN')
+
+            # Tra cứu sản phẩm trong kho products
+            c_bh.execute("SELECT id, name, warranty_months, stock FROM products WHERE UPPER(name) = ? ORDER BY id ASC LIMIT 1", (raw_name.upper(),))
+            prod_match = c_bh.fetchone()
+            if not prod_match:
+                c_bh.execute("SELECT id, name, warranty_months, stock FROM products WHERE UPPER(name) LIKE ? OR UPPER(code) LIKE ? ORDER BY id ASC LIMIT 1", (f"%{raw_name.upper()}%", f"%{raw_name.upper()}%"))
+                prod_match = c_bh.fetchone()
+            if not prod_match:
+                keywords = [w for w in raw_name.upper().split() if w not in ('BI', 'LED', 'ĐÈN', 'DEN', 'BỘ', 'BO', 'CẶP', 'CAP')]
+                if keywords:
+                    like_clause = " AND ".join(["UPPER(name) LIKE ?" for _ in keywords])
+                    c_bh.execute(f"SELECT id, name, warranty_months, stock FROM products WHERE {like_clause} ORDER BY id ASC LIMIT 1", [f"%{k}%" for k in keywords])
+                    prod_match = c_bh.fetchone()
+
+            if prod_match:
+                item_display_name = prod_match['name']
+                w_months = int(prod_match['warranty_months'] or 24)
+                # Tự động trừ kho
+                c_bh.execute("UPDATE products SET stock = stock - ? WHERE id = ? AND item_type = 'Hàng hóa'", (qty, prod_match['id']))
+            else:
+                item_display_name = raw_name
+                w_months = 24
+
+            c_bh.execute("""
+                INSERT INTO order_items (order_id, item_name, price, warranty_months, orig_price, unit_price, qty)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (banhang_order_id, item_display_name, final_item_price, w_months, orig_unit_price, unit_price, qty))
+
+        # Đồng bộ danh bạ khách hàng
+        if clean_cust and not clean_cust.startswith('Khách xe'):
+            c_bh.execute("""
+                SELECT id FROM customers 
+                WHERE (phone = ? AND phone != '') 
+                   OR (customer_code = ? AND customer_code != '')
+                LIMIT 1
+            """, (phone or "", plate or ""))
+            if not c_bh.fetchone():
+                c_bh.execute("""
+                    INSERT INTO customers (customer_code, customer_name, phone, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (plate or phone or clean_cust, clean_cust, phone or "", datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+
+        conn_bh.commit()
+        conn_bh.close()
+        return banhang_order_id, None
+    except Exception as e:
+        return None, str(e)
+
+
 def commit_baocao_den_order(payload):
-    """Thực thi ghi đơn báo cáo đèn vào Database sau khi người dùng đã xác nhận"""
+    """
+    Thực thi ghi đơn báo cáo đèn vào Database sau khi người dùng đã xác nhận,
+    ĐỒNG THỜI tạo hóa đơn bán hàng trong app_banhang/tiem_lap_do.db và tự động trừ kho!
+    """
     items = payload['items']
-    cust_name = payload['cust_name']
-    found_car = payload['found_car']
-    plate = payload['plate']
-    order_date = payload['order_date']
+    cust_name = payload.get('cust_name', '')
+    cust_record = payload.get('cust_record') or cust_name
+    found_car = payload.get('found_car', '')
+    plate = payload.get('plate', '')
+    phone = payload.get('phone', '')
+    order_date = payload.get('order_date') or datetime.now().strftime('%Y-%m-%d')
     discount_k = payload.get('discount_k', 0)
     total_base_k = payload.get('total_base_k', 0)
     total_final_k = payload.get('total_final_k', 0)
@@ -929,18 +1019,22 @@ def commit_baocao_den_order(payload):
         return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
 
     try:
+        # 1. GHI VÀO SỔ BÁO CÁO DOANH THU ĐÈN
         conn = sqlite3.connect(DB_DEN, timeout=10)
         c = conn.cursor()
         saved_ids = []
-        cust_record = f"{cust_name} ({plate})" if (plate and plate not in cust_name) else cust_name
+        den_cust_str = cust_record if (plate and plate not in cust_record) else (f"{cust_name} ({plate})" if (plate and plate not in cust_name) else (cust_name or f"Khách xe {plate}"))
         for it in items:
             c.execute("""
                 INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
                 VALUES (?, ?, ?, ?, ?, ?, 'AI_ASSISTANT')
-            """, (order_date, it['product_name'], cust_record, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
+            """, (order_date, it['product_name'], den_cust_str, found_car or 'XE Ô TÔ', it['quantity'], it['final_price_k']))
             saved_ids.append(c.lastrowid)
         conn.commit()
         conn.close()
+
+        # 2. ĐỒNG THỜI TẠO HÓA ĐƠN BÁN HÀNG & TRỪ TỒN KHO TRONG APP BÁN HÀNG
+        banhang_order_id, bh_err = sync_create_banhang_order(cust_name, phone, plate, order_date, items)
 
         item_lines = []
         for i, it in enumerate(items, 1):
@@ -957,27 +1051,37 @@ def commit_baocao_den_order(payload):
         items_text = "\n".join(item_lines)
         total_base_str = f"{total_base_k*1000:,.0f} đ ({total_base_k:,}k)"
         total_final_str = f"{total_final_k*1000:,.0f} đ ({total_final_k:,}k)"
-        discount_text = f"\n• **Giảm giá:** -{discount_k*1000:,.0f} đ (-{discount_k:,}k)" if discount_k > 0 else ""
+        discount_text = f"\n• 🎁 **Giảm giá / Bớt tiền:** **-{discount_k*1000:,.0f} đ (-{discount_k:,}k)**" if discount_k > 0 else ""
 
         id_text = f"#{saved_ids[0]}" if len(saved_ids) == 1 else f"#{saved_ids[0]} - #{saved_ids[-1]} ({len(saved_ids)} món)"
+
+        bh_line = ""
+        if banhang_order_id:
+            bh_line = f"• 🧾 **Mã hóa đơn Bán Hàng:** **#{banhang_order_id}** *(Đã tự động trừ tồn kho & lưu lịch sử bảo hành)*\n"
+        elif bh_err:
+            bh_line = f"• ⚠️ *Ghi chú Bán Hàng: {bh_err}*\n"
+
+        phone_line = f"• 📞 **Số điện thoại:** **{phone}**\n" if phone else ""
 
         return {
             "type": "success",
             "module": "den",
             "message": (
-                f"💡 **ĐÃ XÁC NHẬN & GHI NHẬN ĐƠN BÁO CÁO ĐÈN THÀNH CÔNG!**\n\n"
-                f"• **Mã đơn:** {id_text}\n"
-                f"• **Khách hàng:** **{cust_name}**\n"
-                f"• **Dòng xe:** {found_car or 'Chưa rõ dòng xe'}\n"
-                + (f"• **Biển số:** {plate}\n" if plate else "")
-                + f"• **Ngày ghi nhận:** {order_date}\n\n"
+                f"💡 **ĐÃ XÁC NHẬN & TỰ ĐỘNG GHI NHẬN VÀO CẢ 2 PHẦN MỀM!**\n\n"
+                f"• 🏮 **Mã đơn Doanh Thu Đèn:** **{id_text}**\n"
+                + bh_line
+                + f"• 👤 **Khách hàng:** **{cust_name}**\n"
+                + phone_line
+                + f"• 🚗 **Dòng xe:** {found_car or 'Chưa rõ dòng xe'}\n"
+                + (f"• 🚘 **Biển số:** {plate}\n" if plate else "")
+                + f"• 📅 **Ngày ghi nhận:** {order_date}\n\n"
                 f"📦 **Chi tiết các món ({len(items)} món):**\n"
                 f"{items_text}\n"
-                + (f"• **Tổng tiền gốc:** {total_base_str}\n" if discount_k > 0 else "")
+                + (f"• 💵 **Tổng tiền gốc:** {total_base_str}\n" if discount_k > 0 else "")
                 + discount_text
                 + f"\n• 💰 **DOANH THU THỰC THU:** **{total_final_str}**\n\n"
-                f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
-                f"*(Nếu muốn hủy, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
+                f"👉 [Xem Sổ Doanh Thu Đèn](/den/) | [Xem Hóa Đơn Bán Hàng](/banhang/)\n"
+                f"*(Nếu muốn hủy, gõ 'hủy đơn vừa nhập' để hoàn tác cả 2 hệ thống)*"
             )
         }
     except Exception as e:
@@ -2005,18 +2109,31 @@ def handle_wizard_step(user_text, session_id):
                     conn.commit()
                     conn.close()
 
+                    # Đồng thời tạo hóa đơn Bán Hàng & trừ tồn kho
+                    it_wizard = [{
+                        'product_name': data['product_name'],
+                        'quantity': data['quantity'],
+                        'unit_price_k': data['base_price_k'] // data['quantity'] if data['quantity'] else data['base_price_k'],
+                        'base_price_k': data['base_price_k'],
+                        'final_price_k': final_price_k,
+                        'discount_k': data.get('discount_k', 0)
+                    }]
+                    bh_order_id, _ = sync_create_banhang_order(data['customer_name'], data.get('phone', ''), data.get('plate', ''), data['date'], it_wizard)
+
                     qty_label = f"{data['quantity']} bộ " if data['quantity'] > 1 else ""
                     base_str = f"{data['base_price_k']*1000:,.0f} đ ({data['base_price_k']:,}k)"
                     final_str = f"{final_price_k*1000:,.0f} đ ({final_price_k:,}k)"
                     disc_text = f"\n• **Giảm giá:** -{data['discount_k']*1000:,.0f} đ (-{data['discount_k']:,}k)" if data['discount_k'] > 0 else ""
+                    bh_line = f"• 🧾 **Mã hóa đơn Bán Hàng:** **#{bh_order_id}** *(Đã tự động trừ kho & kích hoạt bảo hành)*\n" if bh_order_id else ""
 
                     return {
                         "type": "success",
                         "module": "den",
                         "message": (
-                            f"✅ **ĐÃ XÁC NHẬN & GHI NHẬN ĐƠN ĐÈN THÀNH CÔNG!**\n\n"
-                            f"• **Mã đơn:** #{order_id}\n"
-                            f"• **Sản phẩm:** **{qty_label}{data['product_name']}**\n"
+                            f"✅ **ĐÃ XÁC NHẬN & GHI NHẬN THÀNH CÔNG VÀO CẢ 2 PHẦN MỀM!**\n\n"
+                            f"• 🏮 **Mã đơn Doanh Thu Đèn:** #{order_id}\n"
+                            + bh_line
+                            + f"• **Sản phẩm:** **{qty_label}{data['product_name']}**\n"
                             f"• **Khách hàng:** **{data['customer_name']}**\n"
                             f"• **Dòng xe:** {data['car_model']}\n"
                             + (f"• **Biển số:** {data['plate']}\n" if data['plate'] else "")
@@ -2024,8 +2141,8 @@ def handle_wizard_step(user_text, session_id):
                             + f"• **Giá gốc:** {base_str}\n"
                             + disc_text
                             + f"\n• 💰 **DOANH THU THỰC THU:** **{final_str}**\n\n"
-                            f"👉 [Bấm vào đây để xem Báo Cáo Doanh Thu Đèn](/den/)\n"
-                            f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác ngay)*"
+                            f"👉 [Xem Sổ Doanh Thu Đèn](/den/) | [Xem Hóa Đơn Bán Hàng](/banhang/)\n"
+                            f"*(Nếu nhập nhầm, gõ 'hủy đơn vừa nhập' để hoàn tác cả 2 hệ thống)*"
                         )
                     }
                 except Exception as e:
@@ -2540,17 +2657,52 @@ def handle_undo_last_lamp_order(raw_text, clean_text):
             return {"type": "info", "message": "🔎 Hiện không tìm thấy đơn đèn nào do Trợ Lý AI vừa tạo để xóa."}
 
         last_id = recent_rows[0]['id']
+        r = recent_rows[0]
         c.execute("DELETE FROM orders WHERE id = ?", (last_id,))
         conn.commit()
         conn.close()
 
-        r = recent_rows[0]
+        # Đồng thời hoàn tác bên Phần Mềm Bán Hàng nếu có
+        bh_undo_note = ""
+        if os.path.exists(DB_BANHANG):
+            try:
+                conn_bh = sqlite3.connect(DB_BANHANG, timeout=5)
+                c_bh = conn_bh.cursor()
+                target_bh_id = None
+                # Thử tìm biển số từ customer_name (VD: "Chị Trân (66A-554.28)")
+                m_plate = re.search(r'\(([^)]+)\)', r['customer_name'] or '')
+                found_plate = m_plate.group(1).strip() if m_plate else ""
+
+                if found_plate:
+                    c_bh.execute("SELECT id FROM orders WHERE license_plate = ? ORDER BY id DESC LIMIT 1", (found_plate,))
+                    row_bh = c_bh.fetchone()
+                    if row_bh: target_bh_id = row_bh[0]
+                if not target_bh_id:
+                    clean_cname = re.sub(r'\s*\([^)]*\)', '', r['customer_name'] or '').strip()
+                    c_bh.execute("SELECT id FROM orders WHERE customer_name = ? AND install_date = ? ORDER BY id DESC LIMIT 1", (clean_cname, r['order_date']))
+                    row_bh = c_bh.fetchone()
+                    if row_bh: target_bh_id = row_bh[0]
+
+                if target_bh_id:
+                    # Hoàn trả tồn kho cho các món
+                    c_bh.execute("SELECT item_name, qty FROM order_items WHERE order_id = ?", (target_bh_id,))
+                    for iname, iqty in c_bh.fetchall():
+                        c_bh.execute("UPDATE products SET stock = stock + ? WHERE name = ? AND item_type = 'Hàng hóa'", (iqty, iname))
+                    c_bh.execute("DELETE FROM order_items WHERE order_id = ?", (target_bh_id,))
+                    c_bh.execute("DELETE FROM orders WHERE id = ?", (target_bh_id,))
+                    conn_bh.commit()
+                    bh_undo_note = f"\n• 🧾 **Đã hoàn tác Hóa Đơn Bán Hàng:** #{target_bh_id} (và hoàn trả tồn kho)"
+                conn_bh.close()
+            except Exception as e_undobh:
+                print(f"[handle_undo_last_lamp_order] Lỗi hoàn tác bán hàng: {e_undobh}")
+
         return {
             "type": "success",
             "module": "den",
             "message": (
                 f"🗑️ **ĐÃ HỦY THÀNH CÔNG ĐƠN ĐÈN VỪA NHẬP!**\n\n"
                 f"• **Mã đơn đã xóa:** #{r['id']}\n"
+                + bh_undo_note + "\n"
                 f"• **Khách hàng:** {r['customer_name']}\n"
                 f"• **Dòng xe:** {r['car_model']}\n"
                 f"• **Sản phẩm:** {r['quantity']}x {r['product_name']}\n"

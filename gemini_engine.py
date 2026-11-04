@@ -8152,6 +8152,67 @@ def parse_discount_expression(text: str, total_base_k: int = 0) -> tuple:
     return 0, False, 0
 
 
+def extract_customer_and_phone_from_caption(caption):
+    """
+    Tự động bóc tách tên khách hàng và số điện thoại từ ghi chú/caption người dùng gửi kèm ảnh:
+    - SĐT: dạng 10 chữ số (03x, 05x, 07x, 08x, 09x, hỗ trợ cả dấu chấm/khoảng cách/gạch nối)
+    - Tên khách: phần chữ còn lại sau khi đã loại trừ SĐT, biển số, % giảm giá, dòng xe
+    """
+    if not caption:
+        return "", ""
+    text = str(caption).strip()
+
+    # 1. Trích xuất SĐT: 10 chữ số
+    phone = ""
+    m_p = re.search(r'(?:(?:\+84|84|0)[\s.-]*[35789](?:[\s.-]*\d){8})\b', text)
+    if m_p:
+        raw_p = m_p.group(0)
+        digits = re.sub(r'\D', '', raw_p)
+        if digits.startswith('84'):
+            digits = '0' + digits[2:]
+        if len(digits) == 10:
+            phone = digits
+            text = text[:m_p.start()] + ' ' + text[m_p.end():]
+
+    # 2. Bỏ phần giảm giá / chiết khấu khỏi text
+    text = re.sub(r'(?i)(?:giảm\s*giá|giam\s*gia|giảm|giam|bớt|bot|chiết\s*khấu|chiet\s*khau|ck)\s*[-–—]?\s*\d+(?:[.,]\d+)?\s*(?:%|tr|trieu|triệu|k|nghin|nghìn|vnd|d|đ|đồng|dong)?', ' ', text)
+    text = re.sub(r'[-–—]?\s*\d+\s*%', ' ', text)
+
+    # 3. Bỏ biển số xe nếu có trong caption (VD: 66A-554.28)
+    text = re.sub(r'\b\d{2}[A-Z]{1,2}[-.\s]?\d{3,5}(?:[.]\d{2})?\b', ' ', text, flags=re.IGNORECASE)
+
+    # 4. Bỏ các dòng xe phổ biến nếu lọt vào caption
+    car_words = [
+        'VF3', 'VF5', 'VF6', 'VF7', 'VF8', 'VF9', 'FADIL', 'LUX A', 'LUX SA',
+        'ACCENT', 'ELANTRA', 'TUCSON', 'SANTAFE', 'CRETA', 'GRAND I10', 'I10',
+        'VIOS', 'CAMRY', 'COROLLA', 'CROSS', 'ALTIS', 'FORTUNER', 'INNOVA', 'RAIZE', 'VELOZ', 'YARIS', 'HILUX',
+        'CARENS', 'CARNIVAL', 'CERATO', 'K3', 'K5', 'MORNING', 'SELTOS', 'SONET', 'SORENTO', 'SOLUTO',
+        'CITY', 'CIVIC', 'CRV', 'CR-V', 'HRV', 'HR-V', 'BRV', 'BR-V', 'BRIO',
+        'MAZDA 2', 'MAZDA 3', 'MAZDA 6', 'CX3', 'CX30', 'CX5', 'CX8', 'BT50',
+        'RANGER', 'EVEREST', 'RAPTOR', 'TERRITORY', 'EXPLORER',
+        'XPANDER', 'OUTLANDER', 'ATTRAGE', 'XFORCE', 'TRITON', 'PAJERO',
+        'ALMERA', 'NAVARA', 'KICKS', 'TERRA', 'SUNNY',
+        'MG5', 'MG ZS', 'MG HS', 'MG RX5',
+        'VINFAST', 'HYUNDAI', 'TOYOTA', 'KIA', 'HONDA', 'MAZDA', 'FORD', 'MITSUBISHI', 'NISSAN', 'MG'
+    ]
+    for cw in car_words:
+        text = re.sub(r'(?i)\b' + re.escape(cw) + r'\b', ' ', text)
+
+    # 5. Bỏ các từ định danh thừa
+    text = re.sub(r'(?i)\b(?:khách\s*hàng|khach\s*hang|khách\s*xe|khach\s*xe|khách|khach|tên|ten|sđt|sdt|tel|phone|di động|di dong)\s*[:=-]?', ' ', text)
+
+    # 6. Làm sạch dấu phân cách thừa
+    text = re.sub(r'[-–—|,:;/%+]+', ' ', text)
+    clean_name = ' '.join(text.split()).strip()
+
+    if clean_name and len(clean_name) >= 2:
+        clean_name = clean_name.title()
+    else:
+        clean_name = ""
+
+    return clean_name, phone
+
+
 def scan_car_warranty_photo(image_data, user_caption="", session_id="default_user", file_timestamp=None):
     """
     Tự động phân tích ảnh nghiệm thu / bảo hành xe bằng Gemini Vision:
@@ -8218,12 +8279,15 @@ QUAN SÁT KỸ TẤT CẢ VỎ HỘP ĐÈN ĐẶT TRÊN NẮP CAPO / KHĂN TRẢ
   + Nếu có 2 hoặc nhiều hộp CÙNG MỘT MÃ HÀNG (ví dụ 2 hộp M20 Ultra đặt cạnh nhau): hãy gộp lại thành 1 món duy nhất với "so_luong" là tổng số lượng hộp đó (ví dụ: 2).
 
 LƯU Ý CỦA NGƯỜI DÙNG NẾU CÓ: "{user_caption}"
+- Hãy phân tích kỹ dòng ghi chú trên để trích xuất tên khách hàng (nếu có, ví dụ: 'Chị Trân', 'Anh Bình', 'Anh Tuấn') và số điện thoại khách hàng (nếu có, ví dụ: '0328583344', '0909123456').
 
 YÊU CẦU TRẢ VỀ JSON:
 {{
   "bien_so": "Biển số xe chính giữa bức ảnh (ví dụ 63A-041.32, 71A-214.72, 63C-237.12...)",
   "hang_xe": "Hãng xe (TOYOTA, MG, KIA, HYUNDAI, VINFAST, HONDA, MAZDA, FORD...)",
   "dong_xe": "Dòng xe (Fortuner, MG5, Carens, Elantra, Vios, Accent, VF3...)",
+  "ten_khach": "Tên khách hàng từ ghi chú (hoặc rỗng nếu không có)",
+  "so_dien_thoai": "Số điện thoại từ ghi chú (hoặc rỗng nếu không có)",
   "danh_sach_hop_den": [
     {{
       "ten_san_pham": "Tên sản phẩm/mã đèn trên vỏ hộp (ví dụ V20 BASE, S3 PRO, F10 PRO V2, M20 ULTRA V2, F10 TURBO...)",
@@ -8331,6 +8395,10 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         if m_h: data['hang_xe'] = m_h.group(1)
         m_d = re.search(r'"dong_xe"\s*:\s*"([^"]+)"', raw_vision_text)
         if m_d: data['dong_xe'] = m_d.group(1)
+        m_tk = re.search(r'"ten_khach"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_tk: data['ten_khach'] = m_tk.group(1)
+        m_sdt = re.search(r'"so_dien_thoai"\s*:\s*"([^"]+)"', raw_vision_text)
+        if m_sdt: data['so_dien_thoai'] = m_sdt.group(1)
         m_n = re.search(r'"nghiem_thu"\s*:\s*"([^"]+)"', raw_vision_text)
         if m_n: data['nghiem_thu'] = m_n.group(1)
 
@@ -8444,11 +8512,38 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
     total_final_k = sum(it['final_price_k'] for it in items)
 
-    # 6. Tra cứu cơ sở dữ liệu Gara (Khách hàng & Dòng xe)
+    # 6. Tra cứu cơ sở dữ liệu Gara & Xác định thông tin Khách hàng, SĐT
+    cap_name, cap_phone = extract_customer_and_phone_from_caption(user_caption)
+    vision_name = str(data.get('ten_khach') or '').strip()
+    vision_phone = str(data.get('so_dien_thoai') or '').strip()
+
+    final_cap_name = cap_name or vision_name
+    final_cap_phone = cap_phone or vision_phone
+
+    # Tra cứu cơ sở dữ liệu Gara theo biển số hoặc số điện thoại
     cust_info = lookup_customer_and_car_by_identifier(plate) if plate else {}
+    if not cust_info.get('found') and final_cap_phone:
+        cust_info = lookup_customer_and_car_by_identifier(final_cap_phone)
+
     auto_found = cust_info.get('found', False)
-    cust_name = cust_info.get('customer_name') if auto_found else f"Khách xe {plate}"
-    phone = cust_info.get('phone', '') if auto_found else ""
+
+    # Xác định Tên khách hàng:
+    if final_cap_name:
+        cust_name = final_cap_name
+        tag_auto = " *(Ghi nhận theo ghi chú)*"
+    elif auto_found and cust_info.get('customer_name'):
+        cust_name = cust_info.get('customer_name')
+        tag_auto = " *(Hồ sơ tự nhận diện)*"
+    elif plate:
+        cust_name = f"Khách xe {plate}"
+        tag_auto = " *(Khách mới theo biển số)*"
+    else:
+        cust_name = "Khách lẻ"
+        tag_auto = ""
+
+    # Xác định Số điện thoại:
+    phone = final_cap_phone or (cust_info.get('phone', '') if auto_found else "")
+
     if full_car in ["CHƯA RÕ", "CHƯA RÕ DÒNG XE", ""] and cust_info.get('car_model'):
         full_car = cust_info.get('car_model').upper()
 
@@ -8457,7 +8552,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
     session_payload = {
         'items': items,
-        'cust_name': cust_record,
+        'cust_name': cust_name,
+        'cust_record': cust_record,
         'found_car': full_car,
         'plate': plate,
         'phone': phone,
@@ -8475,7 +8571,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
     WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
 
     # 8. Soạn phiếu xác nhận lên đơn trực quan
-    tag_auto = " *(Hồ sơ tự nhận diện)*" if auto_found else " *(Khách mới theo biển số)*"
+    tag_auto_label = tag_auto if tag_auto else (" *(Hồ sơ tự nhận diện)*" if auto_found else " *(Khách mới theo biển số)*")
     date_badge = f" *({date_note})*"
 
     # Kiểm tra trùng đơn xe
@@ -8528,11 +8624,11 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         )
 
     card_msg = (
-        "❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**\n"
+        "❓ **XÁC NHẬN TẠO ĐƠN DOANH THU ĐÈN & BÁN HÀNG:**\n"
         "───────────────────────────────────────\n"
         + dup_line
         + f"• 📸 **Nghiệm thu ảnh chụp:** {nghiem_thu_txt}\n"
-        f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto}\n"
+        f"• 👤 **Khách hàng:** **{cust_name}**{tag_auto_label}\n"
         f"• 🚗 **Dòng xe:** **{full_car}**\n"
         f"• 🚘 **Biển số:** **{plate}**\n"
         + phone_line
@@ -8541,6 +8637,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         + f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
         f"• 📅 **Ngày lắp:** **{order_date}**{date_badge}\n"
         "───────────────────────────────────────\n"
+        "✨ *Hệ thống sẽ đồng thời ghi Sổ Doanh Thu Đèn VÀ tạo Hóa Đơn Bán Hàng (tự động trừ tồn kho)!*\n"
         f"👉 Nhắn tin để sửa thông tin nếu cần (VD: *'sửa giá 10tr'*, *'đổi xe Carens'*, *'ngày 15/08'*, *'giảm 200k'*, *'tên Anh Tuấn'*)...\n"
         f"👉 Bấm **[{btn_confirm_label}]** để ghi sổ ngay, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
     )
@@ -8556,6 +8653,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
         "meta": {
             "customer": cust_name,
             "cust_name": cust_name,
+            "cust_record": cust_record,
             "phone": phone,
             "car": full_car,
             "found_car": full_car,
