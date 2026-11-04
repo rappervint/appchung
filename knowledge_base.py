@@ -1585,6 +1585,10 @@ def init_knowledge_db():
     
     # TỰ ĐỘNG ĐỒNG BỘ TRI THỨC TỪ KNOWLEDGE_SEED.JSON (DÀNH CHO PYTHONANYWHERE / MÁY MỚI):
     try:
+        # Tự động dọn dẹp các bản ghi cũ bị ô nhiễm từ khóa
+        c.execute("DELETE FROM gara_memory WHERE keywords LIKE '%phan tich%' OR keywords LIKE '%sau nay%' OR keywords LIKE '%cap nhat nay%' OR keywords LIKE '%de sau nay%' OR clean_topic LIKE '%phan tich%'")
+        conn.commit()
+
         import json
         seed_path = os.path.join(os.path.dirname(__file__), 'knowledge_seed.json')
         if os.path.exists(seed_path):
@@ -1592,8 +1596,23 @@ def init_knowledge_db():
                 seed_data = json.load(f_seed)
             for item in seed_data:
                 c.execute("SELECT id FROM gara_memory WHERE clean_topic = ?", (item.get('clean_topic', ''),))
-                if not c.fetchone():
-                    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                row = c.fetchone()
+                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                if row:
+                    c.execute('''
+                        UPDATE gara_memory 
+                        SET keywords = ?, price_info = ?, options_info = ?, formatted_reply = ?, raw_content = ?, updated_at = ?
+                        WHERE id = ?
+                    ''', (
+                        item.get('keywords', ''),
+                        item.get('price_info', ''),
+                        item.get('options_info', ''),
+                        item.get('formatted_reply', ''),
+                        item.get('raw_content', ''),
+                        now_str,
+                        row[0]
+                    ))
+                else:
                     c.execute('''
                         INSERT INTO gara_memory (topic, clean_topic, keywords, raw_content, price_info, options_info, formatted_reply, created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -4581,7 +4600,7 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
 
     for r in rows:
         mem_id, topic, clean_topic, keywords_str, raw_content, formatted_reply = r
-        m_feat = extract_knowledge_features(f"{clean_topic} {raw_content} {keywords_str}")
+        m_feat = extract_knowledge_features(f"{clean_topic} {keywords_str}")
 
         # 1. Khớp chính xác 100% câu hỏi đã lưu
         if clean == clean_topic or clean == remove_accents(raw_content).lower():
@@ -4663,6 +4682,10 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
                 return {
                     "type": "success",
                     "module": "knowledge_retrieved",
+                    "memory_id": mem_id,
+                    "topic": topic,
+                    "clean_topic": clean_topic,
+                    "keywords": keywords_str,
                     "message": formatted_reply
                 }
 
@@ -4672,6 +4695,10 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
                 return {
                     "type": "success",
                     "module": "knowledge_retrieved",
+                    "memory_id": mem_id,
+                    "topic": topic,
+                    "clean_topic": clean_topic,
+                    "keywords": keywords_str,
                     "message": formatted_reply
                 }
 

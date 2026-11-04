@@ -100,7 +100,7 @@
   },
   {
     "topic": "Film 3m giá rẻ?",
-    "clean_topic": "film 3m gia re?",
+    "clean_topic": "[da_huy]_film 3m gia re?",
     "keywords": "",
     "raw_content": "film 3m giá rẻ?",
     "price_info": "",
@@ -137,7 +137,7 @@
   {
     "topic": "Da simili 7 chổ",
     "clean_topic": "da simili 7 cho",
-    "keywords": "da simili 7, da simili 7 cho, san simili 7, san simili 7 cho, simili 7, simili 7 cho, boc ghe da simili 7, boc da simili 7, da simili 7 cho 6tr",
+    "keywords": "da simili 7 cho, boc da simili 7 cho, san simili 7 cho, gia da simili 7 cho",
     "raw_content": "da simili 7 chổ",
     "price_info": "6.000.000 đ",
     "options_info": "",
@@ -173,7 +173,7 @@
   {
     "topic": "Da công nghiệp 4 chổ",
     "clean_topic": "da cong nghiep 4 cho",
-    "keywords": "da cong nghiep 4, da cong nghiep 4 cho, cong nghiep 4 cho, boc da cong nghiep 4 cho, da cn 4 cho, da cong nghiep 4 cho 6tr",
+    "keywords": "da cong nghiep 4 cho, boc da cong nghiep 4 cho, da cn 4 cho, gia da cong nghiep 4 cho",
     "raw_content": "da công nghiệp 4 chỗ 6tr",
     "price_info": "6.000.000 đ",
     "options_info": null,
@@ -209,73 +209,82 @@
   {
     "topic": "Bọc ghế da Simili xe 7 chỗ",
     "clean_topic": "boc ghe da simili xe 7 cho",
-    "keywords": "boc da simili 7 cho, da simili xe 7 cho, gia da simili 7 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "6.000.000 đ",
+    "keywords": "boc da simili 7 cho, da simili xe 7 cho, gia da simili 7 cho, san simili 7 cho",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "6,000,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da Simili cho xe 7 chỗ là 6.000.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA SIMILI (XE 7 CHỖ):**\n• Mức giá hoàn thiện: **6,000,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Bọc ghế da công nghiệp xe 7 chỗ",
     "clean_topic": "boc ghe da cong nghiep xe 7 cho",
     "keywords": "boc da cong nghiep 7 cho, da cong nghiep xe 7 cho, gia da cong nghiep 7 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "7.500.000 đ",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "7,500,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da công nghiệp cho xe 7 chỗ là 7.500.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA CONG NGHIEP (XE 7 CHỖ):**\n• Mức giá hoàn thiện: **7,500,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Bọc ghế da Nappa xe 7 chỗ",
     "clean_topic": "boc ghe da nappa xe 7 cho",
     "keywords": "boc da nappa 7 cho, da nappa xe 7 cho, gia da nappa 7 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "12.000.000 đ",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "12,000,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da Nappa cho xe 7 chỗ là 12.000.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA NAPPA (XE 7 CHỖ):**\n• Mức giá hoàn thiện: **12,000,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Bọc ghế da Simili xe 4 chỗ",
     "clean_topic": "boc ghe da simili xe 4 cho",
-    "keywords": "boc da simili 4 cho, da simili xe 4 cho, gia da simili 4 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "3.500.000 đ",
+    "keywords": "boc da simili 4 cho, da simili xe 4 cho, gia da simili 4 cho, san simili 4 cho",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "3,500,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da Simili cho xe 4 chỗ là 3.500.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA SIMILI (XE 4 CHỖ):**\n• Mức giá hoàn thiện: **3,500,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Bọc ghế da công nghiệp xe 4 chỗ",
     "clean_topic": "boc ghe da cong nghiep xe 4 cho",
     "keywords": "boc da cong nghiep 4 cho, da cong nghiep xe 4 cho, gia da cong nghiep 4 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "6.000.000 đ",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "6,000,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da công nghiệp cho xe 4 chỗ là 6.000.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA CONG NGHIEP (XE 4 CHỖ):**\n• Mức giá hoàn thiện: **6,000,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Bọc ghế da Nappa xe 4 chỗ",
     "clean_topic": "boc ghe da nappa xe 4 cho",
     "keywords": "boc da nappa 4 cho, da nappa xe 4 cho, gia da nappa 4 cho",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "9.500.000 đ",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "9,500,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, giá bọc ghế da Nappa cho xe 4 chỗ là 9.500.000 đ ạ."
+    "formatted_reply": "🚗 **DỊCH VỤ BỌC GHẾ DA NAPPA (XE 4 CHỖ):**\n• Mức giá hoàn thiện: **9,500,000 đ** trọn gói tại Gara Trần Bình Auto."
   },
   {
     "topic": "Tùy chọn da Nappa đục lỗ công nghệ",
     "clean_topic": "tuy chon da nappa duc lo cong nghe",
-    "keywords": "da nappa duc lo, cong nghe duc lo nappa, boc da nappa duc lo",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
-    "price_info": "+1.000.000 đ",
+    "keywords": "da nappa duc lo, cong nghe duc lo nappa, duc lo da nappa, boc da nappa duc lo",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
+    "price_info": "1,000,000 đ",
     "options_info": "",
-    "formatted_reply": "Dạ, riêng da Nappa đục lỗ công nghệ sẽ cộng thêm 1.000.000 đ vào giá sản phẩm ạ."
+    "formatted_reply": "✨ **TÙY CHỌN ĐỤC LỖ CÔNG NGHỆ (DA NAPPA):**\n• Phụ phí: **1,000,000 đ** cộng thêm vào giá sản phẩm."
   },
   {
     "topic": "Bảng giá bọc ghế da ô tô Trần Bình Auto",
     "clean_topic": "bang gia boc ghe da o to tran binh auto",
-    "keywords": "bang gia boc da ghe, boc ghe da oto, gia boc da xe",
-    "raw_content": "\nXe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\n",
+    "keywords": "bang gia boc da ghe, boc ghe da oto, gia boc da xe, boc da oto bao nhieu, gia boc ghe da",
+    "raw_content": "Xe 7 chỗ :\nDa simili : 6tr\nDa công nghiệp : 7tr5\nDa nappa : 12tr\nXe 4 chỗ :\nDa simili : 3tr5\nDa công nghiệp : 6tr\nDa nappa : 9tr5\n\nRiêng da nappa đục lỗ công nghệ được , +1tr vào giá sản phẩm.\nphân tích và thêm mây hàng, ghi nhớ lại vào hệ thống, để sau nay tôi hỏi giá lại thì cho giá chính xác từng món",
     "price_info": "",
     "options_info": "",
-    "formatted_reply": "Dạ, bảng giá bọc ghế da tại Trần Bình Auto như sau:\n- Xe 4 chỗ: Simili 3tr5, Da công nghiệp 6tr, Da Nappa 9tr5.\n- Xe 7 chỗ: Simili 6tr, Da công nghiệp 7tr5, Da Nappa 12tr.\nRiêng da Nappa đục lỗ công nghệ +1tr vào giá sản phẩm ạ."
+    "formatted_reply": "Dạ em đã ghi nhớ toàn bộ bảng giá bọc ghế da cho cả xe 4 chỗ và 7 chỗ (bao gồm tùy chọn đục lỗ công nghệ +1 triệu cho da Nappa) vào bộ nhớ hệ thống của gara Trần Bình Auto rồi ạ!\n🚗 Xe 7 Chỗ:\n- Da Simili: 6.000.000 đ\n- Da công nghiệp: 7.500.000 đ\n- Da Nappa: 12.000.000 đ\n🚗 Xe 4 / 5 Chỗ:\n- Da Simili: 3.500.000 đ\n- Da công nghiệp: 6.000.000 đ\n- Da Nappa: 9.500.000 đ"
+  },
+  {
+    "topic": "Film 3m giá rẻ?",
+    "clean_topic": "film 3m gia re?",
+    "keywords": "",
+    "raw_content": "film 3m giá rẻ?",
+    "price_info": "",
+    "options_info": "",
+    "formatted_reply": "Dạ, đối với dòng phim cách nhiệt 3M chính hãng, Gara Trần Bình Auto đang cung cấp dòng tiết kiệm và bình dân nhất là **3M Ceramic Hybrid (NR)** với bảng giá chi tiết từng kính như sau ạ:\n\n• **Kính lái (NR25):** 2.600.000 đ *(đạt chuẩn xuyên sáng kiểm định)*\n• **Kính sườn trước (NR15 / NR25):** 1.700.000 đ (2 cánh)\n• **Kính sườn sau (NR15 / NR5):** 1.700.000 đ (2 cánh)\n• **Kính hậu / kính lưng (NR15 / NR5):** 1.900.000 đ\n• **Kính khoang (xe 7 chỗ):** 1.600.000 đ\n\nNgoài ra, nếu anh/chị muốn tìm dòng phim cách nhiệt chính hãng có mức giá \"mềm\" hơn nữa để tiết kiệm chi phí tối đa, bên em có sẵn dòng **Phim NTECH Hàn Quốc bản Tiêu Chuẩn (Ntech TC)** với giá trọn gói rất bình dân:\n• **Sườn trước (2 cánh):** 700.000 đ\n• **Sườn sau (2 cánh):** 700.000 đ\n• **Kính hậu:** 900.000 đ\n• **Kính khoang (xe 7 chỗ):** 500.000 đ\n\nAnh/chị đang cần dán cho dòng xe mấy chỗ (Sedan, SUV hay xe 7 chỗ) để em tư vấn gói combo trọn xe tối ưu và tiết kiệm nhất cho mình nhé ạ?"
   }
 ]

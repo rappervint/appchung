@@ -82,6 +82,42 @@ def remove_accents(input_str):
     return s
 
 
+import sys
+import urllib.request
+import urllib.error
+
+
+def is_running_on_pythonanywhere() -> bool:
+    """Kiểm tra xem ứng dụng có đang chạy trên máy chủ PythonAnywhere hay không."""
+    return bool(
+        'PYTHONANYWHERE_DOMAIN' in os.environ 
+        or 'PYTHONANYWHERE_SITE' in os.environ 
+        or os.path.exists('/home/vint') 
+        or os.path.exists('/home/rappervint')
+        or 'pythonanywhere' in os.environ.get('VIRTUAL_ENV', '').lower()
+        or 'pythonanywhere' in sys.executable.lower()
+        or os.path.exists('/var/www')
+    )
+
+
+# TỰ ĐỘNG CẤU HÌNH PROXY NGAY KHI IMPORT MODULE TRÊN PYTHONANYWHERE
+if is_running_on_pythonanywhere():
+    try:
+        pa_proxy = os.environ.get('http_proxy') or os.environ.get('https_proxy') or 'http://proxy.server:3128'
+        for ev in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']:
+            if ev not in os.environ:
+                os.environ[ev] = pa_proxy
+        proxy_handler = urllib.request.ProxyHandler({
+            'http': pa_proxy,
+            'https': pa_proxy
+        })
+        opener = urllib.request.build_opener(proxy_handler)
+        urllib.request.install_opener(opener)
+        print(f"[GeminiEngine] Đã kích hoạt PythonAnywhere Proxy: {pa_proxy}")
+    except Exception as e_pxy:
+        print(f"[GeminiEngine] Cảnh báo proxy PythonAnywhere: {e_pxy}")
+
+
 
 
 
@@ -386,11 +422,11 @@ def save_gemini_config(cfg: dict):
 
 
 
-        p_model = cfg.get("preferred_model") or cfg.get("model") or "gemini-3.5-flash-lite"
+        p_model = cfg.get("preferred_model") or cfg.get("model") or "gemini-3.5-flash"
 
 
 
-        f_model = cfg.get("fallback_model", "gemini-3.5-flash")
+        f_model = cfg.get("fallback_model", "gemini-3.5-flash-lite")
 
 
 
@@ -802,11 +838,11 @@ AVAILABLE_MODELS = [
 
 
 
-    CURRENT_CONFIG.get("preferred_model") or CURRENT_CONFIG.get("model") or "gemini-3.5-flash-lite",
+    CURRENT_CONFIG.get("preferred_model") or CURRENT_CONFIG.get("model") or "gemini-3.5-flash",
 
 
 
-    CURRENT_CONFIG.get("fallback_model", "gemini-3.5-flash")
+    CURRENT_CONFIG.get("fallback_model", "gemini-3.5-flash-lite")
 
 
 
@@ -6573,20 +6609,7 @@ def get_key_status_message() -> str:
 
 
 
-import urllib.request
-# TỰ ĐỘNG CẤU HÌNH PROXY NẾU CHẠY TRÊN PYTHONANYWHERE (CHO PHÉP GỌI GEMINI API TRÊN PYTHONANYWHERE)
-if 'PYTHONANYWHERE_DOMAIN' in os.environ or os.path.exists('/home/rappervint') or 'PYTHONANYWHERE_SITE' in os.environ:
-    try:
-        pa_proxy = os.environ.get('http_proxy') or os.environ.get('https_proxy') or 'http://proxy.server:3128'
-        proxy_handler = urllib.request.ProxyHandler({
-            'http': pa_proxy,
-            'https': pa_proxy
-        })
-        opener = urllib.request.build_opener(proxy_handler)
-        urllib.request.install_opener(opener)
-        print(f"[GeminiEngine] Đã kích hoạt PythonAnywhere Proxy: {pa_proxy}")
-    except Exception as e_pxy:
-        print(f"[GeminiEngine] Cảnh báo cấu hình proxy PythonAnywhere: {e_pxy}")
+# Proxy đã được cấu hình tự động tại đầu file gemini_engine.py
 
 
 
@@ -7424,15 +7447,13 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
 
     history.append({"role": "user", "parts": [{"text": message}]})
 
-    if len(history) > 12:
-
-        history = history[-12:]
-
+    on_pa = is_running_on_pythonanywhere()
+    history_limit = 4 if on_pa else 8
+    if len(history) > history_limit:
+        history = history[-history_limit:]
         REST_CHAT_HISTORY[session_id] = history
 
-
-
-    active_model = cfg.get("preferred_model") or cfg.get("model") or "gemini-3.5-flash-lite"
+    active_model = cfg.get("preferred_model") or cfg.get("model") or "gemini-3.5-flash"
 
     candidate_models = [active_model]
 
@@ -7442,7 +7463,7 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
 
             candidate_models.append(m)
 
-
+    api_timeout = 9 if on_pa else 15
 
     for model_name in candidate_models:
 
@@ -7484,7 +7505,7 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
 
             )
 
-            with urllib.request.urlopen(req, timeout=25) as resp:
+            with urllib.request.urlopen(req, timeout=api_timeout) as resp:
 
                 res_data = json.loads(resp.read().decode("utf-8"))
 
@@ -7634,63 +7655,50 @@ def ask_gemini_rest(message: str, session_id: str = "default_user") -> dict:
 
 
 
-                    # Gửi kết quả Tool về lại Gemini để tổng hợp câu trả lời hoàn chỉnh (vòng 2)
-
-                    history.append(content)
-
-                    history.append({
-
-                        "role": "user",
-
-                        "parts": [{
-
-                            "functionResponse": {
-
-                                "name": fn_name,
-
-                                "response": {"result": tool_result}
-
-                            }
-
-                        }]
-
-                    })
-
-
-
-                    payload_followup = {
-
-                        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-
-                        "tools": [{"function_declarations": REST_TOOLS_DECLARATIONS}],
-
-                        "contents": history,
-
-                        "generationConfig": {
-
-                            "maxOutputTokens": 800,
-
-                            "temperature": 0.2
-
+                    # TỐI ƯU HÓA TỐC ĐỘ SIÊU NHANH TRÊN PYTHONANYWHERE & TRÁNH TIMEOUT UWSGI:
+                    # Các công cụ đã trả về kết quả định dạng Markdown hoàn chỉnh (báo giá, bảo hành, tồn kho, doanh thu...)
+                    # Trả về ngay lập tức cho người dùng trong ~2-3 giây mà không cần gọi lại vòng 2!
+                    if on_pa and isinstance(tool_result, str) and tool_result.strip():
+                        history.append(content)
+                        history.append({"role": "model", "parts": [{"text": tool_result}]})
+                        LAST_KEY_ERROR = None
+                        return {
+                            "type": "success",
+                            "module": "gemini_assistant",
+                            "message": tool_result,
+                            "usage": usage_dict
                         }
 
+                    # Gửi kết quả Tool về lại Gemini để tổng hợp câu trả lời hoàn chỉnh (vòng 2)
+                    history.append(content)
+                    history.append({
+                        "role": "user",
+                        "parts": [{
+                            "functionResponse": {
+                                "name": fn_name,
+                                "response": {"result": tool_result}
+                            }
+                        }]
+                    })
+
+                    payload_followup = {
+                        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                        "tools": [{"function_declarations": REST_TOOLS_DECLARATIONS}],
+                        "contents": history,
+                        "generationConfig": {
+                            "maxOutputTokens": 800,
+                            "temperature": 0.2
+                        }
                     }
 
-
-
+                    followup_timeout = 6 if on_pa else 10
                     try:
-
                         req_f = urllib.request.Request(
-
                             url,
-
                             data=json.dumps(payload_followup).encode("utf-8"),
-
                             headers={"Content-Type": "application/json"}
-
                         )
-
-                        with urllib.request.urlopen(req_f, timeout=25) as resp_f:
+                        with urllib.request.urlopen(req_f, timeout=followup_timeout) as resp_f:
 
                             res_f = json.loads(resp_f.read().decode("utf-8"))
 
@@ -7889,6 +7897,10 @@ def ask_gemini(message: str, session_id: str = "default_user") -> dict:
 
 
 
+
+    # 0. NẾU CHẠY TRÊN PYTHONANYWHERE: BỎ QUA SDK VÌ HTTPX/GRPC GÂY HANG / TIMEOUT
+    if is_running_on_pythonanywhere():
+        return ask_gemini_rest(message, session_id=session_id)
 
     # 1. Thử qua Google GenAI SDK nếu có
 
@@ -8245,12 +8257,14 @@ def scan_car_warranty_photo(image_data, user_caption="", session_id="default_use
     # 2. Trích xuất ngày giờ chụp ảnh
     order_date, date_note = extract_photo_capture_date(image_bytes, file_timestamp=file_timestamp, user_caption=user_caption)
 
-    # 2.5. Tối ưu hóa kích thước & nén ảnh chuẩn cho Gemini Vision (max 1024px, giảm 60% Vision Tiles để tăng tốc)
+    # 2.5. Tối ưu hóa kích thước & nén ảnh chuẩn cho Gemini Vision (max 800px trên PythonAnywhere để upload siêu nhanh)
+    on_pa = is_running_on_pythonanywhere()
     if PIL_AVAILABLE and Image is not None:
         try:
             im = Image.open(io.BytesIO(image_bytes))
             w, h = im.size
-            max_dim = 1024
+            max_dim = 800 if on_pa else 1024
+            quality_val = 78 if on_pa else 82
             if max(w, h) > max_dim:
                 if w > h:
                     nw, nh = max_dim, int(h * max_dim / w)
@@ -8260,7 +8274,7 @@ def scan_car_warranty_photo(image_data, user_caption="", session_id="default_use
                 buf = io.BytesIO()
                 if im.mode in ('RGBA', 'P'):
                     im = im.convert('RGB')
-                im.save(buf, format='JPEG', quality=82, optimize=True)
+                im.save(buf, format='JPEG', quality=quality_val, optimize=True)
                 image_bytes = buf.getvalue()
                 b64_str = base64.b64encode(image_bytes).decode('utf-8')
         except Exception as e_opt:
@@ -8298,9 +8312,11 @@ YÊU CẦU TRẢ VỀ JSON:
 }}
 Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
 
-    # Ưu tiên dùng SDK Client với gemini-3.5-flash-lite / gemini-3.5-flash
-    client = get_gemini_client()
-    model = CURRENT_CONFIG.get('preferred_model') or 'gemini-3.5-flash-lite'
+    # Ưu tiên dùng SDK Client với gemini-3.5-flash (trừ PythonAnywhere dùng thẳng REST API)
+    client = None if on_pa else get_gemini_client()
+    model = CURRENT_CONFIG.get('preferred_model') or 'gemini-3.5-flash'
+    if model == 'gemini-3.5-flash-lite':
+        model = 'gemini-3.5-flash'
     
     # Cấu hình Ép Xuất JSON Trực Tiếp (Structured Outputs) siêu tốc (< 2s, không sinh ký tự thừa)
     gen_config = None
@@ -8334,7 +8350,7 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
             except Exception as e_sdk_fb:
                 print(f"[GeminiVision-SDK] Fallback SDK lỗi: {e_sdk_fb}")
 
-    # Nếu SDK không thành công, dùng Zero-Dependency REST API (hoạt động 100% trên PythonAnywhere)
+    # Nếu SDK không thành công hoặc trên PythonAnywhere, dùng Zero-Dependency REST API
     if not raw_vision_text:
         api_key = CURRENT_CONFIG.get('api_key') or DEFAULT_API_KEY
         if api_key:
@@ -8366,7 +8382,8 @@ Chỉ trả về JSON thuần túy, không có giải thích bên ngoài."""
                     data=json.dumps(payload).encode('utf-8'),
                     headers={"Content-Type": "application/json"}
                 )
-                with urllib.request.urlopen(req, timeout=30) as resp:
+                vision_timeout = 16 if on_pa else 25
+                with urllib.request.urlopen(req, timeout=vision_timeout) as resp:
                     res_json = json.loads(resp.read().decode('utf-8'))
                     raw_vision_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
             except Exception as e_rest:
@@ -8682,7 +8699,9 @@ def distill_knowledge_with_gemini(user_query: str, reply_text: str) -> dict:
     if not api_key:
         return None
 
-    model_name = cfg.get("preferred_model") or "gemini-3.5-flash-lite"
+    model_name = cfg.get("preferred_model") or "gemini-3.5-flash"
+    if model_name == "gemini-3.5-flash-lite":
+        model_name = "gemini-3.5-flash"
     clean_model = model_name.replace("models/", "")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
 
@@ -8737,7 +8756,8 @@ Trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```jso
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        distill_timeout = 10 if is_running_on_pythonanywhere() else 25
+        with urllib.request.urlopen(req, timeout=distill_timeout) as resp:
             res_data = json.loads(resp.read().decode("utf-8"))
 
         text_resp = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -8761,7 +8781,9 @@ def analyze_and_clean_unhappy_feedback(user_query: str, rejected_answer: str, me
     if not api_key:
         return None
 
-    model_name = cfg.get("preferred_model") or "gemini-3.5-flash-lite"
+    model_name = cfg.get("preferred_model") or "gemini-3.5-flash"
+    if model_name == "gemini-3.5-flash-lite":
+        model_name = "gemini-3.5-flash"
     clean_model = model_name.replace("models/", "")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
 
@@ -8806,7 +8828,8 @@ Trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown ```jso
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        distill_timeout = 10 if is_running_on_pythonanywhere() else 25
+        with urllib.request.urlopen(req, timeout=distill_timeout) as resp:
             res_data = json.loads(resp.read().decode("utf-8"))
 
         text_resp = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
