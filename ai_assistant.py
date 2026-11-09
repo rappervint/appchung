@@ -6839,6 +6839,10 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
             if prev_reply and prev_reply not in rejected_answers:
                 rejected_answers.append(prev_reply)
             return handle_unhappy_gemini_feedback(q_saved, rejected_answers, session_id=session_id)
+        else:
+            # Người dùng không bấm Hài lòng/Không hài lòng mà hỏi một câu hỏi mới:
+            # Tự động kết thúc phiên xác nhận trước đó để xử lý câu hỏi mới bình thường!
+            del WIZARD_SESSIONS[session_id]
 
     # Nếu câu hỏi quá ngắn hoặc mơ hồ chung chung -> Chủ động hỏi lại làm rõ
     if clean in ['tu van', 'bao gia', 'cho hoi', 'cho toi hoi', 'bang gia', 'dich vu', 'gara co lam gi', 'do xe', 'nang cap xe', 'hoi gia', 'tu van xe', 'xe']:

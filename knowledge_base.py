@@ -4503,27 +4503,29 @@ def extract_knowledge_features(text: str) -> dict:
     
     # 1. Product Subject (Chủ thể sản phẩm)
     subject = "other"
-    if any(k in clean for k in ['man hinh', 'man android', 'dvd']):
+    if any(k in clean for k in ['man hinh', 'man android', 'dvd', 'oledpro', 'zestech', 'gotech', 'teyes']):
         subject = "screen"
-    elif any(k in clean for k in ['android box', 'box bs10', 'cuc box']):
+    elif any(k in clean for k in ['android box', 'box bs10', 'cuc box', 'carplay box']):
         subject = "android_box"
-    elif any(k in clean for k in ['film 3m', 'phim 3m', '3m crystalline', '3m ceramic', '3m hybrid']):
+    elif any(k in clean for k in ['film 3m', 'phim 3m', '3m crystalline', '3m ceramic', '3m hybrid', 'lai 3m', 'suon 3m', 'kinh 3m', 'dan 3m', 'combo 3m', 'dan phim 3m']) or bool(re.search(r'\b3m\b', clean)):
         subject = "film_3m"
-    elif any(k in clean for k in ['ceramax', 'kinh lai ceramax']):
+    elif any(k in clean for k in ['ceramax', 'kinh lai ceramax', 'phim ceramax', 'film ceramax']):
         subject = "film_ceramax"
-    elif any(k in clean for k in ['ntech']):
+    elif any(k in clean for k in ['ntech', 'phim ntech', 'film ntech']):
         subject = "film_ntech"
-    elif any(k in clean for k in ['film', 'phim', 'kinh lai', 'cach nhiet']):
+    elif any(k in clean for k in ['film', 'phim', 'kinh lai', 'cach nhiet', 'dan kinh', 'kinh suon', 'kinh hau', 'dan phim', 'film cach nhiet', 'phim cach nhiet']):
         subject = "film_general"
     elif any(k in clean for k in ['f10', 'bi gam f10', 'den f10']):
         subject = "lamp_f10"
     elif any(k in clean for k in ['s3', 'bi gam s3', 's3 pro']):
         subject = "lamp_s3"
-    elif any(k in clean for k in ['bi gam', 'den gam', 'bi led', 'den']):
+    elif any(k in clean for k in ['bi gam', 'den gam', 'bi led', 'den', 'do den', 'tang sang', 'laser', 'bi laser', 'f1 turbo', 'v20', 'v30']):
         subject = "lamp_general"
+    elif any(k in clean for k in ['cop truoc', 'easycop', 'cop dien', 'ty cop', 'mo cop', 'cop mo dien', 'cop sau dien', 'cop dien vf3']):
+        subject = "trunk_cop"
     elif any(k in clean for k in ['ppf', 'ax film', 'teckwrap', 'chong tray', 'dan keo', 'dan capo', 'can truoc', 'chen cua']):
         subject = "ppf"
-    elif any(k in clean for k in ['camera', 'cam hanh trinh', 'cam 360', 'cam le', 'cam lui', 'a510', 'a210', 'a810', 'owin']):
+    elif any(k in clean for k in ['camera', 'cam hanh trinh', 'cam 360', 'cam le', 'cam lui', 'a510', 'a210', 'a810', 'owin', '70mai']):
         subject = "camera"
     elif any(k in clean for k in [
         'san 5d', 'san 360', 'san duc', 'lot san', 'ghe da', 'boc ghe', 'boc da', 
@@ -4583,6 +4585,14 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
     if has_order_action or has_lamp_install:
         return None
 
+    # BẢO VỆ CÂU HỎI TỔ HỢP / PHỐI GÓI (COMBO / MULTI-ITEM QUESTIONS):
+    # Khi khách hỏi phối gói (ví dụ kính lái loại này, kính sườn/hậu loại kia) hoặc hỏi combo nhiều vị trí:
+    # -> CẦN TRÍ TUỆ TỔNG HỢP CỦA GEMINI TÍNH TOÁN ĐỘNG, TUYỆT ĐỐI KHÔNG KHỚP FAST-PATH ĐƠN THUẦN!
+    is_combo_inquiry = bool(re.search(r'\b(combo|ket hop|kết hợp|phoi|phối|ghep|ghép|tron|trộn|kem|kèm|cong|cộng)\b', clean)) and any(p in clean for p in ['lai', 'suon', 'hau', 'kinh', 'den', 'bi', 'san'])
+    has_multi_parts = (('lai' in clean or 'kinh lai' in clean) and ('suon' in clean or 'hau' in clean)) or (('suon' in clean) and ('hau' in clean))
+    if is_combo_inquiry or (has_multi_parts and any(f in clean for f in ['3m', 'ceramax', 'ntech', 'film', 'phim'])):
+        return None
+
     q_feat = extract_knowledge_features(clean)
 
     try:
@@ -4619,7 +4629,24 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
         # -> TUYỆT ĐỐI CẤM KHỚP!
         if q_feat['subject'] != 'other' and m_feat['subject'] != 'other':
             if q_feat['subject'] != m_feat['subject']:
-                continue
+                is_sub_film = q_feat['subject'].startswith('film_') and m_feat['subject'] == 'film_general'
+                if not is_sub_film:
+                    continue
+        elif q_feat['subject'] != 'other' and m_feat['subject'] == 'other':
+            # Nếu câu hỏi có chủ thể xác định (film_3m, trunk_cop, screen...) mà tri thức là "other",
+            # thì topic hoặc clean_topic của tri thức BẮT BUỘC phải chứa dấu hiệu của chủ thể đó:
+            if q_feat['subject'] in ['film_3m', 'film_ceramax', 'film_ntech', 'film_general']:
+                if not any(k in clean_topic for k in ['film', 'phim', '3m', 'ceramax', 'ntech', 'kinh']):
+                    continue
+            elif q_feat['subject'] == 'trunk_cop':
+                if not any(k in clean_topic for k in ['cop', 'easycop']):
+                    continue
+            elif q_feat['subject'] in ['lamp_f10', 'lamp_s3', 'lamp_general']:
+                if not any(k in clean_topic for k in ['den', 'bi', 'f10', 's3', 'laser', 'turbo']):
+                    continue
+            elif q_feat['subject'] == 'screen':
+                if not any(k in clean_topic for k in ['man', 'screen', 'dvd', 'android']):
+                    continue
 
         # 3. QUY TẮC BẢO VỆ ĐẶC TÍNH / PHÂN KHÚC:
         # Nếu câu hỏi tìm 'cheap' (giá rẻ):
@@ -4651,9 +4678,30 @@ def query_learned_knowledge(clean_text: str, raw_text: str) -> dict:
         if q_mats and m_mats and not (q_mats & m_mats):
             continue
 
-        # 4. KIỂM TRA TỪ KHÓA TRỰC TIẾP TRONG BỘ TỪ KHÓA
+        # 4. KIỂM TRA TỪ KHÓA TRỰC TIẾP TRONG BỘ TỪ KHÓA (CHỐNG Ô NHIỄM TỪ KHÓA ĐƠN LẺ)
+        STOP_KEYWORDS = {
+            'truoc', 'sau', 'cao cap', 'tieu chuan', 'gia re', 're', 'gia', 'dich vu', 'chinh hang',
+            'bao hanh', 'lap dat', 'combo', 'goi', 'tron goi', 'xe', 'oto', 'cho', 'co', 'loai',
+            'vinfast', 'toyota', 'honda', 'ford', 'hyundai', 'kia', 'mazda', 'mitsubishi', 'dong'
+        }
         kws = [k.strip() for k in keywords_str.split(',') if k.strip()]
-        if any(len(k) >= 4 and k in clean for k in kws):
+        valid_kws = [k for k in kws if k not in STOP_KEYWORDS and len(k) >= 3]
+
+        matched_kw = False
+        for k in valid_kws:
+            words = k.split()
+            if len(words) >= 2:
+                pattern = r'\b' + re.escape(k) + r'\b'
+                if re.search(pattern, clean):
+                    matched_kw = True
+                    break
+            elif len(k) >= 6:
+                pattern = r'\b' + re.escape(k) + r'\b'
+                if re.search(pattern, clean):
+                    matched_kw = True
+                    break
+
+        if matched_kw:
             return {
                 "type": "success",
                 "module": "knowledge_retrieved",
