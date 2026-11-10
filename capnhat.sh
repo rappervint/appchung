@@ -16,8 +16,11 @@ elif [ -d "/home/rappervint/appchung" ]; then
     cd /home/rappervint/appchung
 fi
 
-# 2. Kéo code mới nhất từ nhánh main trên GitHub
-git pull origin main
+# 2. Kéo code mới nhất từ nhánh main trên GitHub (tự động xóa xung đột tạm thời)
+rm -f token_usage.json
+git checkout -- knowledge_seed.json 2>/dev/null || true
+git fetch origin main
+git reset --hard origin/main
 
 # Tự động đồng bộ tri thức chuẩn từ knowledge_seed.json
 python3 -c "import knowledge_base; knowledge_base.init_knowledge_db()" 2>/dev/null || true
