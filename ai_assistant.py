@@ -7498,6 +7498,59 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
             if w_res:
                 return w_res
 
+    # 1.5. KÍCH HOẠT WIZARD SỔ THU CHI & DOANH THU ĐÈN TỨC THÌ (ƯU TIÊN TUYỆT ĐỐI TRƯỚC GEMINI)
+    if clean in ['chi', 'ghi chi', 'nhap chi', 'phieu chi', 'so chi', 'tao phieu chi', 'lap phieu chi', 'toi muon chi', 'muon chi', 'nhap phieu chi', 'lap chi', 'viet phieu chi']:
+        today_display = datetime.now().strftime('%d/%m/%Y')
+        sess_obj = {'flow': 'thuchi', 'step': 1, 'data': {'trans_type': 'chi'}}
+        WIZARD_SESSIONS[session_id] = sess_obj
+        WIZARD_SESSIONS['default_user'] = sess_obj
+        return {
+            "type": "clarify",
+            "message": (
+                "💸 **NHẬP PHIẾU CHI VÀO SỔ QUỸ (HỎI ĐÁP TỪNG BƯỚC)**\n"
+                "───────────────────────────────────────\n"
+                "📅 **BƯỚC 1/3: THỜI GIAN / NGÀY CHI**\n"
+                "Khoản chi này phát sinh vào ngày nào?\n"
+                f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại ({today_display}), hoặc nhập ngày VD: `10/11/2026`, `hôm qua`... hoặc gõ `hủy` để thoát)*"
+            )
+        }
+
+    if clean in ['thu', 'ghi thu', 'nhap thu', 'phieu thu', 'so thu', 'tao phieu thu', 'lap phieu thu', 'toi muon thu', 'muon thu', 'nhap phieu thu', 'lap thu', 'viet phieu thu']:
+        today_display = datetime.now().strftime('%d/%m/%Y')
+        sess_obj = {'flow': 'thuchi', 'step': 1, 'data': {'trans_type': 'thu'}}
+        WIZARD_SESSIONS[session_id] = sess_obj
+        WIZARD_SESSIONS['default_user'] = sess_obj
+        return {
+            "type": "clarify",
+            "message": (
+                "💰 **NHẬP PHIẾU THU VÀO SỔ QUỸ (HỎI ĐÁP TỪNG BƯỚC)**\n"
+                "───────────────────────────────────────\n"
+                "📅 **BƯỚC 1/3: THỜI GIAN / NGÀY THU**\n"
+                "Khoản thu này phát sinh vào ngày nào?\n"
+                f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại ({today_display}), hoặc nhập ngày VD: `10/11/2026`, `hôm qua`... hoặc gõ `hủy` để thoát)*"
+            )
+        }
+
+    if clean in ['doanh thu den', 'nhap den', 'nhap don den', 'bao cao den', 'ghi don den', 'nhap bao cao den', 'len don den', 'tao don den']:
+        sess_obj = {'flow': 'den', 'step': 1, 'data': {}}
+        WIZARD_SESSIONS[session_id] = sess_obj
+        WIZARD_SESSIONS['default_user'] = sess_obj
+        return {
+            "type": "clarify",
+            "message": (
+                "💡 **NHẬP BÁO CÁO DOANH THU ĐÈN (HỎI ĐÁP TỪNG BƯỚC)**\n"
+                "───────────────────────────────────────\n"
+                "🔧 **BƯỚC 1/7: TÊN ĐÈN / SẢN PHẨM**\n"
+                "Bạn lắp loại đèn nào cho khách?\n"
+                "*(Ví dụ: `F10 Turbo`, `S3`, `S6`, `V20 Base`, `M40 Ultra`, `Titan Gold`... hoặc gõ `hủy` để thoát)*"
+            )
+        }
+
+    # 1.6. XỬ LÝ LỆNH THU CHI NHẬP NHANH ONE-SHOT (VD: 'chi 350k tiền cơm', 'thu 500k cọc')
+    res_thuchi = handle_thuchi(raw, clean, session_id=session_id)
+    if res_thuchi:
+        return res_thuchi
+
     # 2. TỰ ĐỘNG NHẬN DIỆN VÀ LƯU API KEY GEMINI KHI DÁN TRỰC TIẾP
     m_key = re.search(r'\b(AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_-]{40,65})\b', raw)
     if m_key:
