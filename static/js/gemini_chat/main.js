@@ -73,7 +73,14 @@ import {
     gdemRecalcTotal,
     gdemGetPayload,
     gdemSubmitSaveImmediately,
-    gdemSubmitUpdateCard
+    gdemSubmitUpdateCard,
+    openThuchiDraftEditModal,
+    closeThuchiDraftEditModal,
+    tdemSetType,
+    tdemRecalcTotal,
+    tdemGetPayload,
+    tdemSubmitSaveImmediately,
+    tdemSubmitUpdateCard
 } from './draft_modal.js';
 
 // ── CẦU NỐI WINDOW (WINDOW BRIDGE) CHO TƯƠNG THÍCH INLINE ONCLICK ──
@@ -136,6 +143,15 @@ if (typeof window !== 'undefined') {
     window.gdemGetPayload = gdemGetPayload;
     window.gdemSubmitSaveImmediately = gdemSubmitSaveImmediately;
     window.gdemSubmitUpdateCard = gdemSubmitUpdateCard;
+
+    // Draft Thu Chi Modal
+    window.openThuchiDraftEditModal = openThuchiDraftEditModal;
+    window.closeThuchiDraftEditModal = closeThuchiDraftEditModal;
+    window.tdemSetType = tdemSetType;
+    window.tdemRecalcTotal = tdemRecalcTotal;
+    window.tdemGetPayload = tdemGetPayload;
+    window.tdemSubmitSaveImmediately = tdemSubmitSaveImmediately;
+    window.tdemSubmitUpdateCard = tdemSubmitUpdateCard;
 }
 
 // ── KHỞI CHẠY HỆ THỐNG KHI TẢI XONG TRANG ──

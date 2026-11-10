@@ -638,16 +638,62 @@ def api_ai_chat():
 
 @app.route('/api/ai/draft/save', methods=['POST'])
 def api_ai_draft_save():
-    """Lưu đơn đèn trực tiếp từ Modal Chỉnh Sửa Trực Quan."""
+    """Lưu đơn đèn hoặc phiếu thu chi trực tiếp từ Modal Chỉnh Sửa Trực Quan."""
     data = request.json or {}
     session_id = data.get('session_id', 'default_user')
     try:
-        from ai_assistant import commit_baocao_den_order, WIZARD_SESSIONS
+        from ai_assistant import commit_baocao_den_order, commit_thuchi_transaction, WIZARD_SESSIONS
+
+        # 1. Xử lý lưu Sổ Thu Chi
+        if data.get('action_type') == 'thuchi' or 'trans_type' in data:
+            trans_type = data.get('trans_type', 'chi')
+            amount = float(data.get('amount', 0))
+            note = (data.get('note') or '').strip() or ('Chi nhanh qua Trợ lý AI' if trans_type == 'chi' else 'Thu nhanh qua Trợ lý AI')
+            date_str = data.get('date_str') or data.get('order_date') or datetime.now().strftime('%Y-%m-%d')
+            payload = {
+                'trans_type': trans_type,
+                'amount': amount,
+                'note': note,
+                'date_str': date_str
+            }
+            res = commit_thuchi_transaction(payload)
+            if session_id in WIZARD_SESSIONS:
+                del WIZARD_SESSIONS[session_id]
+            if 'default_user' in WIZARD_SESSIONS:
+                del WIZARD_SESSIONS['default_user']
+            return jsonify(res)
+
+        # 2. Xử lý lưu Sổ Báo Cáo Đèn
         items = data.get('items', [])
-        for it in items:
-            it['quantity'] = int(it.get('quantity', 1))
-            it['unit_price_k'] = float(it.get('unit_price_k', 0))
-            it['final_price_k'] = float(it.get('final_price_k', it['unit_price_k'] * it['quantity']))
+        discount_k = float(data.get('discount_k', 0))
+        total_base_k = float(data.get('total_base_k', 0))
+        if not total_base_k:
+            total_base_k = sum(float(it.get('unit_price_k', 0)) * int(it.get('quantity', 1)) for it in items)
+        total_final_k = float(data.get('total_final_k', max(0, total_base_k - discount_k)))
+
+        # Phân bổ chiết khấu nếu có
+        if discount_k > 0 and items:
+            allocated = 0.0
+            for idx, it in enumerate(items):
+                it['quantity'] = int(it.get('quantity', 1))
+                it['unit_price_k'] = float(it.get('unit_price_k', 0))
+                b_p = float(it.get('base_price_k') or (it['unit_price_k'] * it['quantity']))
+                it['base_price_k'] = b_p
+                if idx == len(items) - 1:
+                    d_item = max(0.0, round(discount_k - allocated, 2))
+                else:
+                    d_item = round(discount_k * (b_p / total_base_k), 2) if total_base_k > 0 else 0.0
+                    allocated += d_item
+                it['discount_k'] = d_item
+                it['final_price_k'] = max(0.0, round(b_p - d_item, 2))
+        else:
+            for it in items:
+                it['quantity'] = int(it.get('quantity', 1))
+                it['unit_price_k'] = float(it.get('unit_price_k', 0))
+                b_p = float(it.get('base_price_k') or (it['unit_price_k'] * it['quantity']))
+                it['base_price_k'] = b_p
+                it['discount_k'] = float(it.get('discount_k', 0))
+                it['final_price_k'] = float(it.get('final_price_k', b_p))
 
         payload = {
             'items': items,
@@ -656,9 +702,9 @@ def api_ai_draft_save():
             'plate': (data.get('plate') or '').strip().upper(),
             'phone': (data.get('phone') or '').strip(),
             'order_date': data.get('order_date') or datetime.now().strftime('%Y-%m-%d'),
-            'discount_k': float(data.get('discount_k', 0)),
-            'total_base_k': float(data.get('total_base_k', 0)),
-            'total_final_k': float(data.get('total_final_k', 0))
+            'discount_k': discount_k,
+            'total_base_k': total_base_k,
+            'total_final_k': total_final_k
         }
         res = commit_baocao_den_order(payload)
         if session_id in WIZARD_SESSIONS:
@@ -672,16 +718,66 @@ def api_ai_draft_save():
 
 @app.route('/api/ai/draft/update', methods=['POST'])
 def api_ai_draft_update():
-    """Cập nhật thông tin đơn nháp từ Modal Chỉnh Sửa Trực Quan vào phiên làm việc."""
+    """Cập nhật thông tin đơn nháp / thu chi từ Modal Chỉnh Sửa Trực Quan vào phiên làm việc."""
     data = request.json or {}
     session_id = data.get('session_id', 'default_user')
     try:
-        from ai_assistant import format_baocao_den_card_from_payload, WIZARD_SESSIONS
+        from ai_assistant import format_baocao_den_card_from_payload, format_thuchi_card_from_payload, WIZARD_SESSIONS
+
+        # 1. Cập nhật thẻ Thu Chi
+        if data.get('action_type') == 'thuchi' or 'trans_type' in data:
+            trans_type = data.get('trans_type', 'chi')
+            amount = float(data.get('amount', 0))
+            note = (data.get('note') or '').strip() or ('Chi nhanh qua Trợ lý AI' if trans_type == 'chi' else 'Thu nhanh qua Trợ lý AI')
+            date_str = data.get('date_str') or data.get('order_date') or datetime.now().strftime('%Y-%m-%d')
+            payload = {
+                'trans_type': trans_type,
+                'amount': amount,
+                'note': note,
+                'date_str': date_str
+            }
+            sess_obj = {
+                'flow': 'confirm_action',
+                'action_type': 'thuchi',
+                'payload': payload
+            }
+            WIZARD_SESSIONS[session_id] = sess_obj
+            WIZARD_SESSIONS['default_user'] = sess_obj
+
+            card_res = format_thuchi_card_from_payload(payload, title=f"✏️ **ĐÃ CẬP NHẬT KHOẢN {trans_type.upper()}:**")
+            return jsonify(card_res)
+
+        # 2. Cập nhật thẻ Báo Cáo Đèn
         items = data.get('items', [])
-        for it in items:
-            it['quantity'] = int(it.get('quantity', 1))
-            it['unit_price_k'] = float(it.get('unit_price_k', 0))
-            it['final_price_k'] = float(it.get('final_price_k', it['unit_price_k'] * it['quantity']))
+        discount_k = float(data.get('discount_k', 0))
+        total_base_k = float(data.get('total_base_k', 0))
+        if not total_base_k:
+            total_base_k = sum(float(it.get('unit_price_k', 0)) * int(it.get('quantity', 1)) for it in items)
+        total_final_k = float(data.get('total_final_k', max(0, total_base_k - discount_k)))
+
+        # Phân bổ chiết khấu nếu có
+        if discount_k > 0 and items:
+            allocated = 0.0
+            for idx, it in enumerate(items):
+                it['quantity'] = int(it.get('quantity', 1))
+                it['unit_price_k'] = float(it.get('unit_price_k', 0))
+                b_p = float(it.get('base_price_k') or (it['unit_price_k'] * it['quantity']))
+                it['base_price_k'] = b_p
+                if idx == len(items) - 1:
+                    d_item = max(0.0, round(discount_k - allocated, 2))
+                else:
+                    d_item = round(discount_k * (b_p / total_base_k), 2) if total_base_k > 0 else 0.0
+                    allocated += d_item
+                it['discount_k'] = d_item
+                it['final_price_k'] = max(0.0, round(b_p - d_item, 2))
+        else:
+            for it in items:
+                it['quantity'] = int(it.get('quantity', 1))
+                it['unit_price_k'] = float(it.get('unit_price_k', 0))
+                b_p = float(it.get('base_price_k') or (it['unit_price_k'] * it['quantity']))
+                it['base_price_k'] = b_p
+                it['discount_k'] = float(it.get('discount_k', 0))
+                it['final_price_k'] = float(it.get('final_price_k', b_p))
 
         payload = {
             'items': items,
@@ -690,9 +786,9 @@ def api_ai_draft_update():
             'plate': (data.get('plate') or '').strip().upper(),
             'phone': (data.get('phone') or '').strip(),
             'order_date': data.get('order_date') or datetime.now().strftime('%Y-%m-%d'),
-            'discount_k': float(data.get('discount_k', 0)),
-            'total_base_k': float(data.get('total_base_k', 0)),
-            'total_final_k': float(data.get('total_final_k', 0))
+            'discount_k': discount_k,
+            'total_base_k': total_base_k,
+            'total_final_k': total_final_k
         }
 
         sess_obj = {

@@ -504,12 +504,103 @@
   </div>
 </div>
 
+<!-- ==========================================
+     MODAL CHỈNH SỬA THU CHI TRỰC QUAN (INTERACTIVE THU CHI EDIT MODAL)
+     ========================================== -->
+<div id="thuchiDraftEditModal" onclick="if(event.target===this) closeThuchiDraftEditModal();" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100%; height:100dvh; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:10000000; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;">
+  <div style="background:#131826; border:1px solid rgba(255,255,255,0.18); border-radius:18px; width:100%; max-width:480px; max-height:92vh; max-height:92dvh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.85); color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow:hidden;">
+    
+    <!-- Modal Header -->
+    <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1e293b, #0f172a); flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.25rem;">💰</span>
+        <div>
+          <div style="font-weight:700; font-size:1rem; color:#f8fafc;">Chỉnh Sửa Thu Chi Trực Quan</div>
+          <div style="font-size:0.75rem; color:#94a3b8;">Đổi loại thu/chi, số tiền, nội dung, ngày phát sinh</div>
+        </div>
+      </div>
+      <button type="button" onclick="closeThuchiDraftEditModal()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer; line-height:1; padding:4px 8px;">✕</button>
+    </div>
+
+    <!-- Modal Body (Scrollable) -->
+    <div style="padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      
+      <!-- Section: Phân loại Giao dịch -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:8px; text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">
+          <i class="bi bi-arrow-left-right"></i> Phân Loại Giao Dịch
+        </label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button type="button" id="tdem_btn_chi" onclick="tdemSetType('chi')" style="padding:10px; border-radius:10px; border:2px solid #ef4444; background:#ef4444; color:#fff; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            💸 CHI TIỀN
+          </button>
+          <button type="button" id="tdem_btn_thu" onclick="tdemSetType('thu')" style="padding:10px; border-radius:10px; border:2px solid rgba(255,255,255,0.15); background:#0f172a; color:#94a3b8; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            💰 THU TIỀN
+          </button>
+        </div>
+        <input type="hidden" id="tdem_trans_type" value="chi">
+      </div>
+
+      <!-- Section: Số tiền -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:6px; font-weight:600;">
+          <i class="bi bi-cash-coin"></i> Số Tiền Giao Dịch (VNĐ)
+        </label>
+        <div style="position:relative;">
+          <input type="number" id="tdem_amount" value="0" step="1000" min="0" oninput="tdemRecalcTotal()" placeholder="0" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:10px 38px 10px 12px; color:#facc15; font-weight:bold; font-size:18px;">
+          <span style="position:absolute; right:12px; top:12px; color:#94a3b8; font-size:0.85rem; font-weight:600;">đ</span>
+        </div>
+        <div id="tdem_amount_display" style="font-size:1.1rem; font-weight:800; color:#f87171; margin-top:8px; text-shadow:0 0 10px rgba(248,113,113,0.3);">
+          - 0 đ
+        </div>
+      </div>
+
+      <!-- Section: Ngày & Nội dung -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px; font-weight:600;">
+            <i class="bi bi-calendar-event"></i> Ngày phát sinh
+          </label>
+          <input type="date" id="tdem_date" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+        </div>
+        <div>
+          <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px; font-weight:600;">
+            <i class="bi bi-pencil-square"></i> Nội dung / Lý do ghi sổ
+          </label>
+          <input type="text" id="tdem_note" placeholder="VD: Tiền cơm trưa, mua xăng, tiền mặt bằng..." style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,0.1); background:#0f172a; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
+      <button type="button" onclick="closeThuchiDraftEditModal()" style="background:#334155; color:#cbd5e1; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer;">
+        Đóng
+      </button>
+      <div style="display:flex; gap:8px;">
+        <button type="button" onclick="tdemSubmitUpdateCard()" style="background:#d97706; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px;">
+          🔄 Cập Nhật Thẻ
+        </button>
+        <button type="button" onclick="tdemSubmitSaveImmediately()" style="background:#16a34a; color:#fff; border:none; border-radius:10px; padding:8px 16px; font-size:0.88rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 4px 14px rgba(22,163,74,0.4);">
+          💾 Lưu Vào Sổ Ngay
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <script>
 
     window.lastAIMeta = null;
 
     function openGarageDraftEditModal(meta) {
         meta = meta || window.lastAIMeta || {};
+        if (meta && (meta.action_type === 'thuchi' || meta.trans_type)) {
+            openThuchiDraftEditModal(meta);
+            return;
+        }
         window.currentDraftMeta = meta;
 
         const custInput = document.getElementById('gdem_customer');
@@ -548,6 +639,230 @@
     function closeGarageDraftEditModal() {
         const modal = document.getElementById('garageDraftEditModal');
         if (modal) modal.style.display = 'none';
+    }
+
+    function openThuchiDraftEditModal(meta) {
+        meta = meta || window.lastAIMeta || {};
+        window.currentDraftMeta = meta;
+
+        const transType = (meta.trans_type || 'chi').toLowerCase();
+        tdemSetType(transType);
+
+        const dateInput = document.getElementById('tdem_date');
+        if (dateInput) {
+            dateInput.value = meta.date_str || meta.order_date || new Date().toISOString().slice(0, 10);
+        }
+
+        const amtInput = document.getElementById('tdem_amount');
+        if (amtInput) {
+            amtInput.value = meta.amount || 0;
+        }
+
+        const noteInput = document.getElementById('tdem_note');
+        if (noteInput) {
+            noteInput.value = meta.note || '';
+        }
+
+        tdemRecalcTotal();
+
+        const modal = document.getElementById('thuchiDraftEditModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.zIndex = '10000000';
+        }
+    }
+
+    function closeThuchiDraftEditModal() {
+        const modal = document.getElementById('thuchiDraftEditModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function tdemSetType(type) {
+        const hiddenInp = document.getElementById('tdem_trans_type');
+        const btnChi = document.getElementById('tdem_btn_chi');
+        const btnThu = document.getElementById('tdem_btn_thu');
+        if (hiddenInp) hiddenInp.value = type;
+
+        if (type === 'chi') {
+            if (btnChi) {
+                btnChi.style.background = '#ef4444';
+                btnChi.style.borderColor = '#ef4444';
+                btnChi.style.color = '#fff';
+            }
+            if (btnThu) {
+                btnThu.style.background = '#0f172a';
+                btnThu.style.borderColor = 'rgba(255,255,255,0.15)';
+                btnThu.style.color = '#94a3b8';
+            }
+        } else {
+            if (btnThu) {
+                btnThu.style.background = '#22c55e';
+                btnThu.style.borderColor = '#22c55e';
+                btnThu.style.color = '#fff';
+            }
+            if (btnChi) {
+                btnChi.style.background = '#0f172a';
+                btnChi.style.borderColor = 'rgba(255,255,255,0.15)';
+                btnChi.style.color = '#94a3b8';
+            }
+        }
+        tdemRecalcTotal();
+    }
+
+    function tdemRecalcTotal() {
+        const amtInput = document.getElementById('tdem_amount');
+        const disp = document.getElementById('tdem_amount_display');
+        const typeInp = document.getElementById('tdem_trans_type');
+        const val = parseFloat(amtInput?.value || 0) || 0;
+        const isThu = typeInp?.value === 'thu';
+        if (disp) {
+            const kStr = val >= 1000 ? ` (${Math.round(val / 1000).toLocaleString('vi-VN')}k)` : '';
+            disp.innerText = (isThu ? '+ ' : '- ') + val.toLocaleString('vi-VN') + ' đ' + kStr;
+            disp.style.color = isThu ? '#4ade80' : '#f87171';
+        }
+    }
+
+    function tdemGetPayload() {
+        const sessId = window.currentBubbleSessionId || 'default_user';
+        const typeInp = document.getElementById('tdem_trans_type');
+        const amtInput = document.getElementById('tdem_amount');
+        const dateInput = document.getElementById('tdem_date');
+        const noteInput = document.getElementById('tdem_note');
+
+        const transType = typeInp ? typeInp.value : 'chi';
+        const amount = parseFloat(amtInput ? amtInput.value : 0) || 0;
+        const dateStr = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+        const note = (noteInput && noteInput.value ? noteInput.value.trim() : '') || (transType === 'chi' ? 'Chi nhanh qua Trợ lý AI' : 'Thu nhanh qua Trợ lý AI');
+
+        return {
+            session_id: sessId,
+            action_type: 'thuchi',
+            trans_type: transType,
+            amount: amount,
+            date_str: dateStr,
+            order_date: dateStr,
+            note: note
+        };
+    }
+
+    async function tdemSubmitSaveImmediately() {
+        const payload = tdemGetPayload();
+        closeThuchiDraftEditModal();
+
+        const msgContainer = document.getElementById('aiMessages');
+        if (msgContainer) {
+            const savingDiv = document.createElement('div');
+            savingDiv.className = 'ai-msg ai-msg-bot';
+            savingDiv.innerHTML = '<em><i class="bi bi-hourglass-split"></i> Đang lưu khoản thu/chi vào Sổ Thu Chi...</em>';
+            msgContainer.appendChild(savingDiv);
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            try {
+                const res = await fetch('/api/ai/draft/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                savingDiv.remove();
+
+                const resDiv = document.createElement('div');
+                resDiv.className = 'ai-msg ai-msg-bot';
+                if (data.type === 'success' || data.success) {
+                    resDiv.style.borderColor = '#22c55e';
+                    resDiv.innerHTML = formatAIMessage(data.message || '✅ Đã lưu khoản thu/chi thành công!');
+                } else {
+                    resDiv.style.borderColor = '#ef4444';
+                    resDiv.innerHTML = '❌ ' + (data.message || 'Lỗi khi lưu khoản thu chi');
+                }
+                msgContainer.appendChild(resDiv);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+                if (typeof saveMessageToSessionsArchive === 'function') {
+                    saveMessageToSessionsArchive('bot', data.message || 'Đã lưu khoản thu/chi thành công!');
+                }
+            } catch (err) {
+                savingDiv.remove();
+                alert('Lỗi kết nối khi lưu: ' + err);
+            }
+        }
+    }
+
+    async function tdemSubmitUpdateCard() {
+        const payload = tdemGetPayload();
+        closeThuchiDraftEditModal();
+
+        const msgContainer = document.getElementById('aiMessages');
+        if (msgContainer) {
+            const updDiv = document.createElement('div');
+            updDiv.className = 'ai-msg ai-msg-bot';
+            updDiv.innerHTML = '<em><i class="bi bi-arrow-repeat"></i> Đang cập nhật thẻ thu chi...</em>';
+            msgContainer.appendChild(updDiv);
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            try {
+                const res = await fetch('/api/ai/draft/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                updDiv.remove();
+
+                window.lastAIMeta = data.meta || payload;
+
+                const botDiv = document.createElement('div');
+                botDiv.className = 'ai-msg ai-msg-bot';
+                botDiv.innerHTML = formatAIMessage(data.message || 'Đã cập nhật thông tin!');
+
+                if (data.buttons && data.buttons.length > 0) {
+                    const btnGroup = document.createElement('div');
+                    btnGroup.style.display = 'flex';
+                    btnGroup.style.flexWrap = 'wrap';
+                    btnGroup.style.gap = '6px';
+                    btnGroup.style.marginTop = '8px';
+                    data.buttons.forEach(b => {
+                        const btn = document.createElement('button');
+                        btn.textContent = b.text;
+                        btn.style.padding = '4px 10px';
+                        btn.style.fontSize = '0.78rem';
+                        btn.style.fontWeight = 'bold';
+                        btn.style.borderRadius = '14px';
+                        btn.style.border = 'none';
+                        btn.style.cursor = 'pointer';
+                        if (b.class === 'btn-danger') {
+                            btn.style.background = '#ef4444';
+                            btn.style.color = '#fff';
+                        } else if (b.class === 'btn-warning') {
+                            btn.style.background = '#eab308';
+                            btn.style.color = '#000';
+                        } else {
+                            btn.style.background = '#22c55e';
+                            btn.style.color = '#fff';
+                        }
+                        btn.onclick = () => {
+                            if (b.action === 'open_edit_modal') {
+                                openGarageDraftEditModal(data.meta || window.lastAIMeta);
+                            } else {
+                                const inp = document.getElementById('aiInput');
+                                if (inp) inp.value = b.value;
+                                if (typeof sendAIMessage === 'function') sendAIMessage();
+                            }
+                        };
+                        btnGroup.appendChild(btn);
+                    });
+                    botDiv.appendChild(btnGroup);
+                }
+
+                msgContainer.appendChild(botDiv);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+                if (typeof saveMessageToSessionsArchive === 'function') {
+                    saveMessageToSessionsArchive('bot', data.message || 'Đã cập nhật thẻ!');
+                }
+            } catch (err) {
+                updDiv.remove();
+                alert('Lỗi cập nhật: ' + err);
+            }
+        }
     }
 
     function gdemAddItemRow(name = '', qty = 1, unitPriceK = 4500) {
@@ -638,8 +953,23 @@
         });
 
         const discK = Math.max(0, parseFloat(document.getElementById('gdem_discount')?.value) || 0);
-        const sumBaseK = items.reduce((s, it) => s + it.final_price_k, 0);
+        const sumBaseK = items.reduce((s, it) => s + it.base_price_k, 0);
         const totalFinalK = Math.max(0, sumBaseK - discK);
+
+        if (discK > 0 && items.length > 0) {
+            let allocated = 0;
+            items.forEach((it, idx) => {
+                let dItem = (idx === items.length - 1) ? Math.max(0, discK - allocated) : (sumBaseK > 0 ? Math.round(discK * (it.base_price_k / sumBaseK)) : 0);
+                allocated += dItem;
+                it.discount_k = dItem;
+                it.final_price_k = Math.max(0, it.base_price_k - dItem);
+            });
+        } else {
+            items.forEach(it => {
+                it.discount_k = 0;
+                it.final_price_k = it.base_price_k;
+            });
+        }
 
         const sessId = (typeof getBubbleSessionId === 'function') ? getBubbleSessionId() : (typeof currentSessionId !== 'undefined' ? currentSessionId : 'default_user');
 

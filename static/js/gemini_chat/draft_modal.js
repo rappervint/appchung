@@ -13,6 +13,10 @@ import { appendMessageUI } from './chat_ui.js';
 
 export function openGarageDraftEditModal(meta) {
     meta = meta || state.lastAIMeta || (typeof window !== 'undefined' ? window.lastAIMeta : null) || {};
+    if (meta && (meta.action_type === 'thuchi' || meta.trans_type)) {
+        openThuchiDraftEditModal(meta);
+        return;
+    }
     setCurrentDraftMeta(meta);
 
     const custInput = document.getElementById('gdem_customer');
@@ -139,8 +143,23 @@ export function gdemGetPayload() {
     });
 
     const discK = Math.max(0, parseFloat(document.getElementById('gdem_discount')?.value) || 0);
-    const sumBaseK = items.reduce((s, it) => s + it.final_price_k, 0);
+    const sumBaseK = items.reduce((s, it) => s + it.base_price_k, 0);
     const totalFinalK = Math.max(0, sumBaseK - discK);
+
+    if (discK > 0 && items.length > 0) {
+        let allocated = 0;
+        items.forEach((it, idx) => {
+            let dItem = (idx === items.length - 1) ? Math.max(0, discK - allocated) : (sumBaseK > 0 ? Math.round(discK * (it.base_price_k / sumBaseK)) : 0);
+            allocated += dItem;
+            it.discount_k = dItem;
+            it.final_price_k = Math.max(0, it.base_price_k - dItem);
+        });
+    } else {
+        items.forEach(it => {
+            it.discount_k = 0;
+            it.final_price_k = it.base_price_k;
+        });
+    }
     const sessId = getActiveSessionId() || 'default_user';
 
     return {
@@ -178,6 +197,143 @@ export async function gdemSubmitSaveImmediately() {
 export async function gdemSubmitUpdateCard() {
     const payload = gdemGetPayload();
     closeGarageDraftEditModal();
+    try {
+        const res = await fetch('/api/ai/draft/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        setLastAIMeta(data.meta || payload);
+        appendMessageUI('bot', data.message || 'Đã cập nhật thông tin!', true, null, data.buttons);
+    } catch (err) {
+        alert('Lỗi cập nhật: ' + err);
+    }
+}
+
+export function openThuchiDraftEditModal(meta) {
+    meta = meta || state.lastAIMeta || (typeof window !== 'undefined' ? window.lastAIMeta : null) || {};
+    setCurrentDraftMeta(meta);
+
+    const transType = (meta.trans_type || 'chi').toLowerCase();
+    tdemSetType(transType);
+
+    const dateInput = document.getElementById('tdem_date');
+    if (dateInput) {
+        dateInput.value = meta.date_str || meta.order_date || new Date().toISOString().slice(0, 10);
+    }
+
+    const amtInput = document.getElementById('tdem_amount');
+    if (amtInput) {
+        amtInput.value = meta.amount || 0;
+    }
+
+    const noteInput = document.getElementById('tdem_note');
+    if (noteInput) {
+        noteInput.value = meta.note || '';
+    }
+
+    tdemRecalcTotal();
+
+    const modal = document.getElementById('thuchiDraftEditModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.zIndex = '10000000';
+    }
+}
+
+export function closeThuchiDraftEditModal() {
+    const modal = document.getElementById('thuchiDraftEditModal');
+    if (modal) modal.style.display = 'none';
+}
+
+export function tdemSetType(type) {
+    const hiddenInp = document.getElementById('tdem_trans_type');
+    const btnChi = document.getElementById('tdem_btn_chi');
+    const btnThu = document.getElementById('tdem_btn_thu');
+    if (hiddenInp) hiddenInp.value = type;
+
+    if (type === 'chi') {
+        if (btnChi) {
+            btnChi.style.background = '#ef4444';
+            btnChi.style.borderColor = '#ef4444';
+            btnChi.style.color = '#fff';
+        }
+        if (btnThu) {
+            btnThu.style.background = '#0f172a';
+            btnThu.style.borderColor = 'rgba(255,255,255,0.15)';
+            btnThu.style.color = '#94a3b8';
+        }
+    } else {
+        if (btnThu) {
+            btnThu.style.background = '#22c55e';
+            btnThu.style.borderColor = '#22c55e';
+            btnThu.style.color = '#fff';
+        }
+        if (btnChi) {
+            btnChi.style.background = '#0f172a';
+            btnChi.style.borderColor = 'rgba(255,255,255,0.15)';
+            btnChi.style.color = '#94a3b8';
+        }
+    }
+    tdemRecalcTotal();
+}
+
+export function tdemRecalcTotal() {
+    const amtInput = document.getElementById('tdem_amount');
+    const disp = document.getElementById('tdem_amount_display');
+    const typeInp = document.getElementById('tdem_trans_type');
+    const val = parseFloat(amtInput?.value || 0) || 0;
+    const isThu = typeInp?.value === 'thu';
+    if (disp) {
+        const kStr = val >= 1000 ? ` (${Math.round(val / 1000).toLocaleString('vi-VN')}k)` : '';
+        disp.innerText = (isThu ? '+ ' : '- ') + val.toLocaleString('vi-VN') + ' đ' + kStr;
+        disp.style.color = isThu ? '#4ade80' : '#f87171';
+    }
+}
+
+export function tdemGetPayload() {
+    const sessId = getActiveSessionId() || 'default_user';
+    const typeInp = document.getElementById('tdem_trans_type');
+    const amtInput = document.getElementById('tdem_amount');
+    const dateInput = document.getElementById('tdem_date');
+    const noteInput = document.getElementById('tdem_note');
+
+    const transType = typeInp ? typeInp.value : 'chi';
+    const amount = parseFloat(amtInput ? amtInput.value : 0) || 0;
+    const dateStr = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().slice(0, 10);
+    const note = (noteInput && noteInput.value ? noteInput.value.trim() : '') || (transType === 'chi' ? 'Chi nhanh qua Trợ lý AI' : 'Thu nhanh qua Trợ lý AI');
+
+    return {
+        session_id: sessId,
+        action_type: 'thuchi',
+        trans_type: transType,
+        amount: amount,
+        date_str: dateStr,
+        order_date: dateStr,
+        note: note
+    };
+}
+
+export async function tdemSubmitSaveImmediately() {
+    const payload = tdemGetPayload();
+    closeThuchiDraftEditModal();
+    try {
+        const res = await fetch('/api/ai/draft/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        appendMessageUI('bot', data.message || '✅ Đã lưu khoản thu/chi thành công!', true, null, null);
+    } catch (err) {
+        alert('Lỗi khi lưu: ' + err);
+    }
+}
+
+export async function tdemSubmitUpdateCard() {
+    const payload = tdemGetPayload();
+    closeThuchiDraftEditModal();
     try {
         const res = await fetch('/api/ai/draft/update', {
             method: 'POST',

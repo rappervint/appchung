@@ -1232,5 +1232,92 @@
   </div>
 </div>
 
+<!-- ==========================================
+     MODAL CHỈNH SỬA THU CHI TRỰC QUAN (INTERACTIVE THU CHI EDIT MODAL)
+     ========================================== -->
+<div id="thuchiDraftEditModal" onclick="if(event.target===this) closeThuchiDraftEditModal();" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100%; height:100dvh; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:10000000; align-items:center; justify-content:center; padding:12px; box-sizing:border-box;">
+  <div style="background:#131826; border:1px solid rgba(255,255,255,0.18); border-radius:18px; width:100%; max-width:480px; max-height:92vh; max-height:92dvh; display:flex; flex-direction:column; box-shadow:0 25px 60px rgba(0,0,0,0.85); color:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow:hidden;">
+    
+    <!-- Modal Header -->
+    <div style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1e293b, #0f172a); flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.25rem;">💰</span>
+        <div>
+          <div style="font-weight:700; font-size:1rem; color:#f8fafc;">Chỉnh Sửa Thu Chi Trực Quan</div>
+          <div style="font-size:0.75rem; color:#94a3b8;">Đổi loại thu/chi, số tiền, nội dung, ngày phát sinh</div>
+        </div>
+      </div>
+      <button type="button" onclick="closeThuchiDraftEditModal()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer; line-height:1; padding:4px 8px;">✕</button>
+    </div>
+
+    <!-- Modal Body (Scrollable) -->
+    <div style="padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      
+      <!-- Section: Phân loại Giao dịch -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:8px; text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">
+          <i class="bi bi-arrow-left-right"></i> Phân Loại Giao Dịch
+        </label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button type="button" id="tdem_btn_chi" onclick="tdemSetType('chi')" style="padding:10px; border-radius:10px; border:2px solid #ef4444; background:#ef4444; color:#fff; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            💸 CHI TIỀN
+          </button>
+          <button type="button" id="tdem_btn_thu" onclick="tdemSetType('thu')" style="padding:10px; border-radius:10px; border:2px solid rgba(255,255,255,0.15); background:#0f172a; color:#94a3b8; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            💰 THU TIỀN
+          </button>
+        </div>
+        <input type="hidden" id="tdem_trans_type" value="chi">
+      </div>
+
+      <!-- Section: Số tiền -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06);">
+        <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:6px; font-weight:600;">
+          <i class="bi bi-cash-coin"></i> Số Tiền Giao Dịch (VNĐ)
+        </label>
+        <div style="position:relative;">
+          <input type="number" id="tdem_amount" value="0" step="1000" min="0" oninput="tdemRecalcTotal()" placeholder="0" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:10px 38px 10px 12px; color:#facc15; font-weight:bold; font-size:18px;">
+          <span style="position:absolute; right:12px; top:12px; color:#94a3b8; font-size:0.85rem; font-weight:600;">đ</span>
+        </div>
+        <div id="tdem_amount_display" style="font-size:1.1rem; font-weight:800; color:#f87171; margin-top:8px; text-shadow:0 0 10px rgba(248,113,113,0.3);">
+          - 0 đ
+        </div>
+      </div>
+
+      <!-- Section: Ngày & Nội dung -->
+      <div style="background:#1e293b; border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px; font-weight:600;">
+            <i class="bi bi-calendar-event"></i> Ngày phát sinh
+          </label>
+          <input type="date" id="tdem_date" style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+        </div>
+        <div>
+          <label style="font-size:0.75rem; color:#cbd5e1; display:block; margin-bottom:4px; font-weight:600;">
+            <i class="bi bi-pencil-square"></i> Nội dung / Lý do ghi sổ
+          </label>
+          <input type="text" id="tdem_note" placeholder="VD: Tiền cơm trưa, mua xăng, tiền mặt bằng..." style="width:100%; box-sizing:border-box; background:#0f172a; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:8px 10px; color:#fff; font-size:16px;">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding:12px 18px; border-top:1px solid rgba(255,255,255,0.1); background:#0f172a; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
+      <button type="button" onclick="closeThuchiDraftEditModal()" style="background:#334155; color:#cbd5e1; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer;">
+        Đóng
+      </button>
+      <div style="display:flex; gap:8px;">
+        <button type="button" onclick="tdemSubmitUpdateCard()" style="background:#d97706; color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px;">
+          🔄 Cập Nhật Thẻ
+        </button>
+        <button type="button" onclick="tdemSubmitSaveImmediately()" style="background:#16a34a; color:#fff; border:none; border-radius:10px; padding:8px 16px; font-size:0.88rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 4px 14px rgba(22,163,74,0.4);">
+          💾 Lưu Vào Sổ Ngay
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>

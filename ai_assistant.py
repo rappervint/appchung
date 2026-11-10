@@ -1011,9 +1011,36 @@ def commit_baocao_den_order(payload):
     plate = payload.get('plate', '')
     phone = payload.get('phone', '')
     order_date = payload.get('order_date') or datetime.now().strftime('%Y-%m-%d')
-    discount_k = payload.get('discount_k', 0)
-    total_base_k = payload.get('total_base_k', 0)
-    total_final_k = payload.get('total_final_k', 0)
+    discount_k = float(payload.get('discount_k', 0))
+    total_base_k = float(payload.get('total_base_k', 0))
+    total_final_k = float(payload.get('total_final_k', 0))
+
+    if not total_base_k:
+        total_base_k = sum(float(it.get('base_price_k', it.get('unit_price_k', 0) * it.get('quantity', 1) or it.get('final_price_k', 0))) for it in items)
+    if not total_final_k:
+        total_final_k = max(0, total_base_k - discount_k)
+
+    # ĐẢM BẢO CHIẾT KHẤU / GIẢM GIÁ ĐƯỢC TRỪ TRỰC TIẾP VÀO TỪNG MÓN ĐÈN
+    # Để khi INSERT INTO orders (price_k), giá trị lưu vào doanh thu đèn CHÍNH LÀ DOANH THU THỰC THU
+    if discount_k > 0 and items:
+        allocated = 0
+        for idx, it in enumerate(items):
+            b_p = float(it.get('base_price_k') or (it.get('unit_price_k', 0) * it.get('quantity', 1)) or it.get('final_price_k', 0))
+            it['base_price_k'] = b_p
+            if idx == len(items) - 1:
+                d_item = max(0, discount_k - allocated)
+            else:
+                d_item = round(discount_k * (b_p / total_base_k)) if total_base_k > 0 else 0
+                allocated += d_item
+            it['discount_k'] = d_item
+            it['final_price_k'] = max(0, b_p - d_item)
+    else:
+        for it in items:
+            b_p = float(it.get('base_price_k') or (it.get('unit_price_k', 0) * it.get('quantity', 1)) or it.get('final_price_k', 0))
+            it['base_price_k'] = b_p
+            if 'final_price_k' not in it or it['final_price_k'] <= 0:
+                it['final_price_k'] = b_p
+            it['discount_k'] = max(0, b_p - it['final_price_k'])
 
     if not os.path.exists(DB_DEN):
         return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu Báo Cáo Đèn!"}
@@ -1023,7 +1050,10 @@ def commit_baocao_den_order(payload):
         conn = sqlite3.connect(DB_DEN, timeout=10)
         c = conn.cursor()
         saved_ids = []
-        den_cust_str = cust_record if (plate and plate not in cust_record) else (f"{cust_name} ({plate})" if (plate and plate not in cust_name) else (cust_name or f"Khách xe {plate}"))
+        if plate and plate not in cust_name:
+            den_cust_str = f"{cust_name} ({plate})" if cust_name else f"Khách xe {plate}"
+        else:
+            den_cust_str = cust_name or (f"Khách xe {plate}" if plate else "Khách lẻ")
         for it in items:
             c.execute("""
                 INSERT INTO orders (order_date, product_name, customer_name, car_model, quantity, price_k, sheet_origin)
@@ -1041,10 +1071,11 @@ def commit_baocao_den_order(payload):
             qty_label = f"{it['quantity']} bộ " if it['quantity'] > 1 else ""
             default_tag = " *(Giá niêm yết tự động)*" if it.get('is_default') else ""
             b_pk = it.get('base_price_k', it.get('final_price_k', 0))
+            f_pk = it.get('final_price_k', b_pk)
             base_str = f"{b_pk*1000:,.0f} đ ({b_pk:,}k){default_tag}"
             if it.get('discount_k', 0) > 0:
-                final_str = f"{it['final_price_k']*1000:,.0f} đ ({it['final_price_k']:,}k)"
-                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: {base_str} ➔ Sau giảm: **{final_str}**")
+                final_str = f"{f_pk*1000:,.0f} đ ({f_pk:,}k)"
+                item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: ~~{base_str}~~ ➔ Sau giảm: **{final_str}**")
             else:
                 item_lines.append(f"  {i}. **{qty_label}{it['product_name']}**: **{base_str}**")
 
@@ -1088,8 +1119,6 @@ def commit_baocao_den_order(payload):
         return {"type": "error", "message": f"Lỗi lưu báo cáo đèn: {str(e)}"}
 
 
-
-
 def format_baocao_den_card_from_payload(payload, title="❓ **XÁC NHẬN TẠO ĐƠN VÀO SỔ BÁO CÁO DOANH THU ĐÈN:**"):
     """Tạo thông báo thẻ xác nhận trực quan kèm đầy đủ 3 nút bấm (Sửa Trực Quan, OK/Lưu, Hủy) và meta."""
     items = payload.get('items', [])
@@ -1099,16 +1128,37 @@ def format_baocao_den_card_from_payload(payload, title="❓ **XÁC NHẬN TẠO 
     phone = payload.get('phone', '')
     order_date = payload.get('order_date') or datetime.now().strftime('%Y-%m-%d')
     discount_k = float(payload.get('discount_k', 0))
-    total_final_k = float(payload.get('total_final_k', sum(it.get('final_price_k', 0) for it in items)))
-    total_base_k = float(payload.get('total_base_k', sum(it.get('unit_price_k', it.get('final_price_k', 0)) * it.get('quantity', 1) for it in items)))
+    total_base_k = float(payload.get('total_base_k', 0))
+    if not total_base_k:
+        total_base_k = sum(float(it.get('unit_price_k', it.get('final_price_k', 0))) * int(it.get('quantity', 1)) for it in items)
+    total_final_k = float(payload.get('total_final_k', max(0, total_base_k - discount_k)))
+
+    # Phân bổ chiết khấu vào từng món nếu có
+    if discount_k > 0 and items:
+        allocated = 0
+        for idx, it in enumerate(items):
+            b_p = float(it.get('base_price_k') or (it.get('unit_price_k', 0) * it.get('quantity', 1)) or it.get('final_price_k', 0))
+            it['base_price_k'] = b_p
+            if idx == len(items) - 1:
+                d_item = max(0, discount_k - allocated)
+            else:
+                d_item = round(discount_k * (b_p / total_base_k)) if total_base_k > 0 else 0
+                allocated += d_item
+            it['discount_k'] = d_item
+            it['final_price_k'] = max(0, b_p - d_item)
 
     item_lines = []
     for i, it in enumerate(items, 1):
         q = int(it.get('quantity', 1))
         qty_lbl = f"{q} bộ " if q > 1 else ""
-        unit_p = float(it.get('unit_price_k', it.get('final_price_k', 0) / q if q else 0))
+        b_p = float(it.get('base_price_k', it.get('unit_price_k', 0) * q))
+        f_p = float(it.get('final_price_k', b_p))
+        unit_p = float(it.get('unit_price_k', b_p / q if q else 0))
         unit_str = f" *({q}x {unit_p * 1000:,.0f} đ)*" if q > 1 else ""
-        item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{it.get('final_price_k', 0) * 1000:,.0f} đ ({it.get('final_price_k', 0):,.0f}k)**{unit_str}")
+        if it.get('discount_k', 0) > 0:
+            item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: ~~{b_p * 1000:,.0f} đ~~ ➔ **{f_p * 1000:,.0f} đ ({f_p:,.0f}k)**{unit_str}")
+        else:
+            item_lines.append(f"  {i}. **{qty_lbl}{it.get('product_name', 'ĐÈN')}**: **{f_p * 1000:,.0f} đ ({f_p:,.0f}k)**{unit_str}")
     items_text = "\n".join(item_lines)
     items_header = f"• 📦 **Sản phẩm lắp đặt ({len(items)} món):**\n" if len(items) > 1 else "• 📦 **Sản phẩm lắp đặt:**\n"
 
@@ -1124,6 +1174,7 @@ def format_baocao_den_card_from_payload(payload, title="❓ **XÁC NHẬN TẠO 
         + plate_line
         + phone_line
         + f"{items_header}{items_text}\n"
+        + (f"• 💵 **Tổng tiền gốc:** ~~{total_base_k * 1000:,.0f} đ~~\n" if discount_k > 0 else "")
         + disc_line
         + f"• 💰 **DOANH THU THỰC THU:** **{total_final_k * 1000:,.0f} đ**\n"
         f"• 📅 **Ngày lắp:** **{order_date}**\n"
@@ -1152,6 +1203,50 @@ def format_baocao_den_card_from_payload(payload, title="❓ **XÁC NHẬN TẠO 
             "discount_k": discount_k,
             "total_base_k": total_base_k,
             "total_final_k": total_final_k
+        }
+    }
+
+
+def format_thuchi_card_from_payload(payload, title=None):
+    """Tạo thông báo thẻ xác nhận thu/chi trực quan kèm 3 nút bấm (Sửa Trực Quan, OK/Lưu, Hủy) và meta."""
+    trans_type = (payload.get('trans_type') or 'chi').lower()
+    amount = float(payload.get('amount', 0))
+    note = (payload.get('note') or ('Chi nhanh qua Trợ lý AI' if trans_type == 'chi' else 'Thu nhanh qua Trợ lý AI')).strip()
+    date_str = payload.get('date_str') or payload.get('order_date') or datetime.now().strftime('%Y-%m-%d')
+    amount_k_str = f"{amount//1000:,.0f}k" if amount >= 1000 else f"{amount:,.0f}đ"
+
+    action_label = "KHOẢN CHI" if trans_type == 'chi' else "KHOẢN THU"
+    action_icon = "💸" if trans_type == 'chi' else "💰"
+    default_title = f"❓ **XÁC NHẬN GHI VÀO SỔ THU CHI ({action_label}):**"
+    card_title = title or default_title
+
+    card_msg = (
+        f"{card_title}\n"
+        f"───────────────────────────────────────\n"
+        f"• {action_icon} **Phân loại:** **{trans_type.upper()}**\n"
+        f"• 📅 **Ngày ghi nhận:** **{date_str}**\n"
+        f"• 💵 **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
+        f"• 📝 **Nội dung:** **{note.capitalize()}**\n"
+        f"───────────────────────────────────────\n"
+        f"👉 Bấm **[✏️ Sửa Trực Quan]** để sửa lại ngày, số tiền, nội dung, phân loại...\n"
+        f"👉 Bấm **[✅ OK / Lưu]** để ghi vào sổ ngay, hoặc **[🛑 Hủy]** nếu muốn bỏ qua."
+    )
+
+    return {
+        "type": "wizard_step",
+        "message": card_msg,
+        "buttons": [
+            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+        ],
+        "meta": {
+            "action_type": "thuchi",
+            "trans_type": trans_type,
+            "amount": amount,
+            "date_str": date_str,
+            "order_date": date_str,
+            "note": note
         }
     }
 
@@ -1448,6 +1543,51 @@ def modify_draft_baocao_den(payload, user_text):
 
     return changes
 
+
+def modify_draft_thuchi(payload, user_text):
+    """
+    Cho phép người dùng chỉnh sửa nhanh khoản thu/chi nháp bằng giọng nói/văn bản
+    Ví dụ: 'đổi thành 500k', 'sửa lại ngày hôm qua', 'chuyển sang thu', 'nội dung mua phụ tùng'
+    """
+    clean = remove_accents(user_text).lower().strip()
+    changes = []
+
+    # 1. Chuyển đổi loại Thu / Chi
+    if any(k in clean for k in ['sang thu', 'thanh thu', 'doi sang thu', 'chuyen sang thu', 'la thu', 'doi thanh thu', 'khoan thu', 'muc thu']):
+        if payload.get('trans_type') != 'thu':
+            payload['trans_type'] = 'thu'
+            changes.append("Đổi phân loại thành: **THU TIỀN** 💰")
+    elif any(k in clean for k in ['sang chi', 'thanh chi', 'doi sang chi', 'chuyen sang chi', 'la chi', 'doi thanh chi', 'khoan chi', 'muc chi']):
+        if payload.get('trans_type') != 'chi':
+            payload['trans_type'] = 'chi'
+            changes.append("Đổi phân loại thành: **CHI TIỀN** 💸")
+
+    # 2. Đổi ngày
+    if any(k in clean for k in ['ngay', 'ngày', 'hom nay', 'hôm nay', 'hom qua', 'hôm qua', 'mai', 'thang', 'tháng']) or re.search(r'\b\d{1,2}[/-]\d{1,2}', user_text):
+        new_date, _ = extract_date(user_text)
+        if new_date and new_date != payload.get('date_str'):
+            payload['date_str'] = new_date
+            changes.append(f"Đổi ngày phát sinh thành: **{new_date}** 📅")
+
+    # 3. Đổi số tiền
+    new_amt = parse_vietnamese_money(user_text, default_thousands=True)
+    if new_amt > 0:
+        if any(k in clean for k in ['tien', 'tiền', 'gia', 'giá', 'thanh', 'thành', 'doi', 'đổi', 'sua', 'sửa', 'k', 'tr', 'trieu', 'triệu', 'dong', 'đồng', 'd', 'đ']) or new_amt != payload.get('amount'):
+            payload['amount'] = new_amt
+            amt_k_str = f"{new_amt//1000:,.0f}k" if new_amt >= 1000 else f"{new_amt:,.0f}đ"
+            changes.append(f"Đổi số tiền thành: **{new_amt:,.0f} đ** ({amt_k_str}) 💵")
+
+    # 4. Đổi nội dung / lý do
+    m_note = re.search(r'(?:nội dung|noi dung|lý do|ly do|ghi chú|ghi chu)\s+(?:là|thành|sang|:)?\s*(.+)', user_text, re.IGNORECASE)
+    if m_note:
+        new_note = m_note.group(1).strip()
+        if new_note:
+            payload['note'] = new_note
+            changes.append(f"Đổi nội dung thành: **{new_note}** 📝")
+
+    return changes
+
+
 def handle_wizard_step(user_text, session_id):
     """Xử lý từng câu trả lời của người dùng trong phiên phỏng vấn AI (kèm bước xác nhận)"""
     session = WIZARD_SESSIONS.get(session_id)
@@ -1575,6 +1715,42 @@ def handle_wizard_step(user_text, session_id):
                             "discount_k": payload.get('discount_k', 0),
                             "total_base_k": payload.get('total_base_k', total_f),
                             "total_final_k": total_f
+                        }
+                    }
+
+            elif action_type == 'thuchi':
+                payload = session.get('payload', {})
+                changes = modify_draft_thuchi(payload, user_text)
+                if changes:
+                    session['payload'] = payload
+                    WIZARD_SESSIONS[session_id] = session
+                    WIZARD_SESSIONS['default_user'] = session
+                    changes_bullet = "\n".join([f"• ✏️ {c}" for c in changes])
+                    card_res = format_thuchi_card_from_payload(
+                        payload,
+                        title=f"✏️ **ĐÃ CẬP NHẬT KHOẢN {payload.get('trans_type', 'chi').upper()} THEO YÊU CẦU:**\n{changes_bullet}\n\n❓ **XÁC NHẬN GHI VÀO SỔ THU CHI:**"
+                    )
+                    return card_res
+                else:
+                    return {
+                        "type": "clarify",
+                        "message": (
+                            "⚠️ **BẠN ĐANG Ở BƯỚC XÁC NHẬN KHOẢN THU/CHI:**\n\n"
+                            "👉 Bấm **[✏️ Sửa Trực Quan]** để mở bảng chỉnh sửa chi tiết.\n"
+                            "👉 Bấm **[✅ OK / Lưu]** để lưu vào Sổ Thu Chi.\n"
+                            "👉 Bấm **[🛑 Hủy]** để hủy bỏ, hoặc nhắn trực tiếp nội dung muốn sửa (VD: *'đổi thành 500k'*, *'sang thu'*)."
+                        ),
+                        "buttons": [
+                            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+                            {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
+                            {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
+                        ],
+                        "meta": {
+                            "action_type": "thuchi",
+                            "trans_type": payload.get('trans_type', 'chi'),
+                            "amount": payload.get('amount', 0),
+                            "date_str": payload.get('date_str', datetime.now().strftime('%Y-%m-%d')),
+                            "note": payload.get('note', '')
                         }
                     }
 
@@ -1713,147 +1889,110 @@ def handle_wizard_step(user_text, session_id):
 
 
     # ══════════════════════════════════════════
-    # FLOW 1: WIZARD CHI (SỔ THU CHI)
+    # FLOW 1: WIZARD THU CHI (SỔ THU CHI)
     # ══════════════════════════════════════════
-    if flow == 'chi':
-        # Bước 1: Số tiền chi (Nhận chữ k tự hiểu nhân thêm 1000)
+    if flow in ['thuchi', 'chi', 'thu']:
+        trans_type = data.get('trans_type') or ('thu' if flow == 'thu' else 'chi')
+        data['trans_type'] = trans_type
+        action_word = "chi" if trans_type == 'chi' else "thu"
+        action_icon = "💸" if trans_type == 'chi' else "💰"
+
+        # Bước 1: Thời gian / Ngày phát sinh (Ngày chi hoặc Ngày thu)
         if step == 1:
-            amount = parse_vietnamese_money(user_text, default_thousands=True)
-            if amount <= 0:
+            # Kiểm tra thông minh: nếu người dùng gõ số tiền ở bước 1 thay vì ngày
+            p_val = parse_vietnamese_money(user_text, default_thousands=True)
+            if p_val > 0 and clean not in ['0', 'hom nay', 'hôm nay', 'nay', 'hom qua', 'hôm qua', 'mai']:
+                data['amount'] = p_val
+                data['date'] = datetime.now().strftime('%Y-%m-%d')
+                data['date_str'] = data['date']
+                session['step'] = 3
+                amount_k_str = f"{p_val//1000:,.0f}k" if p_val >= 1000 else f"{p_val:,.0f}đ"
+                example_notes = "Tiền cơm trưa, mua xăng, tiền mặt bằng, tiền điện..." if trans_type == 'chi' else "Thu tiền sửa xe, tiền phụ tùng, thu hồi tạm ứng..."
                 return {
                     "type": "clarify",
-                    "message": "⚠️ Chưa nhận diện được số tiền. Bạn vui lòng nhập lại số tiền chi (Ví dụ: `350k`, `1.5tr`, `150.000`... hoặc gõ `hủy` để thoát):"
+                    "message": (
+                        f"{action_icon} Số tiền {action_word}: **{p_val:,.0f} đ** ({amount_k_str}) (Mặc định ngày: {data['date']})\n\n"
+                        f"📝 **BƯỚC 3/3: NỘI DUNG / LÝ DO {action_word.upper()}**\n"
+                        f"Lý do / nội dung {action_word} là gì?\n"
+                        f"*(Ví dụ: {example_notes}... hoặc gõ **'0'**)*"
+                    )
                 }
-            data['amount'] = amount
-            session['step'] = 2
-            amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
-            return {
-                "type": "clarify",
-                "message": (
-                    f"💸 Số tiền chi: **{amount:,.0f} đ** ({amount_k_str})\n\n"
-                    f"📅 **BƯỚC 2/3: THỜI GIAN / NGÀY CHI**\n"
-                    f"Khoản chi này vào ngày nào?\n"
-                    f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại, hoặc nhập VD: `20/10/2026`, `hôm qua`...)*"
-                )
-            }
 
-        # Bước 2: Thời gian / Ngày chi
-        elif step == 2:
             if clean in ['0', 'hom nay', 'hôm nay', 'nay', '']:
                 date_str = datetime.now().strftime('%Y-%m-%d')
             else:
                 date_str, _ = extract_date(user_text)
+
             data['date'] = date_str
-            session['step'] = 3
+            data['date_str'] = date_str
+            session['step'] = 2
+            example_amt = "350k, 1.5tr, 200.000" if trans_type == 'chi' else "500k, 2.5tr, 1.500.000"
             return {
                 "type": "clarify",
                 "message": (
-                    f"📅 Ngày chi: **{date_str}**\n\n"
-                    f"📝 **BƯỚC 3/3: NỘI DUNG / LÝ DO CHI**\n"
-                    f"Lý do / nội dung chi là gì?\n"
-                    f"*(Ví dụ: Tiền cơm trưa, mua xăng, tiền mặt bằng, tiền điện...)*"
+                    f"📅 Ngày {action_word}: **{date_str}**\n\n"
+                    f"{action_icon} **BƯỚC 2/3: SỐ TIỀN {action_word.upper()}**\n"
+                    f"Số tiền {action_word} là bao nhiêu?\n"
+                    f"*(Ví dụ: `{example_amt}`... hoặc gõ `hủy` để thoát)*"
                 )
             }
 
-        # Bước 3: Lý do / Nội dung chi ➔ CHUYỂN SANG BƯỚC XÁC NHẬN (CONFIRM)
+        # Bước 2: Số tiền thu / chi
+        elif step == 2:
+            amount = parse_vietnamese_money(user_text, default_thousands=True)
+            if amount <= 0:
+                return {
+                    "type": "clarify",
+                    "message": f"⚠️ Chưa nhận diện được số tiền. Bạn vui lòng nhập lại số tiền {action_word} (Ví dụ: `350k`, `1.5tr`, `150.000`... hoặc gõ `hủy` để thoát):"
+                }
+            data['amount'] = amount
+            session['step'] = 3
+            amount_k_str = f"{amount//1000:,.0f}k" if amount >= 1000 else f"{amount:,.0f}đ"
+            example_notes = "Tiền cơm trưa, mua xăng, tiền mặt bằng, tiền điện..." if trans_type == 'chi' else "Thu tiền sửa xe, tiền phụ tùng, thu hồi tạm ứng..."
+            return {
+                "type": "clarify",
+                "message": (
+                    f"{action_icon} Số tiền {action_word}: **{amount:,.0f} đ** ({amount_k_str})\n\n"
+                    f"📝 **BƯỚC 3/3: NỘI DUNG / LÝ DO {action_word.upper()}**\n"
+                    f"Lý do / nội dung {action_word} là gì?\n"
+                    f"*(Ví dụ: {example_notes}... hoặc gõ **'0'**)*"
+                )
+            }
+
+        # Bước 3: Lý do / Nội dung ➔ CHUYỂN SANG BƯỚC XÁC NHẬN CÓ 3 NÚT BẤM (SỬA TRỰC QUAN, OK/LƯU, HỦY)
         elif step == 3:
             note = user_text.strip()
             if not note or note == '0':
-                note = "Chi nhanh qua Trợ lý AI"
+                note = f"{action_word.capitalize()} nhanh qua Trợ lý AI"
             data['note'] = note
-            session['step'] = 'confirm'
 
-            amount = data['amount']
-            amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
-            return {
-                "type": "clarify",
-                "message": (
-                    f"📋 **XÁC NHẬN KHOẢN CHI**\n"
-                    f"───────────────────────────\n"
-                    f"• 💸 **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
-                    f"• 📅 **Thời gian:** **{data['date']}**\n"
-                    f"• 📝 **Nội dung / Lý do:** **{note}**\n"
-                    f"───────────────────────────\n"
-                    f"❓ **Bạn có xác nhận lưu khoản chi này vào Sổ Thu Chi không?**\n\n"
-                    f"👉 Gõ **'ok'**, **'lưu'**, **'có'** hoặc **'xác nhận'** để thêm vào sổ.\n"
-                    f"👉 Gõ **'hủy'** hoặc **'không'** để hủy bỏ."
-                )
+            payload = {
+                'trans_type': trans_type,
+                'amount': data.get('amount', 0),
+                'note': note,
+                'date_str': data.get('date', datetime.now().strftime('%Y-%m-%d'))
             }
 
-        # Bước Xác Nhận Khoản Chi ➔ LƯU DATABASE HOẶC HỦY
+            session['flow'] = 'confirm_action'
+            session['action_type'] = 'thuchi'
+            session['payload'] = payload
+            WIZARD_SESSIONS[session_id] = session
+            WIZARD_SESSIONS['default_user'] = session
+
+            return format_thuchi_card_from_payload(payload)
+
+        # Hỗ trợ trường hợp nếu step đang là 'confirm' từ phiên cũ
         elif step == 'confirm':
-            # Người dùng xác nhận lưu
-            is_confirm = clean in [
-                'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
-                'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1'
-            ] or clean.startswith('ok')
-
-            if is_confirm:
-                amount = data['amount']
-                date_str = data['date']
-                note = data['note']
-                del WIZARD_SESSIONS[session_id]
-
-                if not os.path.exists(DB_THUCHI):
-                    return {"type": "error", "message": "Chưa tìm thấy cơ sở dữ liệu sổ thu chi!"}
-
-                try:
-                    conn = sqlite3.connect(DB_THUCHI, timeout=10)
-                    c = conn.cursor()
-                    c.execute("SELECT id, name FROM periods WHERE status = 'active' ORDER BY id DESC LIMIT 1")
-                    p = c.fetchone()
-                    if not p:
-                        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        c.execute("INSERT INTO periods (name, start_date, status) VALUES ('Kỳ tự động AI', ?, 'active')", (now_str,))
-                        period_id = c.lastrowid
-                        period_name = "Kỳ tự động AI"
-                    else:
-                        period_id = p[0]
-                        period_name = p[1]
-
-                    created_at = f"{date_str} {datetime.now().strftime('%H:%M:%S')}"
-                    c.execute("INSERT INTO transactions (period_id, type, amount, note, created_at) VALUES (?, 'chi', ?, ?, ?)",
-                              (period_id, amount, note.capitalize(), created_at))
-                    conn.commit()
-
-                    c.execute("SELECT SUM(CASE WHEN type='thu' THEN amount ELSE -amount END) FROM transactions WHERE period_id = ?", (period_id,))
-                    balance = c.fetchone()[0] or 0
-                    conn.close()
-
-                    amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
-                    return {
-                        "type": "success",
-                        "module": "thuchi",
-                        "message": (
-                            f"✅ **ĐÃ XÁC NHẬN & GHI KHOẢN CHI THÀNH CÔNG!**\n\n"
-                            f"• **Phân loại:** CHI\n"
-                            f"• **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
-                            f"• **Nội dung:** {note.capitalize()}\n"
-                            f"• **Ngày ghi nhận:** {date_str}\n"
-                            f"• **Kỳ ghi nhận:** {period_name}\n"
-                            f"• 💰 **Số dư quỹ kỳ này:** **{balance:,.0f} đ**\n\n"
-                            f"👉 [Bấm vào đây để mở Sổ Thu Chi](/thuchi/)"
-                        )
-                    }
-                except Exception as e:
-                    return {"type": "error", "message": f"Lỗi lưu sổ chi: {str(e)}"}
-
-            elif clean in ['khong', 'không', 'no', 'k']:
-                del WIZARD_SESSIONS[session_id]
-                return {
-                    "type": "info",
-                    "message": "🛑 **ĐÃ HỦY KHOẢN CHI!**\nKhông có dữ liệu nào được lưu vào Sổ Thu Chi."
-                }
-            else:
-                amount = data['amount']
-                return {
-                    "type": "clarify",
-                    "message": (
-                        f"⚠️ Vui lòng xác nhận:\n"
-                        f"• Gõ **'ok'** hoặc **'lưu'** để ghi khoản chi **{amount:,.0f} đ** vào sổ.\n"
-                        f"• Gõ **'hủy'** để hủy bỏ phiên nhập này."
-                    )
-                }
+            session['flow'] = 'confirm_action'
+            session['action_type'] = 'thuchi'
+            session['payload'] = {
+                'trans_type': trans_type,
+                'amount': data.get('amount', 0),
+                'note': data.get('note', f'{action_word.capitalize()} qua Trợ lý AI'),
+                'date_str': data.get('date', datetime.now().strftime('%Y-%m-%d'))
+            }
+            WIZARD_SESSIONS[session_id] = session
+            return format_thuchi_card_from_payload(session['payload'])
 
     # ══════════════════════════════════════════
     # FLOW ASK LAMP PRICE: HỎI GIÁ SẢN PHẨM KHI CHƯA CÓ GIÁ TRONG HỆ THỐNG
@@ -2986,36 +3125,21 @@ def handle_thuchi(raw_text, clean_text, session_id='default_user'):
     if not note:
         note = "Ghi nhanh qua trợ lý AI"
 
-    amount_k_str = f"{amount//1000:,}k" if amount >= 1000 else f"{amount:,}đ"
-    action_label = "KHOẢN CHI" if trans_type == 'chi' else "KHOẢN THU"
-    action_icon = "💸" if trans_type == 'chi' else "💰"
-
-    confirm_msg = (
-        f"❓ **XÁC NHẬN GHI SỔ THU CHI ({action_label}):**\n"
-        f"───────────────────────────\n"
-        f"• {action_icon} **Phân loại:** **{trans_type.upper()}**\n"
-        f"• 💰 **Số tiền:** **{amount:,.0f} đ** ({amount_k_str})\n"
-        f"• 📝 **Nội dung:** **{note.capitalize()}**\n"
-        f"• 📅 **Ngày phát sinh:** **{date_str}**\n"
-        f"───────────────────────────\n"
-        f"👉 Anh có chắc chắn muốn **LƯU KHOẢN NÀY VÀO SỔ QUỸ** không?\n\n"
-        f"*(Bấm nút **[✅ OK / Lưu]** hoặc nhắn **'ok'** để ghi vào Báo Cáo Đèn | Nhắn **'hủy'** để bỏ qua)*"
-    )
+    payload = {
+        'trans_type': trans_type,
+        'amount': amount,
+        'note': note,
+        'date_str': date_str
+    }
 
     WIZARD_SESSIONS[session_id] = {
         'flow': 'confirm_action',
         'action_type': 'thuchi',
-        'payload': {
-            'trans_type': trans_type,
-            'amount': amount,
-            'note': note,
-            'date_str': date_str
-        }
+        'payload': payload
     }
-    return {
-        "type": "clarify",
-        "message": confirm_msg
-    }
+    WIZARD_SESSIONS['default_user'] = WIZARD_SESSIONS[session_id]
+
+    return format_thuchi_card_from_payload(payload)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. TRA CỨU BẢO HÀNH & ĐƠN HÀNG
@@ -6987,17 +7111,33 @@ def _process_ai_command_internal(user_text, session_id="default_user"):
             return {"type": "clarify", "message": confirm_msg}
 
     # ═════════════════════════════════════════════════════════════════════
-    # 1. KÍCH HOẠT WIZARD SỔ CHI KHI CHỈ NHẮN "CHI" HOẶC "GHI CHI"
+    # 1. KÍCH HOẠT WIZARD SỔ THU CHI KHI NHẮN "CHI" HOẶC "THU"
     # ═════════════════════════════════════════════════════════════════════
-    if clean in ['chi', 'ghi chi', 'nhap chi', 'phieu chi', 'so chi', 'tao phieu chi']:
-        WIZARD_SESSIONS[session_id] = {'flow': 'chi', 'step': 1, 'data': {}}
+    if clean in ['chi', 'ghi chi', 'nhap chi', 'phieu chi', 'so chi', 'tao phieu chi', 'lap phieu chi', 'toi muon chi', 'muon chi']:
+        today_display = datetime.now().strftime('%d/%m/%Y')
+        WIZARD_SESSIONS[session_id] = {'flow': 'thuchi', 'step': 1, 'data': {'trans_type': 'chi'}}
         return {
             "type": "clarify",
             "message": (
-                "💸 **BƯỚC 1/3: SỐ TIỀN CHI**\n"
-                "───────────────────────────\n"
-                "Bạn muốn chi bao nhiêu tiền?\n"
-                "*(Ví dụ: `350k`, `1.5tr`, `150.000`... hoặc gõ `hủy` để thoát)*"
+                "💸 **NHẬP PHIẾU CHI VÀO SỔ QUỸ (HỎI ĐÁP TỪNG BƯỚC)**\n"
+                "───────────────────────────────────────\n"
+                "📅 **BƯỚC 1/3: THỜI GIAN / NGÀY CHI**\n"
+                "Khoản chi này phát sinh vào ngày nào?\n"
+                f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại ({today_display}), hoặc nhập ngày VD: `10/11/2026`, `hôm qua`... hoặc gõ `hủy` để thoát)*"
+            )
+        }
+
+    if clean in ['thu', 'ghi thu', 'nhap thu', 'phieu thu', 'so thu', 'tao phieu thu', 'lap phieu thu', 'toi muon thu', 'muon thu']:
+        today_display = datetime.now().strftime('%d/%m/%Y')
+        WIZARD_SESSIONS[session_id] = {'flow': 'thuchi', 'step': 1, 'data': {'trans_type': 'thu'}}
+        return {
+            "type": "clarify",
+            "message": (
+                "💰 **NHẬP PHIẾU THU VÀO SỔ QUỸ (HỎI ĐÁP TỪNG BƯỚC)**\n"
+                "───────────────────────────────────────\n"
+                "📅 **BƯỚC 1/3: THỜI GIAN / NGÀY THU**\n"
+                "Khoản thu này phát sinh vào ngày nào?\n"
+                f"*(Gõ **'0'** hoặc **'hôm nay'** để lấy ngày hiện tại ({today_display}), hoặc nhập ngày VD: `10/11/2026`, `hôm qua`... hoặc gõ `hủy` để thoát)*"
             )
         }
 
@@ -7348,19 +7488,11 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
 
         elif sess.get('flow') == 'confirm_action':
             # Người dùng đang có phiếu xác nhận tạo đơn / ghi thu chi trên màn hình
-            is_confirm = clean in [
-                'ok', 'okie', 'oke', 'yes', 'y', 'co', 'có', 'luu', 'lưu',
-                'xac nhan', 'xác nhận', 'dong y', 'đồng ý', 'them', 'thêm', 'duoc', 'được', '1',
-                'dung', 'đúng', 'chinh xac', 'chính xác', 'thuc hien', 'thực hiện', 'ok / luu', 'ok/luu'
-            ] or clean.startswith('ok')
-            is_cancel = clean in ['huy', 'hủy', 'khong', 'không', 'no', 'cancel', 'thoi', 'thôi', 'dung', 'dừng', 'stop', '0'] or clean.startswith('huy')
-            if is_confirm or is_cancel:
-                w_res = handle_wizard_step(user_text, session_id)
-                if w_res:
-                    return w_res
-            else:
-                # Người dùng gửi một câu hỏi hoặc lệnh mới (ví dụ 'xe 04393') -> hủy phiếu xác nhận cũ để Gemini phân tích câu mới!
-                del WIZARD_SESSIONS[session_id]
+            w_res = handle_wizard_step(user_text, session_id)
+            if w_res:
+                return w_res
+            # Nếu người dùng gửi một câu hỏi hoặc lệnh mới hoàn toàn không liên quan -> hủy phiếu xác nhận cũ
+            del WIZARD_SESSIONS[session_id]
         else:
             w_res = handle_wizard_step(user_text, session_id)
             if w_res:
@@ -7450,10 +7582,11 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
 
                     # NẾU LÀ THAO TÁC CÓ NGUY CƠ THAY ĐỔI DỮ LIỆU (TẠO ĐƠN, SỬA ĐƠN, THU CHI...):
                     # GIỮ NGUYÊN NÚT BẤM [OK / Lưu] và [Hủy] - TUYỆT ĐỐI KHÔNG GẮN NÚT HÀI LÒNG!
+                    is_wizard_flow = session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') in ['confirm_action', 'thuchi', 'chi', 'thu', 'den', 'ask_lamp_price', 'ask_year_den', 'lamp_fill_missing']
                     is_action_confirmation = (
-                        (session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_action')
+                        is_wizard_flow
                         or res_gemini.get('message', '').startswith("❓")
-                        or (res_gemini.get('type') == 'clarify' and "XÁC NHẬN" in res_gemini.get('message', ''))
+                        or (res_gemini.get('type') in ['clarify', 'wizard_step'] and "XÁC NHẬN" in res_gemini.get('message', ''))
                     )
 
                     if not is_action_confirmation:
@@ -7498,9 +7631,10 @@ def process_ai_command(user_text, session_id="default_user", image_data=None, fi
         LAST_CONSULTED_TOPIC[session_id] = {'key': detected_prod, 'time': datetime.now()}
 
     # Gắn nút Hài lòng / Không hài lòng cho các câu trả lời tư vấn/tra cứu thông tin (khi không phải là đơn hàng / sửa đổi dữ liệu)
+    is_wizard_flow = session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') in ['confirm_action', 'thuchi', 'chi', 'thu', 'den', 'ask_lamp_price', 'ask_year_den', 'lamp_fill_missing']
     is_action_res = (
-        (session_id in WIZARD_SESSIONS and WIZARD_SESSIONS[session_id].get('flow') == 'confirm_action')
-        or (res and isinstance(res, dict) and (res.get('type') == 'wizard_step' or res.get('message', '').startswith("❓") or res.get('module') in ['warranty', 'search_warranty', 'knowledge']))
+        is_wizard_flow
+        or (res and isinstance(res, dict) and (res.get('type') in ['wizard_step', 'clarify'] or res.get('message', '').startswith("❓") or res.get('module') in ['thuchi', 'den', 'warranty', 'search_warranty', 'knowledge']))
     )
     if res and isinstance(res, dict) and res.get('message') and not is_action_res and not res.get('buttons'):
         confirm_footer = (
