@@ -10,6 +10,23 @@ import {
     getActiveSessionId
 } from './state.js';
 import { appendMessageUI } from './chat_ui.js';
+import {
+    getAllSessions,
+    saveSessions,
+    renderSidebarSessionsList
+} from './sessions.js';
+
+function saveBotReplyToActiveSession(content) {
+    const sessions = getAllSessions();
+    const curSess = sessions.find(s => s.id === getActiveSessionId());
+    if (curSess) {
+        const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        curSess.messages.push({ role: 'bot', content: content, time: timeStr });
+        curSess.updatedAt = Date.now();
+        saveSessions(sessions);
+        renderSidebarSessionsList();
+    }
+}
 
 export function openGarageDraftEditModal(meta) {
     meta = meta || state.lastAIMeta || (typeof window !== 'undefined' ? window.lastAIMeta : null) || {};
@@ -188,7 +205,9 @@ export async function gdemSubmitSaveImmediately() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        appendMessageUI('bot', data.message || '✅ Đã lưu đơn thành công!', true, null, null);
+        const reply = data.message || '✅ Đã lưu đơn thành công!';
+        appendMessageUI('bot', reply, true, null, null);
+        saveBotReplyToActiveSession(reply);
     } catch (err) {
         alert('Lỗi khi lưu đơn: ' + err);
     }
@@ -205,7 +224,9 @@ export async function gdemSubmitUpdateCard() {
         });
         const data = await res.json();
         setLastAIMeta(data.meta || payload);
-        appendMessageUI('bot', data.message || 'Đã cập nhật thông tin!', true, null, data.buttons);
+        const reply = data.message || 'Đã cập nhật thông tin!';
+        appendMessageUI('bot', reply, true, null, data.buttons);
+        saveBotReplyToActiveSession(reply);
     } catch (err) {
         alert('Lỗi cập nhật: ' + err);
     }
@@ -325,7 +346,9 @@ export async function tdemSubmitSaveImmediately() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
-        appendMessageUI('bot', data.message || '✅ Đã lưu khoản thu/chi thành công!', true, null, null);
+        const reply = data.message || '✅ Đã lưu khoản thu/chi thành công!';
+        appendMessageUI('bot', reply, true, null, null);
+        saveBotReplyToActiveSession(reply);
     } catch (err) {
         alert('Lỗi khi lưu: ' + err);
     }
@@ -342,7 +365,9 @@ export async function tdemSubmitUpdateCard() {
         });
         const data = await res.json();
         setLastAIMeta(data.meta || payload);
-        appendMessageUI('bot', data.message || 'Đã cập nhật thông tin!', true, null, data.buttons);
+        const reply = data.message || 'Đã cập nhật thông tin!';
+        appendMessageUI('bot', reply, true, null, data.buttons);
+        saveBotReplyToActiveSession(reply);
     } catch (err) {
         alert('Lỗi cập nhật: ' + err);
     }

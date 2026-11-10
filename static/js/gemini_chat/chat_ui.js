@@ -79,8 +79,11 @@ export function appendMessageUI(role, content, shouldScroll = true, imageBase64 
                 let btnClass = 'btn-success', icon = 'bi-check-circle-fill', onclickCall = `sendQuickMessage('${b.value}')`;
                 if (b.class === 'btn-danger') {
                     btnClass = 'btn-danger'; icon = 'bi-x-circle-fill';
+                } else if (b.action === 'open_thuchi_modal') {
+                    btnClass = 'btn-warning text-dark'; icon = 'bi-pencil-square'; onclickCall = `openThuchiDraftEditModal()`;
                 } else if (b.class === 'btn-warning' || b.action === 'open_edit_modal') {
-                    btnClass = 'btn-warning text-dark'; icon = 'bi-pencil-square'; onclickCall = `openGarageDraftEditModal()`;
+                    const isThuchi = state.lastAIMeta && (state.lastAIMeta.action_type === 'thuchi' || state.lastAIMeta.trans_type);
+                    btnClass = 'btn-warning text-dark'; icon = 'bi-pencil-square'; onclickCall = isThuchi ? `openThuchiDraftEditModal()` : `openGarageDraftEditModal()`;
                 }
                 btnHtml += `<button class="btn btn-sm ${btnClass} px-3 py-1 font-weight-bold d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.88rem; box-shadow:0 2px 6px rgba(0,0,0,0.3);" onclick="${onclickCall}"><i class="bi ${icon}"></i> ${b.text}</button>`;
             });

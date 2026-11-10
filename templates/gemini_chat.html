@@ -974,6 +974,25 @@
 
                 <input type="file" id="geminiImageInput" accept="image/*" style="display:none;" onchange="handleGeminiImageSelected(event)">
 
+                <!-- Quick Action Pills (Thu/Chi, Đèn, Tra Cứu) -->
+                <div class="d-flex align-items-center gap-2 mb-2 overflow-x-auto w-100" style="scrollbar-width:none; padding-bottom:2px;">
+                    <button type="button" class="btn btn-sm text-nowrap d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.8rem; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#fca5a5; padding:4px 12px; font-weight:600; cursor:pointer;" onclick="sendQuickMessage('chi')">
+                        💸 Chi Tiền
+                    </button>
+                    <button type="button" class="btn btn-sm text-nowrap d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.8rem; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.35); color:#86efac; padding:4px 12px; font-weight:600; cursor:pointer;" onclick="sendQuickMessage('thu')">
+                        💰 Thu Tiền
+                    </button>
+                    <button type="button" class="btn btn-sm text-nowrap d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.8rem; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.35); color:#fde047; padding:4px 12px; font-weight:600; cursor:pointer;" onclick="sendQuickMessage('doanh thu den')">
+                        💡 Nhập Đèn
+                    </button>
+                    <button type="button" class="btn btn-sm text-nowrap d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#cbd5e1; padding:4px 12px; font-weight:500; cursor:pointer;" onclick="sendQuickMessage('hôm nay thu chi sao rồi')">
+                        📊 Báo Cáo Sổ Quỹ
+                    </button>
+                    <button type="button" class="btn btn-sm text-nowrap d-flex align-items-center gap-1" style="border-radius:20px; font-size:0.8rem; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#cbd5e1; padding:4px 12px; font-weight:500; cursor:pointer;" onclick="sendQuickMessage('doanh thu đèn tháng này')">
+                        🏮 Doanh Số Đèn
+                    </button>
+                </div>
+
                 <div class="d-flex align-items-end w-100 position-relative">
                     <textarea 
                         class="gemini-textarea" 

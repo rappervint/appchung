@@ -840,7 +840,9 @@
                             btn.style.color = '#fff';
                         }
                         btn.onclick = () => {
-                            if (b.action === 'open_edit_modal') {
+                            if (b.action === 'open_thuchi_modal') {
+                                openThuchiDraftEditModal(data.meta || window.lastAIMeta);
+                            } else if (b.action === 'open_edit_modal') {
                                 openGarageDraftEditModal(data.meta || window.lastAIMeta);
                             } else {
                                 const inp = document.getElementById('aiInput');
@@ -1084,7 +1086,9 @@
                             btn.style.color = '#fff';
                         }
                         btn.onclick = () => {
-                            if (b.action === 'open_edit_modal') {
+                            if (b.action === 'open_thuchi_modal') {
+                                openThuchiDraftEditModal(data.meta || window.lastAIMeta);
+                            } else if (b.action === 'open_edit_modal') {
                                 openGarageDraftEditModal(data.meta || window.lastAIMeta);
                             } else {
                                 const inp = document.getElementById('aiInput');
@@ -1469,7 +1473,9 @@
                         btn.style.color = '#fff';
                     }
                     btn.onclick = () => {
-                        if (b.action === 'open_edit_modal') {
+                        if (b.action === 'open_thuchi_modal') {
+                            openThuchiDraftEditModal(data.meta || window.lastAIMeta);
+                        } else if (b.action === 'open_edit_modal') {
                             openGarageDraftEditModal(data.meta || window.lastAIMeta);
                         } else {
                             document.getElementById('aiInput').value = b.value;

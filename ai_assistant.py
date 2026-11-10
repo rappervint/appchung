@@ -1236,7 +1236,7 @@ def format_thuchi_card_from_payload(payload, title=None):
         "type": "wizard_step",
         "message": card_msg,
         "buttons": [
-            {"text": "✏️ Sửa Trực Quan", "action": "open_edit_modal", "value": "edit_modal", "class": "btn-warning"},
+            {"text": "✏️ Sửa Trực Quan", "action": "open_thuchi_modal", "value": "edit_modal", "class": "btn-warning"},
             {"text": "✅ OK / Lưu", "action": "send_message", "value": "ok", "class": "btn-success"},
             {"text": "🛑 Hủy", "action": "send_message", "value": "hủy", "class": "btn-danger"}
         ],
